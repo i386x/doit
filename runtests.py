@@ -37,8 +37,9 @@ import sys
 import os
 import unittest
 
-here = os.path.abspath(os.path.dirname(sys.argv[0]))
-sys.path.insert(0, here)
+here_path = os.path.abspath(os.path.dirname(sys.argv[0]))
+doit_path = os.path.join(here_path, 'src')
+sys.path.insert(0, doit_path)
 
 import tests
 
