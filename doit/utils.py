@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./src/utils.py
+#! \file    ./doit/utils.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2014-02-27 18:26:58 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -43,10 +43,28 @@ def sys2path(p):
 
     d = os.path.dirname(p)
     b = os.path.basename(p)
-    d = d.replace(os.sep, '/').replace(os.curdir, '.').replace(os.pardir, '..')
     if d == '':
         return b
+    d = d.replace(os.sep, '/').replace(os.pardir, '..').replace(os.curdir, '.')
     return "%s/%s" % (d, b)
+#-def
+
+def path2sys(p):
+    """path2sys(p) -> str
+
+    Return a universal DoIt! path p converted to system path. Universal DoIt!
+    path can be only relative.
+    """
+
+    if p.startswith("./"):
+        p = p[2:]
+    def f(x):
+        if x == '.':
+            return os.curdir
+        elif x == '..':
+            return os.pardir
+        return x
+    return os.path.join(*[f(x) for x in p.split('/')])
 #-def
 
 class Input(object):
@@ -66,7 +84,10 @@ class Input(object):
     #-def
 
     def getc(self):
-        """
+        """getc() -> str
+
+        Return one character from buffer if there is one. If not, then read and
+        return one character from attached source.
         """
 
         if self.__buffer:
@@ -77,17 +98,55 @@ class Input(object):
     #-def
 
     def ungets(self, s):
-        """
+        """ungets(s)
+
+        Return characters s back into the buffer.
         """
 
         self.__buffer = s + self.__buffer
     #-def
 
     def getchar(self):
-        """
+        """getchar() -> str
+
+        Return one character from attached source or empty string if all
+        characters were consumed. To be implemented by user.
         """
 
         raise NotImplementedError
+    #-def
+#-class
+
+class StrInput(Input):
+    """Input from string.
+    """
+    __slots__ = [ '__s', '__l', '__i' ]
+
+    def __init__(self, s, name):
+        """StrInput(s, name) -> instance of Input
+
+        Constructor. Attach string s to input.
+        """
+
+        Input.__init__(self, name)
+        self.__s = s
+        self.__l = len(s)
+        self.__i = 0
+    #-def
+
+    def getchar(self):
+        """getchar() -> str
+
+        Return the character at the current position in string and move to the
+        next position. If the current position is the end of attached string,
+        the empty string is returned.
+        """
+
+        if self.__i < self.__l:
+            c = self.__s[self.__i]
+            self.__i += 1
+            return c
+        return ""
     #-def
 #-class
 
@@ -97,7 +156,9 @@ class FileInput(Input):
     __slots__ = [ '__fd' ]
 
     def __init__(self, fd):
-        """
+        """FileInput(fd) -> instance of Input
+
+        Constructor. Attach file object fd to input.
         """
 
         Input.__init__(self, fd.name)
@@ -105,21 +166,14 @@ class FileInput(Input):
     #-def
 
     def getchar(self):
-        """
+        """getchar() -> str
+
+        Read one character from the attached file and return it or return the
+        empty string if all characters were consumend.
         """
 
         return self.__fd.read(1)
     #-def
-#-class
-
-class ConsoleInput(Input):
-    """Input from stdin.
-    """
-    __slots__ = []
-
-    def __init__(self):
-        """
-        """
 #-class
 
 class Token(object):
