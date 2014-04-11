@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./src/doit.py
+#! \file    ./doit/doit.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2014-02-27 11:14:10 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
