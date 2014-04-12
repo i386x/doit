@@ -37,7 +37,9 @@ import os
 import unittest
 
 from doit.utils import sys2path, path2sys,\
-                       Input, StrInput, FileInput
+                       Collection,\
+                       Input, StrInput, FileInput,\
+                       Token
 
 class TestPathConversionsCase(unittest.TestCase):
 
@@ -86,6 +88,90 @@ class TestPathConversionsCase(unittest.TestCase):
         ]
         for i, o in ts:
             self.assertTrue(path2sys(i) == o)
+    #-def
+#-class
+
+class TestCollectionCase(unittest.TestCase):
+
+    def test_create_unique_objects(self):
+        a = Collection('MyColl1')
+        self.assertEqual(a.name, 'MyColl1')
+        self.assertEqual(a.qname, 'MyColl1')
+        b = Collection('MyColl1')
+        self.assertEqual(b.name, 'MyColl1')
+        self.assertEqual(b.qname, 'MyColl1')
+        c = Collection('MyColl2')
+        self.assertEqual(c.name, 'MyColl2')
+        self.assertEqual(c.qname, 'MyColl2')
+        d = Collection()
+        e = Collection()
+        self.assertTrue(a is b)
+        self.assertEqual(a.name, b.name)
+        self.assertEqual(a.qname, b.qname)
+        self.assertFalse(a is c)
+        self.assertNotEqual(a.name, c.name)
+        self.assertNotEqual(a.qname, c.qname)
+        self.assertFalse(d is e)
+        self.assertNotEqual(d.name, e.name)
+        self.assertNotEqual(d.qname, e.qname)
+    #-def
+
+    def test_create_subobjects(self):
+        Fruit = Collection('Fruit')
+        self.assertEqual(Fruit.name, 'Fruit')
+        self.assertEqual(Fruit.qname, 'Fruit')
+        Apple = Fruit.Apple
+        self.assertEqual(Apple.name, 'Apple')
+        self.assertEqual(Apple.qname, 'Fruit.Apple')
+        Orange = Fruit.Orange
+        self.assertEqual(Orange.name, 'Orange')
+        self.assertEqual(Orange.qname, 'Fruit.Orange')
+        Banana = Fruit.Banana
+        self.assertEqual(Banana.name, 'Banana')
+        self.assertEqual(Banana.qname, 'Fruit.Banana')
+        Vegetable = Collection('Vegetable')
+        self.assertEqual(Vegetable.name, 'Vegetable')
+        self.assertEqual(Vegetable.qname, 'Vegetable')
+        Carrot = Vegetable.Carrot
+        self.assertEqual(Carrot.name, 'Carrot')
+        self.assertEqual(Carrot.qname, 'Vegetable.Carrot')
+        Potato = Vegetable.Potato
+        self.assertEqual(Potato.name, 'Potato')
+        self.assertEqual(Potato.qname, 'Vegetable.Potato')
+        Tomato = Vegetable.Tomato
+        self.assertEqual(Tomato.name, 'Tomato')
+        self.assertEqual(Tomato.qname, 'Vegetable.Tomato')
+        Dairy = Collection('Dairy')
+        self.assertEqual(Dairy.name, 'Dairy')
+        self.assertEqual(Dairy.qname, 'Dairy')
+        Cheese = Dairy.Cheese
+        self.assertEqual(Cheese.name, 'Cheese')
+        self.assertEqual(Cheese.qname, 'Dairy.Cheese')
+        Chedar = Cheese.Chedar
+        self.assertEqual(Chedar.name, 'Chedar')
+        self.assertEqual(Chedar.qname, 'Dairy.Cheese.Chedar')
+        ProceededChedar = Chedar.Proceeded
+        self.assertEqual(ProceededChedar.name, 'Proceeded')
+        self.assertEqual(
+          ProceededChedar.qname, 'Dairy.Cheese.Chedar.Proceeded'
+        )
+        Ementaler = Cheese.Ementaler
+        self.assertEqual(Ementaler.name, 'Ementaler')
+        self.assertEqual(Ementaler.qname, 'Dairy.Cheese.Ementaler')
+        Food = Collection(
+          'Food', 'Fruit', 'Vegetable', 'Dairy.Cheese.Chedar', 'Dairy.Cheese'
+        )
+        self.assertEqual(Food.name, 'Food')
+        self.assertEqual(Food.qname, 'Food')
+        self.assertTrue(Apple is Food.Apple)
+        self.assertTrue(Orange is Food.Orange)
+        self.assertTrue(Banana is Food.Banana)
+        self.assertTrue(Carrot is Food.Carrot)
+        self.assertTrue(Potato is Food.Potato)
+        self.assertTrue(Tomato is Food.Tomato)
+        self.assertTrue(Chedar is Food.Chedar)
+        self.assertTrue(ProceededChedar is Food.Proceeded)
+        self.assertTrue(Ementaler is Food.Ementaler)
     #-def
 #-class
 
@@ -232,11 +318,32 @@ class TestFileInputCase(unittest.TestCase):
     #-def
 #-class
 
+class TestTokenCase(unittest.TestCase):
+
+    def test_functionality(self):
+        tt = Collection('TestTokenType')
+        W, L = tt.W, tt.L
+        v1, v2, v3 = 'abc', 123, (1, 2)
+        l1, l2, l3 = 42, 53, 112
+        t1, t2, t3 = Token(W, v1, l1), Token(L, v2, l2), Token(W, v3, l3)
+        self.assertTrue(t1.type is W)
+        self.assertEqual(t1.value, v1)
+        self.assertEqual(t1.line, l1)
+        self.assertTrue(t1 == t3)
+        self.assertTrue(t1 != t2)
+        self.assertEqual(repr(t1), "Token(TestTokenType.W, 'abc')")
+        self.assertEqual(str(t2), "Token(TestTokenType.L, 123)")
+        self.assertEqual(str(t3), "Token(TestTokenType.W, (1, 2))")
+    #-def
+#-class
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestPathConversionsCase))
+    suite.addTest(unittest.makeSuite(TestCollectionCase))
     suite.addTest(unittest.makeSuite(TestInputCase))
     suite.addTest(unittest.makeSuite(TestStrInputCase))
     suite.addTest(unittest.makeSuite(TestFileInputCase))
+    suite.addTest(unittest.makeSuite(TestTokenCase))
     return suite
 #-def
