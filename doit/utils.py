@@ -67,6 +67,103 @@ def path2sys(p):
     return os.path.join(*[f(x) for x in p.split('/')])
 #-def
 
+#
+# Based on Pygments _TokenType from pygments-main/pygments/token.py
+# (http://pygments.org/)
+# 
+class Collection(object):
+    """A factory for making unique objects. Each object has attribute `name'
+    with its name and `qname' with its qualified name (complete path).
+
+    Example of use:
+        # Create an anonymous object:
+        a = Collection()
+        # Create new object named 'ItemA':
+        ItemA = Collection("ItemA")
+        # Create a subobject named 'SubItem1':
+        SubItem1 = ItemA.SubItem1
+        # Create new object 'ItemB' and inherits subobjects from 'ItemA':
+        ItemB = Collection("ItemB", "ItemA")
+    """
+    __slots__ = [ 'name', 'qname', 'siblings' ]
+    collections = {}
+
+    def __new__(cls, *args):
+        """__new__(...) -> instance of Collection
+
+        Preconstructor. Called with no argument, creates an anonymous instance
+        of Collection. Otherwise, the first argument is the name of the new
+        instance, and the rest of arguments are names of instances to be
+        inherited. Note that the existing object is returned instead of
+        creating a new one with the same name.
+        """
+
+        if len(args) == 0:
+            inst = object.__new__(cls)
+            setattr(inst, 'name', repr(inst))
+            setattr(inst, 'qname', repr(inst))
+            setattr(inst, 'siblings', {})
+            return inst
+        name = args[0]
+        inst = cls.collections.get(name, None)
+        if inst is not None:
+            return inst
+        cls.collections[name] = inst = object.__new__(cls)
+        setattr(inst, 'name', name)
+        setattr(inst, 'qname', name)
+        setattr(inst, 'siblings', {})
+        for p in args[1:]:
+            cls.__link(inst, p)
+        return inst
+    #-def
+
+    @classmethod
+    def __link(cls, destobj, srcpath):
+        """__link(destobj, srcpath)
+
+        Helper static method for inheriting subobjects from srcpath.
+        """
+
+        parts = srcpath.split('.')
+        root = cls.collections.get(parts[0], None)
+        for sibname in parts[1:]:
+            if root is None:
+                break
+            root = root.siblings.get(sibname, None)
+        if root is None:
+            return
+        for k in root.siblings.keys():
+            destobj.siblings[k] = root.siblings[k]
+    #-def
+
+    def __init__(self, *args):
+        """Collection(...) -> instance of Collection
+
+        Constructor.
+        """
+
+        pass
+    #-def
+
+    def __getattr__(self, value):
+        """__getattr__(value) -> object
+
+        Overloaded getter to satisfy the behaviour in the example of use of the
+        Collection class.
+        """
+
+        if not value or not value[0].isupper():
+            return object.__getattribute__(self, value)
+        inst = self.siblings.get(value, None)
+        if inst is not None:
+            return inst
+        self.siblings[value] = inst = Collection()
+        setattr(inst, 'name', value)
+        setattr(inst, 'qname', "%s.%s" % (self.qname, value))
+        return inst
+    #-def
+#-class
+
 class Input(object):
     """Base class for input reader.
     """
@@ -185,7 +282,7 @@ class Token(object):
         """Token(t, v, l) -> instance of Token
 
         Constructor. Initialize the token with type t, value v, and line number
-        l.
+        l. The token type t must be an instance of Collection.
         """
 
         self.type = t
@@ -199,7 +296,7 @@ class Token(object):
         Return True if this token and rhs are of the same type.
         """
 
-        return self.type == rhs.type
+        return self.type is rhs.type
     #-def
 
     def __ne__(self, rhs):
@@ -208,7 +305,7 @@ class Token(object):
         Return True if this token and rhs have different types.
         """
 
-        return self.type != rhs.type
+        return self.type is not rhs.type
     #-def
 
     def __repr__(self):
@@ -217,7 +314,7 @@ class Token(object):
         Return the string representation of this token.
         """
 
-        return "Token(%s, %s)" % (self.type, self.value)
+        return "Token(%s, %s)" % (self.type.qname, repr(self.value))
     #-def
 
     def __str__(self):
