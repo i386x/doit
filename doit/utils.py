@@ -34,6 +34,8 @@ IN THE SOFTWARE.\
 """
 
 import os
+import re
+import types
 
 def sys2path(p):
     """sys2path(p) -> str
@@ -67,6 +69,95 @@ def path2sys(p):
     return os.path.join(*[f(x) for x in p.split('/')])
 #-def
 
+def patch_class(cls):
+    """patch_class(cls) -> cls
+
+    Apply changes defined in cls methods docstrings to cls.
+    """
+
+    attrs = dir(cls)
+    for attr in attrs:
+        member = getattr(cls, attr)
+        if type(member) is not types.FunctionType:
+            continue
+        if not member.__doc__:
+            continue
+        lines = member.__doc__.split('\n')
+        nlines = len(lines)
+        i = 0
+        while i < nlines:
+            if lines[i].strip() == '<regexp>':
+                i = patch_class_with_regexp(cls, lines, nlines, i + 1)
+                continue
+            i += 1
+    return cls
+#-def
+
+def patch_class_with_regexp(cls, lines, nlines, i):
+    """patch_class_with_regexp(cls, lines, nlines, i) -> integer
+
+    Parse regexp specification in method docstring. The specification *MUST*
+    fulfil following format (optional parts are surrounded with []):
+      <regexp>
+        <name>NAME</name>
+        <code>
+          ... code of regular expression ...
+        </code>
+        [<message>optional message</message>]
+      </regexp>
+    After successful parsing, new class variables NAME (with compiled verbose
+    regular expression) is defined. Message is stored in class dictionary
+    variable ERR_MESSAGES under compiled regular expression as key.
+    """
+
+    name = ""
+    regexp = ""
+    message = ""
+    ##
+    name_tag_b = '<name>'
+    name_tag_e = '</name>'
+    code_tag_b = '<code>'
+    code_tag_e = '</code>'
+    message_tag_b = '<message>'
+    message_tag_e = '</message>'
+    regexp_tag_e = '</regexp>'
+    ##
+    while i < nlines and not lines[i].strip().startswith(name_tag_b):
+        i += 1
+    s = lines[i].strip()
+    assert len(s) > len(name_tag_b) + len(name_tag_e)
+    assert s[-len(name_tag_e):] == name_tag_e
+    name = s[len(name_tag_b):-len(name_tag_e)].strip()
+    ##
+    while i < nlines and lines[i].strip() != code_tag_b:
+        i += 1
+    i += 1
+    l = []
+    while i < nlines and lines[i].strip() != code_tag_e:
+        l.append(lines[i])
+        i += 1
+    regexp = '\n'.join(l)
+    ##
+    while i < nlines and not lines[i].strip().startswith(message_tag_b):
+        i += 1
+    s = lines[i].strip()
+    assert len(s) > len(message_tag_b) + len(message_tag_e)
+    assert s[-len(message_tag_e):] == message_tag_e
+    message = s[len(message_tag_b):-len(message_tag_e)]
+    ##
+    while i < nlines and lines[i].strip() != regexp_tag_e:
+        i += 1
+    ##
+    assert name != ""
+    assert regexp != ""
+    reobj = re.compile(regexp, re.VERBOSE)
+    setattr(cls, name, reobj)
+    if 'ERR_MESSAGES' not in dir(cls):
+        cls.ERR_MESSAGES = {}
+    cls.ERR_MESSAGES[reobj] = message
+    return i + 1
+#-def
+
 #
 # Based on Pygments _TokenType from pygments-main/pygments/token.py
 # (http://pygments.org/)
@@ -87,6 +178,7 @@ class Collection(object):
     """
     __slots__ = [ 'name', 'qname', 'siblings' ]
     collections = {}
+    __locked = False
 
     def __new__(cls, *args):
         """__new__(...) -> instance of Collection
@@ -98,6 +190,7 @@ class Collection(object):
         creating a new one with the same name.
         """
 
+        assert not cls.__locked, "Collection is locked."
         if len(args) == 0:
             inst = object.__new__(cls)
             setattr(inst, 'name', repr(inst))
@@ -152,7 +245,7 @@ class Collection(object):
         Collection class.
         """
 
-        if not value or not value[0].isupper():
+        if not value[0].isupper():
             return object.__getattribute__(self, value)
         inst = self.siblings.get(value, None)
         if inst is not None:
@@ -162,452 +255,48 @@ class Collection(object):
         setattr(inst, 'qname', "%s.%s" % (self.qname, value))
         return inst
     #-def
-#-class
 
-class Input(object):
-    """Base class for input reader.
-    """
-    __slots__ = [ 'name', 'line', '__buffer' ]
+    def __contains__(self, item):
+        """__contains__(item) -> bool
 
-    def __init__(self, name):
-        """Input() -> instance of Input
+        x.__contains__(y) <==> y in x
 
-        Constructor.
+        Return True if x is y or if y is subitem of x.
+        Examples:
+        >>> A in A
+        True
+        >>> A.B in A.B
+        True
+        >>> A.C in A.B
+        False
+        >>> A in A.B
+        False
+        >>> A.B in A
+        True
+        >>> A.B.C.D in A.B
+        True
         """
 
-        self.name = name
-        self.line = 0
-        self.__buffer = ""
+        return self is item or item.qname.startswith("%s." % self.qname)
     #-def
 
-    def getc(self):
-        """getc() -> str
+    @classmethod
+    def lock(cls):
+        """lock()
 
-        Return one character from buffer if there is one. If not, then read and
-        return one character from attached source.
+        Forbids adding new elements.
         """
 
-        if self.__buffer:
-            c = self.__buffer[0]
-            self.__buffer = self.__buffer[1:]
-            return c
-        return self.getchar()
+        cls.__locked = True
     #-def
 
-    def ungets(self, s):
-        """ungets(s)
+    @classmethod
+    def unlock(cls):
+        """unlock()
 
-        Return characters s back into the buffer.
+        Permits adding new elements.
         """
 
-        self.__buffer = s + self.__buffer
+        cls.__locked = False
     #-def
-
-    def getchar(self):
-        """getchar() -> str
-
-        Return one character from attached source or empty string if all
-        characters were consumed. To be implemented by user.
-        """
-
-        raise NotImplementedError
-    #-def
-#-class
-
-class StrInput(Input):
-    """Input from string.
-    """
-    __slots__ = [ '__s', '__l', '__i' ]
-
-    def __init__(self, s, name):
-        """StrInput(s, name) -> instance of Input
-
-        Constructor. Attach string s to input.
-        """
-
-        Input.__init__(self, name)
-        self.__s = s
-        self.__l = len(s)
-        self.__i = 0
-    #-def
-
-    def getchar(self):
-        """getchar() -> str
-
-        Return the character at the current position in string and move to the
-        next position. If the current position is the end of attached string,
-        the empty string is returned.
-        """
-
-        if self.__i < self.__l:
-            c = self.__s[self.__i]
-            self.__i += 1
-            return c
-        return ""
-    #-def
-#-class
-
-class FileInput(Input):
-    """Input from file.
-    """
-    __slots__ = [ '__fd' ]
-
-    def __init__(self, fd):
-        """FileInput(fd) -> instance of Input
-
-        Constructor. Attach file object fd to input.
-        """
-
-        Input.__init__(self, fd.name)
-        self.__fd = fd
-    #-def
-
-    def getchar(self):
-        """getchar() -> str
-
-        Read one character from the attached file and return it or return the
-        empty string if all characters were consumend.
-        """
-
-        return self.__fd.read(1)
-    #-def
-#-class
-
-class Token(object):
-    """Base class for tokens.
-    """
-    __slots__ = [ 'type', 'value', 'line' ]
-
-    def __init__(self, t, v, l):
-        """Token(t, v, l) -> instance of Token
-
-        Constructor. Initialize the token with type t, value v, and line number
-        l. The token type t must be an instance of Collection.
-        """
-
-        self.type = t
-        self.value = v
-        self.line = l
-    #-def
-
-    def __eq__(self, rhs):
-        """__eq__(rhs) -> bool
-
-        Return True if this token and rhs are of the same type.
-        """
-
-        return self.type is rhs.type
-    #-def
-
-    def __ne__(self, rhs):
-        """__ne__(rhs) -> bool
-
-        Return True if this token and rhs have different types.
-        """
-
-        return self.type is not rhs.type
-    #-def
-
-    def __repr__(self):
-        """__repr__() -> str
-
-        Return the string representation of this token.
-        """
-
-        return "Token(%s, %s)" % (self.type.qname, repr(self.value))
-    #-def
-
-    def __str__(self):
-        """__str__() -> str
-
-        Actually alias for repr.
-        """
-
-        return repr(self)
-    #-def
-#-class
-
-class Lexer(object):
-    """Base class for lexical analyzer.
-    """
-    __slots__ = [ 'input', 'current', 'last' ]
-
-    def __init__(self, input):
-        """Lexer(input) -> instance of Lexer
-
-        Constructor. Initialize lexer with given input.
-        """
-
-        self.input = input
-        self.current = None
-        self.last = None
-    #-def
-
-    def peek(self):
-        """peek() -> instance of Token
-
-        Return the current token at input or None if end was reached.
-        """
-
-        if self.current is not None:
-            return self.current
-        self.current = self.scan()
-        return self.current
-    #-def
-
-    def next(self):
-        """next()
-
-        Move to the next token keeping the last one.
-        """
-
-        if self.current is not None:
-            self.last = self.current
-        self.current = self.scan()
-    #-def
-
-    def scan(self):
-        """scan() -> instance of Token
-
-        User defined scanning routine. Return the next token from input or None
-        if end of input was reached.
-        """
-
-        raise NotImplementedError
-    #-def
-#-class
-
-class Parser(object):
-    """Parser combinator base class.
-    """
-    __slots__ = []
-
-    def __init__(self):
-        """Parser() -> instance of Parser
-
-        Constructor.
-        """
-
-        pass
-    #-def
-
-    def parse(self, source, result):
-        """parse(source, result)
-
-        Analyze and parse source and update the result of parsing.
-        """
-
-        raise NotImplementedError
-    #-def
-
-    def predict(self):
-        """predict() -> list of instances of Token
-
-        Return the Predict(A -> x) set of this (A -> x) parser.
-        """
-
-        raise NotImplementedError
-    #-def
-
-    def __add__(self, rhs):
-        """__add__(rhs) -> instance of Concat
-
-        Allow to concatenate parsers using an operator for addition.
-        """
-
-        if self.__class__ is Concat:
-            self.append(rhs)
-            return self
-        return Concat(self, rhs)
-    #-def
-
-    def __or__(self, rhs):
-        """__or__(rhs) -> instance to Alternative
-
-        Allow to make a decision table using an operator for bitwise addition.
-        """
-
-        if self.__class__ is Alternative:
-            self.merge(rhs)
-            return self
-        return Alternative(self, rhs)
-    #-def
-#-class
-
-class Symbol(Parser):
-    """Parser combinator which recognizes one terminal symbol.
-    """
-    __slots__ = [ '__symbol' ]
-
-    def __init__(self, symbol):
-        """Symbol(symbol) -> instance of Parser
-
-        Constructor.
-        """
-
-        Parser.__init__(self)
-        self.__symbol = symbol
-    #-def
-
-    def parse(self, source, result):
-        """parse(source, result)
-
-        Parse one symbol at input begining.
-        """
-
-        symbol = source.peek()
-        if symbol != self.__symbol:
-            raise ParseError(source, "%s expected" % str(self.__symbol))
-        result.make_leaf(symbol)
-        source.next()
-    #-def
-
-    def predict(self):
-        """predict() -> list of instances of Token
-
-        Return the Predict(A -> x) set of this (A -> x) parser.
-        """
-
-        return [self.__symbol]
-    #-def
-#-class
-
-class Concat(Parser):
-    """Parser combinator which keeps a list of parsers which are applied
-       consecutively to string to be parsed.
-    """
-    __slots__ = [ 'parsers' ]
-
-    def __init__(self, p1, p2):
-        """Concat(p1, p2) -> instance of Parser
-
-        Constructor. Stores p1 and p2 to the list of parsers.
-        """
-
-        Parser.__init__(self)
-        self.parsers = [p1, p2]
-    #-def
-
-    def parse(self, state):
-        """parse(state)
-
-        Consecutively apply parsers from the list of parsers to state.
-        """
-
-        for p in self.parsers:
-            p.parse(state)
-    #-def
-
-    def predict(self):
-        """predict() -> list of instances of Token
-
-        Return the Predict(A -> x) set of this (A -> x) parser.
-        """
-
-        return self.parsers[0].predict()
-    #-def
-#-class
-
-class Alternative(Parser):
-    """
-    """
-    __slots__ = [ '__choices' ]
-
-    def __init__(self, p1, p2):
-        """
-        """
-
-        Parser.__init__(self)
-        self.__choices = {}
-        self.merge(p1)
-        self.merge(p2)
-    #-def
-
-    def merge(self, parser):
-        """
-        """
-
-        for symbol in parser.predict():
-            if self.__choices.get(symbol, None) is not None:
-                raise ParserConstructionError(\
-                    "Nondeterminism detected at %s while constructing "\
-                    "the parser" % str(symbol)\
-                )
-            self.__choices[symbol] = parser
-    #-def
-
-    def parse(self, source, result):
-        """
-        """
-
-        symbol = source.peek()
-        parser = self.__choices.get(symbol, None)
-        if parser is None:
-            raise ParseError(state, "Unexpected symbol %s" % str(symbol))
-        parser.parse(source, result)
-    #-def
-
-    def predict(self):
-        """
-        """
-
-        return list(self.choices.keys())
-    #-def
-#-class
-
-class ArgParser(Parser):
-    """Argument parser base class.
-    """
-    __slots__ = []
-
-    def __init__(self):
-        """ArgParser() -> instance of ArgParser
-
-        Constructor.
-        """
-
-        Parser.__init__(self)
-    #-def
-
-    def parse(self, ctx):
-        """parse(ctx) -> result
-
-        Validate and parse argument list args according to parser definition.
-        """
-
-        raise NotImplementedError
-    #-def
-
-    def __radd__(self, rhs):
-        """__radd__(rhs) -> instance of ArgParser
-
-        Concatenate argument parser lhs with argument parser rhs.
-        """
-
-        return _seq(self, rhs)
-    #-def
-#-class
-
-class _cmd(ArgParser):
-    """
-    """
-
-    def parse(self, state):
-        """
-        """
-
-        if state.result.get(0, None) is not None:
-            raise ArgParserError()
-        state.result[0] = self.__name
-    #-def
-#-class
-
-class _separg(ArgParser):
-    """
-    """
-#-class
-
-class _seq(ArgParser):
-    """
-    """
 #-class
