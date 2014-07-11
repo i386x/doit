@@ -49,6 +49,11 @@ if __script_file == "":
 else:
     __script_dir = os.path.dirname(os.path.abspath(__script_file))
 
+CFG_PATH = "./doit.cfg;" \
+           "./cfg/doit.cfg;" \
+           "./cfg/dev/doit.cfg;" \
+           "%s/cfg/doit.cfg" % utils.sys2path(__script_dir)
+
 def main(args):
     """main(args) -> integer
 
@@ -56,12 +61,13 @@ def main(args):
     """
 
     try:
-        doit = commands.getcmd('doit')
-        return doit(args[1:], dict(
-            CFG_PATH = "./doit.cfg;./cfg/doit.cfg;./cfg/dev/doit.cfg;" \
-                       "%(script_dir)s/cfg/doit.cfg" \
-                       % dict(script_dir = utils.sys2path(__script_dir))
-        ))
+        context = Context()
+        context.newgvar('CFG_PATH', String(CFG_PATH))
+        context.parser = DoItParser(DoItLexer(context))
+        sh = ShellCommand(None, ('', -1))
+        sh.add_param('--config=$CFG_PATH')
+        sh.run(context)
+        return context.result.exitcode
     except DoItError as e:
         perror(e.detail)
         return e.errcode

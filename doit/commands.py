@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./src/commands.py
+#! \file    ./doit/commands.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2014-02-27 20:35:32 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -33,246 +33,147 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from utils import Token, Lexer
+from vm import CommandProcessor
+from lang import AbstractSyntaxTree
 
-# =============================================================================
-# == Lexical analysis                                                        ==
-# =============================================================================
+def is_exception_handler(cmd):
+    """
+    """
 
-# !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
-__FLAGCHARS = "!#$%&*+?@^~"
-__SYMBOLS = "!%&()*+,/:<=>?@[]^`{|}~"
+    return isinstance(cmd, ExceptionHandler)
+#-def
 
-__I_DONT_KNOW = 0
-__ID_NAME = 1
-__DASHED_NAME = 2
-__VAR_NAME = 3
+def freevars(cmd):
+    """
+    """
+#-def
 
-class DoItLexer(Lexer):
-    """Lexical analyzer for DoIt! interpreter.
+def substitute(ctx, cmd):
+    """
+    """
+
+    substitues = cmd.get_substitues([])
+#-def
+
+class Command(CommandProcessor, AbstractSyntaxTree):
+    """
+    """
+    __slots__ = [ 'scope', 'ehs' ]
+
+    def __init__(self, parent, pos):
+        """
+        """
+
+        AbstractSyntaxTree.__init__(self, parent, pos)
+        CommandProcessor.__init__(self)
+        self.scope = parent.scope
+        self.ehs = []
+    #-def
+
+    def name(self):
+        """
+        """
+
+        raise NotImplementedError
+    #-def
+
+    def add_command(self, cmd):
+        """
+        """
+
+        self.add_tree(command)
+        if is_exception_handler(command):
+            self.ehs.append(self.ntrees - 1)
+    #-def
+
+    def eval(self, ctx):
+        """
+        """
+
+        raise NotImplementedError
+    #-def
+
+    def get_freevars(self, varnames):
+        """
+        """
+
+        return []
+    #-def
+#-class
+
+class ExceptionHandler(Command):
+    """
     """
     __slots__ = []
 
-    def __init__(self, input):
-        """DoItLexer(input) -> instance of Lexer
-
-        Constructor.
-        """
-
-        Lexer.__init__(self, input)
-    #-def
-
-    def scan(self):
+    def __init__(self, pos):
         """
         """
 
-        getc = self.input.getc
-        ungets = self.input.ungets
-        while True:
-            c = getc()
-            # EOF
-            if c == '':
-                return None
-            # Delimiter #1
-            elif c == '\n':
-                t = Delimiter(self)
-                self.line += 1
-                return t
-            # Space
-            elif c.isspace():
-                continue
-            # Delimiter #2
-            elif c == ';':
-                return Delimiter(self)
-            # Multiline handling
-            elif c == '\\':
-                c = getc()
-                if c != '\n':
-                    ungets(c)
-                    raise
-                self.line += 1
-                continue
-            # Comment
-            elif c == '#':
-                while True:
-                    c = getc()
-                    if c == '':
-                        break
-                    elif c == '\n':
-                        self.line += 1
-                        break
-                continue
-            # Path or Selector
-            elif c == '.':
-                ln = self.line
-                c = getc()
-                if c == '/':
-                    return Path(self.__scan_path('', getc, ungets), ln)
-                elif c == '.':
-                    return Path(self.__scan_path('..', getc, ungets), ln)
-                elif c.isalpha():
-                    return Selector(self.__scan_word(c, getc, ungets), ln)
-                else:
-                    ungets(c)
-                    return Path('.', ln)
-                continue
-            # Label or CommandName or Variable or Identifier
-            elif c.isalpha() or c in ['_', '$']:
-                peeked = ''
-                l = [self.__scan_cmdpart(c, getc, ungets)]
-                # { DASHED, ID, VAR }
-                while True:
-                    t_old, _ = l[-1]
-                    t, v = tv = self.__scan_cmdpart(getc(), getc, ungets)
-                    # t in { DASHED, ID, VAR, DIRSEP, ? }
-                    # t is ? => stop
-                    if t == __I_DONT_KNOW:
-                        peeked = v
-                        break
-                    # Handle '//'
-                    if t == __DIRSEP_NAME and t_old == __DIRSEP_NAME:
-                        ungets('/')
-                        break
-                    l.append(tv)
-                if l[-1][0] == __DIRSEP_NAME:
-                    raise
-                if peeked == ':':
-                    getc()
-                    return Label(l)
-                if len(l) > 1:
-                    return CommandName(l)
-                t, v = l[0]
-                if t == __VAR_NAME:
-                    return Variable(v)
-                elif t == __ID_NAME:
-                    return Identifier(v)
-                return CommandName(v)
-            # Word
-            elif c.isdigit():
-                v = c
-                return Word(v)
-            # HardString or SoftString
-            elif c == '\'' or c == '"':
-                v = self.__scan_string(c, getc, ungets)
-                if c == '"':
-                    return SoftString(v)
-                return HardString(v)
-            # ShortArg or LongArg or KwArg
-            elif c == '-':
-                c = getc()
-                if c == '':
-                    raise
-                elif c == '-':
-                    return self.__scan_long_or_kw_arg(getc, ungets)
-                elif c.isalnum() or c in __FLAGCHARS:
-                    cc = getc()
-                    if cc.isalnum() or cc in __FLAGCHARS:
-                        ungets('-' + cc)
-                        return ShortArg(c)
-                    elif c == '' or cc.isspace() or cc == ';' or cc == '\\':
-                        ungets(cc)
-                        return ShortArg(c)
-                    ungets(cc)
-                    raise
-                ungets(c)
-                raise
-            # Symbols - must be last
-            elif c in __SYMBOLS:
-                return Symbol(self, c)
-            raise LexerError(self, "Unexpected character %s" % repr(c))
-        raise LexerError(self, "Hidden DoIt lexer bug")
-    #-def
-
-    def __scan_cmdpart(self, c, getc, ungets):
-        """
-        """
-
-        s = c
-        if c.isalpha() or c == ['-', '_']:
-            while True:
-                c = getc()
-                if c.isalnum() or c in ['-', '_']:
-                    s += c
-                    continue
-                ungets(c)
-                break
-            if '-' in s:
-                return (__DASHED_NAME, s)
-            return (__ID_NAME, s)
-        elif c == '$':
-            s = getc()
-            if not s.isalpha() and not s == '_':
-                ungets(s)
-                raise LexerError(self, "Expected letter or '_' after '$'")
-            while True:
-                c = getc()
-                if c.isalnum() or c == '_':
-                    s += c
-                    continue
-                ungets(c)
-                break
-            return (__VAR_NAME, s)
-        elif c == '/':
-            return (__DIRSEP_NAME, '/')
-        else:
-            ungets(c)
-        return (__I_DONT_KNOW, c)
+        Command.__init__(self, pos)
     #-def
 #-class
 
-class CmdLineLexer(Lexer):
+class UserDefinedCommand(Command):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, parent, pos, name, argspec, body):
+        """
+        """
+
+        Command.__init__(self, parent, pos)
+        self.__name = name
+        self.__argspec = argspec
+        self.__body = body
+    #-def
+
+    def eval(self, ctx):
+        """
+        """
+
+        # Precondition: all free variables are now substituted.
+        # Evaluate arguments.
+        for i in range(self.ntrees):
+            self.trees[i].run(ctx):
+            self.scope.newvar(self.__argspec.argnames[i], ctx.result)
+        # Run the commands in body.
+        self.__body.run(ctx)
+    #-def
 #-class
 
-__buildin_commands = {}
-
-def command(*parsers):
+@buildin_command
+class DefCommand(Command):
     """
     """
+    __slots__ = []
 
-    def wrap_command(cmd):
-        def command_wraper(args, ctx):
-            opts = Parser.pxalt(*parsers).parse(args, ctx)
-            return cmd(opts, ctx)
-        return command_wraper
-    return wrap_command
-#-def
+    def __init__(self, parent, pos):
+        """
+        """
 
-@command(
-    _longarg('help', "Print %(command)s usage."),
-    _posarg('command_name', str, """
-        Search for command `command_name' and return it; otherwise raise a
-        CommandNotFound exception. The command searching strategy is:
-          + first search in prespecified directories,
-          + after that, search in builtin commands.
-    """)
-)
-def getcmd(opts, ctx):
-    """getcmd(opts, ctx) -> instance of Command
+        Command.__init__(self, parent, pos)
+    #-def
 
-    Return command which name is in opts using informations from ctx where to
-    search. Raise CommandNotFoundError if command does not exists.
-    """
+    def name(self):
+        """
+        """
 
-    if opts.get('--help', False):
-        return HelpScreen(cmd_getcmd)
-    cmd_name = opts[1]
-    cmd = ctx.environment.get('#CMDLIST', {}).get(\
-        cmd_name, __buildin_commands.get('%s' % cmd_name, None)\
-    )
-    if cmd is not None:
-        return Command(cmd)
-    raise CommandNotFoundError(opts[1])
-#-def
+        return ":"
+    #-def
 
-@command(
-    _cmd('if') + COMMANDS + _separg(';')
-    + _separg('then') + COMMANDS
-    + _optargs(
-        _separg('elif') + COMMANDS + _separg(';')
-        + _separg('then') + COMMANDS
-    )
-    + _optarg(
-        _separg('else') + COMMANDS
-    )
-    + _separg('end')
-)
+    def eval(self, ctx):
+        """
+        """
+
+        # 1st subtree is command name
+        cmd_name = substitute(ctx, self.trees[0])
+        # 2nd subtree is arguments parser
+        arg_parser = substitute(ctx, self.trees[1])
+        # 3rd subtree is list of commands
+        cmd_list = substitute(ctx, self.trees[2])
+        # Define new, or redefine old, command
+        cmd = UserDefinedCommand()
+    #-def
+#-class
