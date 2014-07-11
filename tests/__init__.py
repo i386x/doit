@@ -35,10 +35,11 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_utils
+from . import test_utils, test_input
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(test_utils.suite())
+    suite.addTest(test_input.suite())
     return suite
 #-def

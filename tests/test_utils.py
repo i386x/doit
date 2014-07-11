@@ -37,9 +37,7 @@ import os
 import unittest
 
 from doit.utils import sys2path, path2sys,\
-                       Collection,\
-                       Input, StrInput, FileInput,\
-                       Token
+                       Collection
 
 class TestPathConversionsCase(unittest.TestCase):
 
@@ -173,167 +171,21 @@ class TestCollectionCase(unittest.TestCase):
         self.assertTrue(ProceededChedar is Food.Proceeded)
         self.assertTrue(Ementaler is Food.Ementaler)
     #-def
-#-class
 
-class TestInputCase(unittest.TestCase):
-
-    def test_members(self):
-        iname = '<abc>'
-        input = Input(iname)
-        self.assertEqual(input.name, iname)
-        self.assertEqual(input.line, 0)
-    #-def
-
-    def test_methods(self):
-        input = Input('<ab>')
-        self.assertRaises(NotImplementedError, input.getchar)
-        self.assertRaises(NotImplementedError, input.getc)
-        input.ungets('xyz')
-        self.assertEqual(input.getc(), 'x')
-        self.assertEqual(input.getc(), 'y')
-        self.assertEqual(input.getc(), 'z')
-        self.assertRaises(NotImplementedError, input.getc)
-    #-def
-#-class
-
-class TestStrInputCase(unittest.TestCase):
-
-    def test_empty_string(self):
-        nm = '<>'
-        sinput = StrInput("", nm)
-        self.assertEqual(sinput.getc(), "")
-        self.assertEqual(sinput.getc(), "")
-        sinput.ungets("gh")
-        self.assertEqual(sinput.getc(), 'g')
-        self.assertEqual(sinput.getc(), 'h')
-        self.assertEqual(sinput.getc(), "")
-        self.assertEqual(sinput.getc(), "")
-        self.assertEqual(sinput.name, nm)
-        self.assertEqual(sinput.line, 0)
-    #-def
-
-    def test_nonempty_string(self):
-        name = '<mystr>'
-        s = 'ab\nc\n'
-        sinput = StrInput(s, name)
-        self.assertEqual(sinput.getc(), 'a')
-        self.assertEqual(sinput.getc(), 'b')
-        self.assertEqual(sinput.getc(), '\n')
-        self.assertEqual(sinput.getc(), 'c')
-        sinput.ungets('xy')
-        self.assertEqual(sinput.getc(), 'x')
-        self.assertEqual(sinput.getc(), 'y')
-        self.assertEqual(sinput.getc(), '\n')
-        self.assertEqual(sinput.getc(), "")
-        self.assertEqual(sinput.getc(), "")
-        self.assertEqual(sinput.name, name)
-        self.assertEqual(sinput.line, 0)
-    #-def
-#-class
-
-class PseudoFile(object):
-    __slots__ = [ 'name', 'mode', 'closed', '__fpos', '__fsize', '__content' ]
-
-    def __init__(self, content):
-        self.name = None
-        self.mode = None
-        self.closed = True
-        self.__fpos = 0
-        self.__fsize = len(content)
-        self.__content = content
-    #-def
-
-    def open(self, name, mode = 'r'):
-        assert mode in [ 'r', 'w' ], "PseudoFile: Bad mode."
-        assert self.closed, "PseudoFile: Not closed."
-        self.name = name
-        self.mode = mode
-        self.closed = False
-        self.__fpos = 0
-        if mode == 'w':
-            self.__fsize = 0
-            self.__content = type(self.__content)()
-    #-def
-
-    def close(self):
-        assert not self.closed, "PseudoFile: Closed."
-        self.closed = True
-    #-def
-
-    def read(self, size):
-        assert size >= 0, "PseudoFile: Size is negative."
-        assert self.mode == 'r', "PseudoFile: Mode is not for reading."
-        assert not self.closed, "PseudoFile: Closed."
-        assert self.__fpos <= self.__fsize,\
-               "PseudoFile: File pointer value is out of range."
-        s = self.__content[self.__fpos : self.__fpos + size]
-        self.__fpos += len(s)
-        assert self.__fpos <= self.__fsize,\
-               "PseudoFile: File pointer value is out of range."
-        return s
-    #-def
-#-class
-
-class TestFileInputCase(unittest.TestCase):
-
-    def setUp(self):
-        self.__fobjA = PseudoFile("")
-        self.__fobjB = PseudoFile("ab\nc\n")
-        self.__fobjA.open('<empty>')
-        self.__fobjB.open('<test>')
-    #-def
-
-    def test_empty_file(self):
-        finput = FileInput(self.__fobjA)
-        self.assertEqual(finput.getc(), "")
-        self.assertEqual(finput.getc(), "")
-        finput.ungets("gh")
-        self.assertEqual(finput.getc(), 'g')
-        self.assertEqual(finput.getc(), 'h')
-        self.assertEqual(finput.getc(), "")
-        self.assertEqual(finput.getc(), "")
-        self.assertEqual(finput.name, self.__fobjA.name)
-        self.assertEqual(finput.line, 0)
-    #-def
-
-    def test_nonempty_file(self):
-        finput = FileInput(self.__fobjB)
-        self.assertEqual(finput.getc(), 'a')
-        self.assertEqual(finput.getc(), 'b')
-        self.assertEqual(finput.getc(), '\n')
-        self.assertEqual(finput.getc(), 'c')
-        finput.ungets('xy')
-        self.assertEqual(finput.getc(), 'x')
-        self.assertEqual(finput.getc(), 'y')
-        self.assertEqual(finput.getc(), '\n')
-        self.assertEqual(finput.getc(), "")
-        self.assertEqual(finput.getc(), "")
-        self.assertEqual(finput.name, self.__fobjB.name)
-        self.assertEqual(finput.line, 0)
-    #-def
-
-    def tearDown(self):
-        self.__fobjB.close()
-        self.__fobjA.close()
-    #-def
-#-class
-
-class TestTokenCase(unittest.TestCase):
-
-    def test_functionality(self):
-        tt = Collection('TestTokenType')
-        W, L = tt.W, tt.L
-        v1, v2, v3 = 'abc', 123, (1, 2)
-        l1, l2, l3 = 42, 53, 112
-        t1, t2, t3 = Token(W, v1, l1), Token(L, v2, l2), Token(W, v3, l3)
-        self.assertTrue(t1.type is W)
-        self.assertEqual(t1.value, v1)
-        self.assertEqual(t1.line, l1)
-        self.assertTrue(t1 == t3)
-        self.assertTrue(t1 != t2)
-        self.assertEqual(repr(t1), "Token(TestTokenType.W, 'abc')")
-        self.assertEqual(str(t2), "Token(TestTokenType.L, 123)")
-        self.assertEqual(str(t3), "Token(TestTokenType.W, (1, 2))")
+    def test_contains_operator(self):
+        A = Collection("A")
+        B = Collection("@")
+        self.assertFalse(A in B)
+        self.assertFalse(B in A)
+        self.assertTrue(A in A)
+        self.assertTrue(B in B)
+        self.assertTrue(A.B in A)
+        self.assertFalse(A.B in A.C)
+        self.assertTrue(A.B not in A.C)
+        self.assertTrue(B.C.D.S in B.C)
+        self.assertFalse(B in B.A)
+        self.assertFalse(A.BCEF.G in A.BCE)
+        self.assertTrue(A.BCE.G in A.BCE)
     #-def
 #-class
 
@@ -341,9 +193,5 @@ def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestPathConversionsCase))
     suite.addTest(unittest.makeSuite(TestCollectionCase))
-    suite.addTest(unittest.makeSuite(TestInputCase))
-    suite.addTest(unittest.makeSuite(TestStrInputCase))
-    suite.addTest(unittest.makeSuite(TestFileInputCase))
-    suite.addTest(unittest.makeSuite(TestTokenCase))
     return suite
 #-def
