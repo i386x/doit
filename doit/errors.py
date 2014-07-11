@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./src/errors.py
+#! \file    ./doit/errors.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2014-03-09 17:10:29 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -35,6 +35,25 @@ IN THE SOFTWARE.\
 
 import sys
 
+__errors = {}
+
+def register_error(errid):
+    """register_error(errid) -> function
+
+    Return a function which registers an error as pair (errid, errcls). Used
+    as class decorator. Example:
+
+    >>> @register_error(Exceptions.ParseError)
+    ... class ParseError(DoItError):
+    ...    ...
+    """
+
+    def __f(errcls):
+        __errors[errid] = errcls
+        return errcls
+    return __f
+#-def
+
 def perror(msg):
     """perror(msg)
 
@@ -44,15 +63,56 @@ def perror(msg):
     sys.stderr.write("%s\n" % msg)
 #-def
 
+def error(ctx, errid, what):
+    """error(ctx, errid, what)
+
+    Stops DoIt! execution with error class ERR_EXCEPTION and error subclass
+    errid. Error can be handled and processed.
+    """
+
+    ctx.set_error(ErrorType.ERR_EXCEPTION, errid, what)
+    raise __errors[errid](what)
+#-def
+
+def internal_error(ctx, msg):
+    """internal_error(ctx, msg)
+
+    Raise InternalError exception with msg.
+    """
+
+    error(ctx, Exceptions.InternalError, msg)
+#-def
+
+def check(ctx, cond, msg):
+    """check(ctx, cond, msg)
+
+    If cond is False, raise CheckError exception with msg.
+    """
+
+    if not cond:
+        error(ctx, Exceptions.CheckError, msg)
+#-def
+
+def parse_error(ctx, pos, what):
+    """parse_error(ctx, pos, what)
+
+    Specialization of error for parsers.
+    """
+
+    error(ctx, Exceptions.ParseError, "In %s at line %d, column %d: %s" % (
+        pos[0], pos[1], pos[2], what
+    ))
+#-def
+
 class DoItError(Exception):
     """Basic DoIt! exception.
     """
 
     def __init__(self, emsg, ecode = 255):
-        """DoItError(emsg, ecode) -> instance of DoItError
+        """DoItError(emsg[, ecode]) -> instance of DoItError
 
-        Constructor. Create an exception object initialized with emsg and
-        ecode.
+        Constructor. Create an exception object initialized with error message
+        emsg and error code ecode (255 as default).
         """
 
         Exception.__init__(self, emsg, ecode)
@@ -75,68 +135,55 @@ class DoItError(Exception):
         Return message associated with exception to be printed.
         """
 
-        return "%s [errcode = %d]: %s." % (\
-            self.__class__.__name__, self.errcode, self.detail\
+        return "%s [errcode = %d]: %s." % (
+            self.__class__.__name__, self.errcode, self.detail
         )
     #-def
 #-class
 
-class LexerError(DoItError):
-    """Lexical analysis base exception.
+@register_error(Exceptions.InternalError)
+class InternalError(DoItError):
+    """Raising this exception means that there is a bug inside DoIt!
+       interpreter.
     """
 
-    def __init__(self, name, line, msg):
-        """LexerError(name, line, msg) -> instance of DoItError
+    def __init__(self, msg):
+        """InternalError(msg) -> instance of DoItError
 
         Constructor.
         """
 
-        DoItError.__init__(self, "In %s at line %d: %s" % (name, line, msg))
+        DoItError.__init__(self, msg)
     #-def
 #-class
 
-class ParserError(DoItError):
-    """Recursive descent parser base exception.
+@register_error(Exceptions.CheckError)
+class CheckError(DoItError):
+    """Denotes inconsistencies or bad values of command arguments.
     """
 
-    def __init__(self, detail):
-        """ParserError(detail) -> instance of DoItError
+    def __init__(self, msg):
+        """CheckError(msg) -> instance of DoItError
 
         Constructor.
         """
 
-        DoItError.__init__(self, detail)
+        DoItError.__init__(self, msg)
     #-def
 #-class
 
-class ParseError(ParserError):
+@register_error(Exceptions.ParseError)
+class ParseError(DoItError):
     """Raised during parsing process when parser realizes that word does not
        belong to given language.
     """
 
-    def __init__(self, source, detail):
-        """ParseError(source, detail) -> instance of ParserError
+    def __init__(self, msg):
+        """ParseError(msg) -> instance of DoItError
 
         Constructor.
         """
 
-        ParserError.__init__(self, "In %s at line %d: %s" % (\
-            source.name, source.last.line, detail\
-        ))
-    #-def
-#-class
-
-class ParserConstructionError(ParserError):
-    """Raised during a construction of recursive descent parser when
-       nondeterminism is detected.
-    """
-
-    def __init__(self, detail):
-        """ParserConstructionError(detail) -> instance of ParserError
-
-        Constructor.
-        """
-
-        ParserError.__init__(self, detail)
+        DoItError.__init__(self, msg)
     #-def
 #-class
