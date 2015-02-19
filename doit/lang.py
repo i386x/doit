@@ -12,7 +12,7 @@ DoIt! language support.\
 """
 
 __license__ = """\
-Copyright (c) 2014 Jiří Kučera.
+Copyright (c) 2014 - 2015 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -33,142 +33,247 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-@register_new_type
-class String(CopyableValue):
+class Value(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__type', '__data' ]
 
-    def __init__(self, content):
+    def __init__(self, type, data):
         """
         """
 
-        CopyableValue.__init__(self, content)
+        self.__type = type
+        self.__data = data
     #-def
 
-    def clone(self):
+    def type(self):
         """
         """
 
-        return String("%s" % self.content)
+        return self.__type
+    #-def
+
+    def data(self):
+        """
+        """
+
+        return self.__data
+    #-def
+
+    def copy(self):
+        """
+        """
+
+        return Value(self.__type, self.__data)
     #-def
 #-class
 
-class Variable(object):
+class Undefined(Value):
     """
     """
-    __slots__ = [ 'name', 'value' ]
 
-    def __init__(self, name, value = nullobject):
+    def __init__(self):
         """
         """
 
-        self.name = name
-        self.value = value.attached_to(self)
+        Value.__init__(self, self.__class__.__name__, None)
+    #-def
+#-class
+
+class Null(Value):
+    """
+    """
+
+    def __init__(self):
+        """
+        """
+
+        Value.__init__(self, self.__class__.__name__, None)
+    #-def
+#-class
+
+class HostString(Value):
+    """
+    """
+
+    def __init__(self, data = ""):
+        """
+        """
+
+        Value.__init__(self, self.__class__.__name__, data)
     #-def
 
-    def setvalue(self, value):
+    def copy(self):
         """
         """
 
-        if value is self.value:
+        return Value(self.type, "%s" % self.data())
+    #-def
+#-class
+
+class HostList(Value):
+    """
+    """
+
+    def __init__(self, data = []):
+        """
+        """
+
+        Value.__init__(self, self.__class__.__name__, data)
+    #-def
+#-class
+
+class HostFunction(Value):
+    """
+    """
+
+    def __init__(self, data = lambda state: pass):
+        """
+        """
+
+        Value.__init__(self, self.__class__.__name__, data)
+    #-def
+#-class
+
+class Item(object):
+    """
+    """
+    __slots__ = [ 'value', 'is_const' ]
+
+    def __init__(self, value, is_const):
+        """
+        """
+
+        self.value = value
+        self.is_const = is_const
+    #-def
+#-class
+
+class Member(Item):
+    """
+    """
+    __slots__ = [ 'privacy' ]
+
+    def __init__(self, value, is_const, privacy):
+        """
+        """
+
+        Item.__init__(self, value, is_const)
+        self.privacy = privacy
+    #-def
+#-class
+
+class Object(Value):
+    """
+    """
+
+    def __init__(self):
+        """
+        """
+
+        Value.__init__(self, self.__class__.__name__, {})
+    #-def
+
+    def __setitem__(self, key, value):
+        """
+        """
+
+        self.data()[key] = value
+    #-def
+
+    def __getitem__(self, key):
+        """
+        """
+
+        return self.data()[key]
+    #-def
+
+    def __delitem__(self, key):
+        """
+        """
+
+        if not key in self:
             return
-        self.value.detached_from(self)
-        self.value = value.attached_to(self)
+        del self.data()[key]
+    #-def
+
+    def __contains__(self, item):
+        """
+        """
+
+        return self.get(item) is not None
+    #-def
+
+    def get(self, key, default = None):
+        """
+        """
+
+        return self.data().get(key, default)
+    #-def
+
+    def set_member(self, name, value, is_const, privacy):
+        """
+        """
+
+        self[name] = Member(value, is_const, privacy)
     #-def
 #-class
 
 class Environment(object):
     """
     """
-    __slots__ = [ 'prev', 'variables' ]
+    __slots__ = [ '__prev', '__vars', '__varlist' ]
 
     def __init__(self, env = None):
         """
         """
 
-        self.prev = env
-        self.variables = {}
-        self.order_of_declarations = []
+        self.__prev = env
+        self.__vars = {}
+        self.__varlist = []
     #-def
 
-    def newvar(self, name, value):
+    def __setitem__(self, key, value):
         """
         """
 
-        assert name not in self.order_of_declarations,\
-            "Variable '%s' is is still declared." % name
-        self.variables[name] = Variable(name, value)
-        self.order_of_declarations.append(name)
+        if key not in self.__varlist:
+            self.__varlist.append(key)
+        self.__vars[key] = value
     #-def
 
-    def setvar(self, var):
+    def __getitem__(self, key):
         """
         """
 
-        self.setvalue(var.name, var.value)
+        value = self.__vars.get(key, None)
+        if value is None and self.__prev is not None:
+            value = self.__prev[key]
+        return value
     #-def
 
-    def getvar(self, name):
+    def __delitem__(self, key):
         """
         """
 
-        var = self.variables.get(name, None)
-        if var is None and self.prev is not None:
-            var = self.prev.getvar(name)
-        return var
+        if not key in self.__varlist:
+            return
+        del self.__vars[key]
+        self.__varlist.remove(key)
     #-def
 
-    def setvalue(self, name, value):
+    def set_item(self, name, value, is_const):
         """
         """
 
-        assert name in self.order_of_declarations,\
-            "Variable '%s' is not declared." % name
-        self.variables[name].setvalue(value)
-    #-def
-
-    def getvalue(self, name):
-        """
-        """
-
-        var = self.getvar(name)
-        if var:
-            return var.value
-        return None
+        self[name] = Item(value, is_const)
     #-def
 
     def clear(self):
         """
         """
 
-        while self.order_of_declarations:
-            name = self.order_of_declarations.pop()
-            self.variables[name].setvalue(nullobject)
-            del self.variables[name]
-    #-def
-#-class
-
-class AbstractSyntaxTree(object):
-    """
-    """
-    __slots__ = [ 'parent', 'trees', 'ntrees', 'position' ]
-
-    def __init__(self, parent, pos):
-        """
-        """
-
-        self.parent = parent
-        self.trees = []
-        self.ntrees = 0
-        self.position = pos
-    #-def
-
-    def add_tree(self, tree):
-        """
-        """
-
-        self.trees.append(tree)
-        self.ntrees += 1
+        while self.__varlist:
+            del self.__vars[self.__varlist.pop()]
     #-def
 #-class

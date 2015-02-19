@@ -12,7 +12,7 @@ DoIt! errors and exceptions.\
 """
 
 __license__ = """\
-Copyright (c) 2014 Jiří Kučera.
+Copyright (c) 2014 - 2015 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -35,24 +35,8 @@ IN THE SOFTWARE.\
 
 import sys
 
-__errors = {}
-
-def register_error(errid):
-    """register_error(errid) -> function
-
-    Return a function which registers an error as pair (errid, errcls). Used
-    as class decorator. Example:
-
-    >>> @register_error(Exceptions.ParseError)
-    ... class ParseError(DoItError):
-    ...    ...
-    """
-
-    def __f(errcls):
-        __errors[errid] = errcls
-        return errcls
-    return __f
-#-def
+PythonRuntimeError = RuntimeError
+PythonIOError = IOError
 
 def perror(msg):
     """perror(msg)
@@ -61,47 +45,6 @@ def perror(msg):
     """
 
     sys.stderr.write("%s\n" % msg)
-#-def
-
-def error(ctx, errid, what):
-    """error(ctx, errid, what)
-
-    Stops DoIt! execution with error class ERR_EXCEPTION and error subclass
-    errid. Error can be handled and processed.
-    """
-
-    ctx.set_error(ErrorType.ERR_EXCEPTION, errid, what)
-    raise __errors[errid](what)
-#-def
-
-def internal_error(ctx, msg):
-    """internal_error(ctx, msg)
-
-    Raise InternalError exception with msg.
-    """
-
-    error(ctx, Exceptions.InternalError, msg)
-#-def
-
-def check(ctx, cond, msg):
-    """check(ctx, cond, msg)
-
-    If cond is False, raise CheckError exception with msg.
-    """
-
-    if not cond:
-        error(ctx, Exceptions.CheckError, msg)
-#-def
-
-def parse_error(ctx, pos, what):
-    """parse_error(ctx, pos, what)
-
-    Specialization of error for parsers.
-    """
-
-    error(ctx, Exceptions.ParseError, "In %s at line %d, column %d: %s" % (
-        pos[0], pos[1], pos[2], what
-    ))
 #-def
 
 class DoItError(Exception):
@@ -141,49 +84,32 @@ class DoItError(Exception):
     #-def
 #-class
 
-@register_error(Exceptions.InternalError)
-class InternalError(DoItError):
-    """Raising this exception means that there is a bug inside DoIt!
-       interpreter.
+class RuntimeError(DoItError):
+    """Raised when virtual machine is aborted abnormally.
     """
 
-    def __init__(self, msg):
-        """InternalError(msg) -> instance of DoItError
+    def __init__(self, name, ip, emsg):
+        """RuntimeError(name, ip, emsg) -> instance of RuntimeError
 
         Constructor.
         """
 
-        DoItError.__init__(self, msg)
+        DoItError.__init__(self,
+            "VM aborted. Detail: %s [ip = %d]: %s." % (name, ip, emsg)
+        )
     #-def
 #-class
 
-@register_error(Exceptions.CheckError)
-class CheckError(DoItError):
-    """Denotes inconsistencies or bad values of command arguments.
+class IOError(DoItError):
+    """Raised when DoIt! I/O operation fails.
     """
 
-    def __init__(self, msg):
-        """CheckError(msg) -> instance of DoItError
+    def __init__(self, emsg):
+        """IOError(emsg) -> instance of IOError
 
         Constructor.
         """
 
-        DoItError.__init__(self, msg)
-    #-def
-#-class
-
-@register_error(Exceptions.ParseError)
-class ParseError(DoItError):
-    """Raised during parsing process when parser realizes that word does not
-       belong to given language.
-    """
-
-    def __init__(self, msg):
-        """ParseError(msg) -> instance of DoItError
-
-        Constructor.
-        """
-
-        DoItError.__init__(self, msg)
+        DoItError.__init__(self, emsg)
     #-def
 #-class

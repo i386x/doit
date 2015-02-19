@@ -12,7 +12,7 @@ DoIt! utilities.\
 """
 
 __license__ = """\
-Copyright (c) 2014 Jiří Kučera.
+Copyright (c) 2014 - 2015 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -34,8 +34,6 @@ IN THE SOFTWARE.\
 """
 
 import os
-import re
-import types
 
 def sys2path(p):
     """sys2path(p) -> str
@@ -69,93 +67,60 @@ def path2sys(p):
     return os.path.join(*[f(x) for x in p.split('/')])
 #-def
 
-def patch_class(cls):
-    """patch_class(cls) -> cls
+class WithStatementExceptionHandler(object):
+    """Implements exception handler which catch any exception raised inside
+       with-statement.
+    """
+    __slots__ = [ 'etype', 'evalue', 'etraceback' ]
 
-    Apply changes defined in cls methods docstrings to cls.
+    def __init__(self):
+        """WithStatementExceptionHandler()
+             -> instance of WithStatementExceptionHandler
+
+        Constructor.
+        """
+
+        self.etype = None
+        self.evalue = None
+        self.etraceback = None
+    #-def
+
+    def __enter__(self):
+        """__enter__() -> instance of WithStatementExceptionHandler
+
+        Called when entering to with-statement.
+        """
+
+        return self
+    #-def
+
+    def __exit__(self, etype, evalue, etraceback):
+        """__exit__(etype, evalue, etraceback) -> instance of bool
+
+        Called when exiting from with-statement.
+        """
+
+        self.etype = etype
+        self.evalue = evalue
+        self.etraceback = etraceback
+        return True
+    #-def
+#-class
+
+def doit_read(fpath):
+    """doit_read(fpath) -> str or None
+
+    Read the text file encoded in UTF-8 at fpath location and return its
+    content or None in case of error.
     """
 
-    attrs = dir(cls)
-    for attr in attrs:
-        member = getattr(cls, attr)
-        if type(member) is not types.FunctionType:
-            continue
-        if not member.__doc__:
-            continue
-        lines = member.__doc__.split('\n')
-        nlines = len(lines)
-        i = 0
-        while i < nlines:
-            if lines[i].strip() == '<regexp>':
-                i = patch_class_with_regexp(cls, lines, nlines, i + 1)
-                continue
-            i += 1
-    return cls
-#-def
-
-def patch_class_with_regexp(cls, lines, nlines, i):
-    """patch_class_with_regexp(cls, lines, nlines, i) -> integer
-
-    Parse regexp specification in method docstring. The specification *MUST*
-    fulfil following format (optional parts are surrounded with []):
-      <regexp>
-        <name>NAME</name>
-        <code>
-          ... code of regular expression ...
-        </code>
-        [<message>optional message</message>]
-      </regexp>
-    After successful parsing, new class variables NAME (with compiled verbose
-    regular expression) is defined. Message is stored in class dictionary
-    variable ERR_MESSAGES under compiled regular expression as key.
-    """
-
-    name = ""
-    regexp = ""
-    message = ""
-    ##
-    name_tag_b = '<name>'
-    name_tag_e = '</name>'
-    code_tag_b = '<code>'
-    code_tag_e = '</code>'
-    message_tag_b = '<message>'
-    message_tag_e = '</message>'
-    regexp_tag_e = '</regexp>'
-    ##
-    while i < nlines and not lines[i].strip().startswith(name_tag_b):
-        i += 1
-    s = lines[i].strip()
-    assert len(s) > len(name_tag_b) + len(name_tag_e)
-    assert s[-len(name_tag_e):] == name_tag_e
-    name = s[len(name_tag_b):-len(name_tag_e)].strip()
-    ##
-    while i < nlines and lines[i].strip() != code_tag_b:
-        i += 1
-    i += 1
-    l = []
-    while i < nlines and lines[i].strip() != code_tag_e:
-        l.append(lines[i])
-        i += 1
-    regexp = '\n'.join(l)
-    ##
-    while i < nlines and not lines[i].strip().startswith(message_tag_b):
-        i += 1
-    s = lines[i].strip()
-    assert len(s) > len(message_tag_b) + len(message_tag_e)
-    assert s[-len(message_tag_e):] == message_tag_e
-    message = s[len(message_tag_b):-len(message_tag_e)]
-    ##
-    while i < nlines and lines[i].strip() != regexp_tag_e:
-        i += 1
-    ##
-    assert name != ""
-    assert regexp != ""
-    reobj = re.compile(regexp, re.VERBOSE)
-    setattr(cls, name, reobj)
-    if 'ERR_MESSAGES' not in dir(cls):
-        cls.ERR_MESSAGES = {}
-    cls.ERR_MESSAGES[reobj] = message
-    return i + 1
+    s = ""
+    wseh = WithStatementExceptionHandler()
+    with wseh, open(path2sys(fpath), 'r', encoding = 'utf-8') as f:
+        s = f.read()
+    if wseh.evalue is not None:
+        return None
+    return s
 #-def
 
 #
