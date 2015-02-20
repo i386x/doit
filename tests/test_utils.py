@@ -36,76 +36,13 @@ IN THE SOFTWARE.\
 import os
 import unittest
 
+from .common import RAISE_FROM_ENTER, SUPRESS, ContextManagerMock,\
+                    OPEN_FAIL, FileMock, make_open
+
 from doit.utils import sys2path, path2sys,\
                        WithStatementExceptionHandler,\
                        doit_read,\
                        Collection
-
-RAISE_FROM_ENTER = 1
-SUPRESS = 2
-
-class ContextManagerMock(object):
-    __slots__ = [ '__raising_strategy' ]
-
-    def __init__(self, raising_strategy):
-        self.__raising_strategy = raising_strategy
-    #-def
-
-    def __enter__(self):
-        if (self.__raising_strategy & RAISE_FROM_ENTER) == RAISE_FROM_ENTER:
-            raise Exception()
-        return self
-    #-def
-
-    def __exit__(self, type, value, traceback):
-        if (self.__raising_strategy & SUPRESS) == SUPRESS:
-            return True
-        return False
-    #-def
-#-class
-
-OPEN_FAIL = 1
-
-class FileMock(object):
-    __slots__ = [\
-        '__behaviour', 'closed', 'name', 'mode', 'encoding', '__data'\
-    ]
-
-    def __init__(self, behaviour, name, mode, encoding, data):
-        self.__behaviour = behaviour
-        self.closed = True
-        self.name = name
-        self.mode = mode
-        self.encoding = encoding
-        self.__data = data
-    #-def
-
-    def __enter__(self):
-        if (self.__behaviour & OPEN_FAIL) == OPEN_FAIL:
-            raise FileNotFoundError(\
-                "[Errno 2] No such file or directory: '%s'" % self.name\
-            )
-        self.closed = False
-        return self
-    #-def
-
-    def __exit__(self, et, ev, tb):
-        self.closed = True
-        return False
-    #-def
-
-    def read(self):
-        if self.closed:
-            raise ValueError("I/O operation on closed file.")
-        return self.__data
-    #-def
-#-class
-
-def make_open(behaviour, data):
-    def open_mock(name, mode, encoding):
-        return FileMock(behaviour, name, mode, encoding, data)
-    return open_mock
-#-def
 
 class TestPathConversionsCase(unittest.TestCase):
 
@@ -328,6 +265,28 @@ class TestCollectionCase(unittest.TestCase):
         self.assertFalse(B in B.A)
         self.assertFalse(A.BCEF.G in A.BCE)
         self.assertTrue(A.BCE.G in A.BCE)
+    #-def
+
+    def test_lock(self):
+        with self.assertRaises(AssertionError):
+            Collection.lock()
+            T = Collection("T")
+        with self.assertRaises(AssertionError):
+            Collection.unlock()
+            T = Collection("T")
+            Collection.lock()
+            t = T.Test
+    #-def
+
+    def test_unlock(self):
+        Collection.lock()
+        Collection.unlock()
+        Test = Collection("Test")
+        t = Test.Test1
+    #-def
+
+    def tearDown(self):
+        Collection.unlock()
     #-def
 #-class
 
