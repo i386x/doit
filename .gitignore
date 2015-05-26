@@ -1,7 +1,10 @@
-*.pyo
+# Python:
+*.py[co]
 __pycache__/
-C/
-doit/GRAMMAR
-doit/commands.py
-doit/doit.py
-doit/objects.py
+
+# Obsolete files:
+/C/
+/doit/GRAMMAR
+/doit/commands.py
+/doit/doit.py
+/doit/objects.py
