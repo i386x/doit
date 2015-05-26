@@ -12,7 +12,7 @@ DoIt! collections/enumerations.\
 """
 
 __license__ = """\
-Copyright (c) 2014 Jiří Kučera.
+Copyright (c) 2014 - 2015 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,9 @@ IN THE SOFTWARE.\
 from utils import Collection
 
 Collection.unlock()
+
+Undefined = Collection('Undefined')
+Null = Collection('Null')
 
 ErrorType = Collection('ErrorType')
 ErrorType.ERR_OK
