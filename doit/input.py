@@ -34,6 +34,7 @@ IN THE SOFTWARE.\
 """
 
 from . import errors
+from .support.utils import doit_read
 
 class Input(object):
     """Input holder class.

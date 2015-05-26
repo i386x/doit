@@ -35,6 +35,8 @@ IN THE SOFTWARE.\
 
 import sys
 
+DEFAULT_ERROR_CODE = 255
+
 PythonRuntimeError = RuntimeError
 PythonIOError = IOError
 
@@ -50,8 +52,9 @@ def perror(msg):
 class DoItError(Exception):
     """Basic DoIt! exception.
     """
+    ERRMSGFMT = "%s [errcode = %d]: %s."
 
-    def __init__(self, emsg, ecode = 255):
+    def __init__(self, emsg, ecode = DEFAULT_ERROR_CODE):
         """DoItError(emsg[, ecode]) -> instance of DoItError
 
         Constructor. Create an exception object initialized with error message
@@ -78,7 +81,7 @@ class DoItError(Exception):
         Return message associated with exception to be printed.
         """
 
-        return "%s [errcode = %d]: %s." % (
+        return DoItError.ERRMSGFMT % (
             self.__class__.__name__, self.errcode, self.detail
         )
     #-def
@@ -87,6 +90,7 @@ class DoItError(Exception):
 class RuntimeError(DoItError):
     """Raised when virtual machine is aborted abnormally.
     """
+    ERRMSGFMT = "VM aborted. Detail: %s [ip = %d]: %s."
 
     def __init__(self, name, ip, emsg):
         """RuntimeError(name, ip, emsg) -> instance of RuntimeError
@@ -94,9 +98,7 @@ class RuntimeError(DoItError):
         Constructor.
         """
 
-        DoItError.__init__(self,
-            "VM aborted. Detail: %s [ip = %d]: %s." % (name, ip, emsg)
-        )
+        DoItError.__init__(self, self.__class__.ERRMSGFMT % (name, ip, emsg))
     #-def
 #-class
 
