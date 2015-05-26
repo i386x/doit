@@ -1,14 +1,14 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./runtests.py
+#! \file    ./tests/test_support/__init__.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
-#! \stamp   2014-04-09 22:37:26 (UTC+01:00, DST+01:00)
+#! \stamp   2015-05-06 01:37:36 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
 #! \version 0.1.0
 #! \fdesc   @pyfile.docstr
 #
 """\
-Run all DoIt! tests.\
+DoIt! test_support package initialization file.\
 """
 
 __license__ = """\
@@ -33,15 +33,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-import sys
-import os
 import unittest
 
-here = os.path.abspath(os.path.dirname(sys.argv[0]))
-sys.path.insert(0, here)
+from . import test_utils
 
-import tests
-
-if __name__ == '__main__':
-    unittest.TextTestRunner(sys.stdout, True, 2).run(tests.suite())
-#-if
+def suite():
+    suite = unittest.TestSuite()
+    suite.addTest(test_utils.suite())
+    return suite
+#-def

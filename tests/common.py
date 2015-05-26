@@ -33,6 +33,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+import sys
+
+PYTHON_OBJECT_REPR_STR = "%s()"
+PYTHON_OBJECT_REPR_STR_d = "%s(%d)"
+PYTHON_OBJECT_REPR_STR_s = "%s('%s')"
+PYTHON_OBJECT_REPR_STR_dd = "%s(%d, %d)"
+PYTHON_OBJECT_REPR_STR_ds = "%s(%d, '%s')"
+PYTHON_OBJECT_REPR_STR_sd = "%s('%s', %d)"
+PYTHON_OBJECT_REPR_STR_ss = "%s('%s', '%s')"
+
 RAISE_FROM_ENTER = 1
 SUPRESS = 2
 
@@ -60,7 +70,7 @@ OPEN_FAIL = 1
 
 class FileMock(object):
     __slots__ = [\
-        '__behaviour', 'closed', 'name', 'mode', 'encoding', '__data'\
+        '__behaviour', 'closed', 'name', 'mode', 'encoding', 'data'\
     ]
 
     def __init__(self, behaviour, name, mode, encoding, data):
@@ -69,7 +79,7 @@ class FileMock(object):
         self.name = name
         self.mode = mode
         self.encoding = encoding
-        self.__data = data
+        self.data = data
     #-def
 
     def __enter__(self):
@@ -89,7 +99,32 @@ class FileMock(object):
     def read(self):
         if self.closed:
             raise ValueError("I/O operation on closed file.")
-        return self.__data
+        return self.data
+    #-def
+
+    def write(self, data):
+        if self.closed:
+            raise ValueError("I/O operation on closed file.")
+        self.data += data
+    #-def
+#-class
+
+class StderrMock(FileMock):
+    __slots__ = [ '__old_stderr' ]
+
+    def __init__(self):
+        FileMock.__init__(self, 0, '<stderr>', "w", 'utf8', "")
+        self.__old_stderr = sys.stderr
+    #-def
+
+    def __enter__(self):
+        sys.stderr = FileMock.__enter__(self)
+        return sys.stderr
+    #-def
+
+    def __exit__(self, et, ev, tb):
+        sys.stderr = self.__old_stderr
+        return FileMock.__exit__(self, et, ev, tb)
     #-def
 #-class
 
@@ -98,3 +133,23 @@ def make_open(behaviour, data):
         return FileMock(behaviour, name, mode, encoding, data)
     return open_mock
 #-def
+
+class OpenContext(object):
+    __slots__ = [ '__old_open', '__behaviour', '__data' ]
+
+    def __init__(self, behaviour, data):
+        self.__old_open = __builtins__['open']
+        self.__behaviour = behaviour
+        self.__data = data
+    #-def
+
+    def __enter__(self):
+        __builtins__['open'] = make_open(self.__behaviour, self.__data)
+        return self
+    #-def
+
+    def __exit__(self, et, ev, tb):
+        __builtins__['open'] = self.__old_open
+        return False
+    #-def
+#-class
