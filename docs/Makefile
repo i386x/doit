@@ -10,7 +10,7 @@
 
 SPHINXBUILD_ = sphinx-build
 ifeq ($(shell which $(SPHINXBUILD_) >/dev/null 2>&1; echo $$?), 1)
-  $(error Sphinx is not installed.)
+  $(error Sphinx is not installed)
 endif
 
 BUILDDIR = build

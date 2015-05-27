@@ -12,13 +12,13 @@ PYTHON_ = python3
 ifeq ($(shell which $(PYTHON_) >/dev/null 2>&1; echo $$?), 1)
   PYTHON_ = python
   ifeq ($(shell which $(PYTHON_) >/dev/null 2>&1; echo $$?), 1)
-    $(error Python interpreter is not installed (version 3 is needed).)
+    $(error Python interpreter is not installed (version 3 is needed))
   endif
 endif
 
 ifeq ($(shell $(PYTHON_) pyversion.py >/dev/null 2>&1; echo $$?), 3)
 else
-  $(error Python interpreter of version 3 is needed.)
+  $(error Python interpreter of version 3 is needed)
 endif
 
 PYTHON = $(PYTHON_)
