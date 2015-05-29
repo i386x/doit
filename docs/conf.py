@@ -186,3 +186,26 @@ html_file_suffix = '.html'
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'doit-lang'
+
+# Sphinx customization.
+def setup(app):
+    from sphinx.ext.autodoc import MethodDocumenter, add_documenter
+
+    class MethodDocumenterNoDecoratedPrivateMembers(MethodDocumenter):
+        """Converts names like '_Class__private' to '__private'.
+        """
+
+        def format_name(self):
+            objpath = self.objpath[:]
+            if len(objpath) >= 2:
+                class_name = objpath[-2]
+                method_name = objpath[-1]
+                if method_name.startswith("_%s" % class_name):
+                    objpath[-1] = method_name[1 + len(class_name):] \
+                                  or method_name
+            return '.'.join(objpath) or self.modname
+        #-def
+    #-class
+
+    add_documenter(MethodDocumenterNoDecoratedPrivateMembers)
+#-def

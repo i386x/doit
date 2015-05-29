@@ -33,16 +33,51 @@ General purpose utility functions and classes.
 .. autofunction:: doit.support.utils.path2sys
 
 .. autoclass:: doit.support.utils.WithStatementExceptionHandler
+   :show-inheritance:
    :members:
-   :private-members:
    :special-members:
+   :private-members:
 
 .. autofunction:: doit.support.utils.doit_read
 
 .. autoclass:: doit.support.utils.Collection
+   :show-inheritance:
    :members:
-   :private-members:
    :special-members:
+   :private-members:
+
+.. module:: runtime
+   :synopsis: DoIt! virtual machine (VM) and VM's runtime services.
+
+:mod:`doit.runtime` -- DoIt! virtual machine (VM) and VM's runtime services
+```````````````````````````````````````````````````````````````````````````
+
+In this module is situated the virtual machine that interprets the instructions
+to which the DoIt! programs are initially compiled to.
+
+.. module:: runtime.memory
+   :synopsis: DoIt! VM's memory.
+
+:mod:`doit.runtime.memory` -- DoIt! VM's memory
+'''''''''''''''''''''''''''''''''''''''''''''''
+
+Submodule that implements the memory of DoIt! virtual machine. Here is also
+situated the :class:`Pointer <doit.runtime.memory.Pointer>` class that
+represents the far pointers. Using the far pointers is the only way to refer
+the locations from foreign memory segments (which are in fact the instances of
+:class:`Memory <doit.runtime.memory.Memory>`).
+
+.. autoclass:: doit.runtime.memory.Pointer
+   :show-inheritance:
+   :members:
+   :special-members:
+   :private-members:
+
+.. autoclass:: doit.runtime.memory.Memory
+   :show-inheritance:
+   :members:
+   :special-members:
+   :private-members:
 
 .. module:: asm
    :synopsis: Assembly language interfaces.
@@ -68,6 +103,7 @@ of assembler, so the method invokations can be chained.
 Common interface for all concrete assembler implementations.
 
 .. autoclass:: doit.asm.asm.AbstractOperand
+   :show-inheritance:
    :members:
-   :private-members:
    :special-members:
+   :private-members:
