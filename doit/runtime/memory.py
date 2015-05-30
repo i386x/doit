@@ -217,29 +217,15 @@ class Memory(list):
     """The memory abstraction base class. Instances of this class or the class
     derived from this class are used by DoIt! virtual machine as a storage for
     code or data.
-
-    Members:
-
-    * `membot` (:class:`int`) -- the bottom of the memory space
-    * `memlow` (:class:`int`) -- the lower bound of used memory
-    * `memhigh` (:class:`int`) -- the upper bound of used memory
-    * `memtop` (:class:`int`) -- the top of the memory space
-
-    Between the members, this relation must be fulfilled::
-
-        0 == membot <= memlow <= memhigh <= memtop == len(self)
     """
-    __slots__ = [ 'membot', 'memlow', 'memhigh', 'memtop' ]
+    __slots__ = [ '__memused' ]
 
     def __init__(self):
         """Initializes the memory object.
         """
 
         list.__init__(self, [])
-        self.membot = 0
-        self.memlow = self.membot
-        self.memhigh = len(self)
-        self.memtop = self.memhigh
+        self.__memused = 0
     #-def
 
     def sbrk(self, brk):
@@ -250,11 +236,10 @@ class Memory(list):
         :raises AssertionError: If `brk` value is invalid.
         """
 
-        assert brk >= self.memlow, "Invalid memory break value (%d)." % brk
+        assert brk >= 0, "Invalid memory break value (%d)." % brk
         if brk > len(self):
             list.extend(self, [None]*(brk - len(self)))
-            self.memtop = len(self)
-        self.memhigh = brk
+        self.__memused = brk
     #-def
 
     def __add__(self, i):
@@ -280,9 +265,8 @@ class Memory(list):
         :raises AssertionError: If index `i` to memory is invalid.
         """
 
-        assert i >= self.membot and i < self.memtop, \
-            "Memory write error at %d." % i
-        list.__setitem__(self, i - self.membot, v)
+        assert i >= 0 and i < self.__memused, "Memory write error at %d." % i
+        list.__setitem__(self, i, v)
     #-def
 
     def __getitem__(self, i):
@@ -295,9 +279,8 @@ class Memory(list):
         :raises AssertionError: If index `i` to memory is invalid.
         """
 
-        assert i >= self.membot and i < self.memtop, \
-            "Memory read error at %d." % i
-        return list.__getitem__(self, i - self.membot)
+        assert i >= 0 and i < self.__memused, "Memory read error at %d." % i
+        return list.__getitem__(self, i)
     #-def
 
     def stats(self):
@@ -307,6 +290,6 @@ class Memory(list):
             used memory and second is the total memory size.
         """
 
-        return self.memhigh - self.memlow, self.memtop - self.membot
+        return self.__memused, len(self)
     #-def
 #-class

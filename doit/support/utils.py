@@ -4,7 +4,7 @@
 #! \stamp   2014-02-27 18:26:58 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
-#! \version 0.1.0
+#! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
@@ -148,12 +148,22 @@ class Collection(object):
 
         # Create an anonymous object:
         a = Collection()
+
         # Create new object named 'ItemA':
         ItemA = Collection("ItemA")
+
         # Create a subobject named 'SubItem1':
         SubItem1 = ItemA.SubItem1
+
+        # This is true now:
+        SubItem1.name == "SubItem1"
+        SubItem1.qname == "ItemA.SubItem1"
+
         # Create new object 'ItemB' and inherits subobjects from 'ItemA':
         ItemB = Collection("ItemB", "ItemA")
+
+        # This is now also true:
+        SubItem1 is ItemB.SubItem1
     """
     __slots__ = [ 'name', 'qname', 'siblings' ]
     collections = {}
@@ -163,12 +173,12 @@ class Collection(object):
         """Creates a new or return existing unique object (instance of
         :class:`Collection <doit.support.utils.Collection>`).
 
+        :returns: Unique object (:class:`Collection \
+            <doit.support.utils.Collection>`).
+
         :raises AssertionError: When :class:`Collection \
             <doit.support.utils.Collection>` is locked (see :meth:`lock() \
             <doit.support.utils.Collection.lock>`).
-
-        :returns: Unique object (:class:`Collection \
-            <doit.support.utils.Collection>`).
 
         Called with no argument, creates an anonymous instance of
         :class:`Collection <doit.support.utils.Collection>`. Otherwise, the
@@ -245,6 +255,9 @@ class Collection(object):
 
     def __contains__(self, item):
         """Tests the `item` ownership.
+
+        :param item: Item to be tested.
+        :type item: :class:`Collection <doit.support.utils.Collection>`
 
         :returns: :obj:`True` if `item` is in this object scope \
             (:class:`bool`).

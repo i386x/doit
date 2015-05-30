@@ -4,7 +4,7 @@
 #! \stamp   2014-04-10 20:58:24 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
-#! \version 0.1.0
+#! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
@@ -36,12 +36,12 @@ IN THE SOFTWARE.\
 import os
 import unittest
 
-from ..common import RAISE_FROM_ENTER, SUPRESS, ContextManagerMock,\
+from ..common import RAISE_FROM_ENTER, SUPRESS, ContextManagerMock, \
                      OPEN_FAIL, OpenContext
 
-from doit.support.utils import sys2path, path2sys,\
-                               WithStatementExceptionHandler,\
-                               doit_read,\
+from doit.support.utils import sys2path, path2sys, \
+                               WithStatementExceptionHandler, \
+                               doit_read, \
                                Collection
 
 class TestPathConversionsCase(unittest.TestCase):
@@ -244,6 +244,7 @@ class TestCollectionCase(unittest.TestCase):
         self.assertIs(Tomato, Food.Tomato)
         self.assertIs(Chedar, Food.Chedar)
         self.assertIs(ProceededChedar, Food.Proceeded)
+        self.assertIs(Food.Chedar.Proceeded, Food.Proceeded)
         self.assertIs(Ementaler, Food.Ementaler)
     #-def
 
@@ -288,8 +289,8 @@ class TestCollectionCase(unittest.TestCase):
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestPathConversionsCase))
-    suite.addTest(unittest.makeSuite(TestCollectionCase))
     suite.addTest(unittest.makeSuite(TestWithStatementExceptionHandlerCase))
     suite.addTest(unittest.makeSuite(TestDoItReadCase))
+    suite.addTest(unittest.makeSuite(TestCollectionCase))
     return suite
 #-def

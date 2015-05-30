@@ -4,7 +4,7 @@
 #! \stamp   2015-05-06 01:37:36 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
-#! \version 0.1.0
+#! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
