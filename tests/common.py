@@ -4,7 +4,7 @@
 #! \stamp   2015-02-20 13:52:05 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
-#! \version 0.1.0
+#! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
@@ -69,8 +69,8 @@ class ContextManagerMock(object):
 OPEN_FAIL = 1
 
 class FileMock(object):
-    __slots__ = [\
-        '__behaviour', 'closed', 'name', 'mode', 'encoding', 'data'\
+    __slots__ = [
+        '__behaviour', 'closed', 'name', 'mode', 'encoding', 'data'
     ]
 
     def __init__(self, behaviour, name, mode, encoding, data):
