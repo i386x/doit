@@ -4,7 +4,7 @@
 #! \stamp   2015-04-08 15:36:25 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
-#! \version 0.1.0
+#! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
@@ -34,11 +34,11 @@ IN THE SOFTWARE.\
 """
 
 class AbstractOperand(object):
-    """Base class for all instruction operands.
+    """Base class for all instruction operand expressions.
 
-    This class also defines operations ``+``, ``-``, ``*``, and ``[]`` to make
-    more complex instruction operands from the simple ones according to
-    following rules:
+    This class defines operations ``+``, ``-``, ``*``, and ``[]`` to make more
+    complex instruction operands from the simple ones according to following
+    rules:
 
     * :class:`BaseRegister <doit.asm.asm.BaseRegister>` (``+`` or ``-``) \
         :class:`int` gives :class:`Offset <doit.asm.asm.Offset>`
@@ -63,15 +63,14 @@ class AbstractOperand(object):
     __slots__ = []
 
     def __init__(self):
-        """Initialize the instruction operand base class.
+        """Initializes the instruction operand expression.
         """
 
         pass
     #-def
 
     def __add__(self, rhs):
-        """Handle the ``base_register + int`` or ``scale + int``
-        offset-expressions.
+        """Handle the ``base + offset`` instruction operand expression.
 
         :param int rhs: Right-hand side of expression which specifies the \
             offset value.
@@ -92,8 +91,7 @@ class AbstractOperand(object):
     #-def
 
     def __sub__(self, rhs):
-        """Handle the ``base_register - int`` or ``scale - int``
-        offset-expressions.
+        """Handle the ``base - offset`` instruction operand expression.
 
         :param int rhs: Right-hand side of expression which specifies the \
             offset value.
@@ -114,7 +112,7 @@ class AbstractOperand(object):
     #-def
 
     def __mul__(self, rhs):
-        """Handle the ``base_register * int`` scale-expression.
+        """Handle the ``base * scale`` instruction operand expression.
 
         :param int rhs: Right-hand side of expression which specifies the \
             scale. Must be power of two.
@@ -135,7 +133,7 @@ class AbstractOperand(object):
     #-def
 
     def __rmul__(self, lhs):
-        """Handle the ``int * base_register`` scale-expression.
+        """Handle the ``scale * base`` instruction operand expression.
 
         :param int lhs: Left-hand side of expression which specifies the \
             scale. Must be power of two.
@@ -232,28 +230,46 @@ class AbstractOperand(object):
     #-def
 
     def base(self):
-        """
+        """Returns the base register. The default value is :obj:`None`.
+
+        :returns: Base register (:class:`BaseRegister \
+            <doit.asm.asm.BaseRegister>` or :obj:`None`).
+
+        From ``segreg[scale*basereg + offset]`` returns ``basereg``.
         """
 
         return None
     #-def
 
     def offset(self):
-        """
+        """Returns the offset. The default value is 0.
+
+        :returns: Offset (:class:`int`).
+
+        From ``segreg[scale*basereg + offset]`` returns ``offset``.
         """
 
         return 0
     #-def
 
     def scale(self):
-        """
+        """Returns the scale. The default value is 1.
+
+        :returns: Scale (:class:`int`).
+
+        From ``segreg[scale*basereg + offset]`` returns ``scale``.
         """
 
         return 1
     #-def
 
     def segment(self):
-        """
+        """Returns the segment register. The default value is :obj:`None`.
+
+        :returns: Segment register (:class:`SegmentRegister \
+            <doit.asm.asm.SegmentRegister>` or :obj:`None`).
+
+        From ``segreg[scale*basereg + offset]`` returns ``segreg``.
         """
 
         return None
@@ -261,12 +277,12 @@ class AbstractOperand(object):
 #-class
 
 class Register(AbstractOperand):
-    """
+    """Base class for ``register`` operand expressions.
     """
     __slots__ = []
 
     def __init__(self):
-        """
+        """Initializes the ``register`` operand expression.
         """
 
         AbstractOperand.__init__(self)
@@ -274,19 +290,23 @@ class Register(AbstractOperand):
 #-class
 
 class BaseRegister(Register):
-    """
+    """Base class for ``base`` operand expressions.
     """
     __slots__ = []
 
     def __init__(self):
-        """
+        """Initializes the ``base`` operand expression.
         """
 
         Register.__init__(self)
     #-def
 
     def base(self):
-        """
+        """Concrete implementation of :meth:`AbstractOperand.base() \
+        <doit.asm.asm.AbstractOperand.base>`.
+
+        :returns: This object (:class:`BaseRegister \
+            <doit.asm.asm.BaseRegister>`).
         """
 
         return self
@@ -294,40 +314,81 @@ class BaseRegister(Register):
 #-class
 
 class SegmentRegister(Register):
-    """
+    """Base class for ``segment`` operand expressions.
     """
     __slots__ = []
 
     def __init__(self):
-        """
+        """Initializes the ``segment`` operand expression.
         """
 
         Register.__init__(self)
     #-def
+
+    def segment(self):
+        """Concrete implementation of :meth:`AbstractOperand.segment() \
+        <doit.asm.asm.AbstractOperand.segment>`.
+
+        :returns: This object (:class:`SegmentRegister \
+            <doit.asm.asm.SegmentRegister>`).
+        """
+
+        return self
+    #-def
 #-class
 
 class Scale(AbstractOperand):
-    """
+    """Base class for ``scale*base`` operand expressions.
     """
     __slots__ = [ '__base', '__scale' ]
 
     def __init__(self, base, scale):
-        """
+        """Initializes the ``scale*base`` operand expression.
+
+        :param base: Base register.
+        :type base: :class:`BaseRegister <doit.asm.asm.BaseRegister>`
+        :param int scale: Scale.
         """
 
         AbstractOperand.__init__(self)
         self.__base = base
         self.__scale = scale
     #-def
+
+    def base(self):
+        """Concrete implementation of :meth:`AbstractOperand.base() \
+        <doit.asm.asm.AbstractOperand.base>`.
+
+        :returns: The base part of this operand expression \
+            (:class:`BaseRegister <doit.asm.asm.BaseRegister>`).
+        """
+
+        return self.__base.base()
+    #-def
+
+    def scale(self):
+        """Concrete implementation of :meth:`AbstractOperand.scale() \
+        <doit.asm.asm.AbstractOperand.scale>`.
+
+        :returns: The scale part of this operand expression (:class:`int`).
+        """
+
+        return self.__scale
+    #-def
 #-class
 
 class Offset(AbstractOperand):
-    """
+    """Base class for ``scale*base + offset`` operand expressions.
     """
     __slots__ = [ '__base', '__offset' ]
 
     def __init__(self, base, offset):
-        """
+        """Initializes the ``scale*base + offset`` operand expression.
+
+        :param base: Base register or scale operand expression.
+        :type base: :class:`BaseRegister <doit.asm.asm.BaseRegister>` or \
+            :class:`Scale <doit.asm.asm.Scale>`
+        :param int offset: Offset.
         """
 
         AbstractOperand.__init__(self)
@@ -336,21 +397,31 @@ class Offset(AbstractOperand):
     #-def
 
     def base(self):
-        """
+        """Concrete implementation of :meth:`AbstractOperand.base() \
+        <doit.asm.asm.AbstractOperand.base>`.
+
+        :returns: The base part of this operand expression \
+            (:class:`BaseRegister <doit.asm.asm.BaseRegister>`).
         """
 
         return self.__base.base()
     #-def
 
     def offset(self):
-        """
+        """Concrete implementation of :meth:`AbstractOperand.offset() \
+        <doit.asm.asm.AbstractOperand.offset>`.
+
+        :returns: The offset part of this operand expression (:class:`int`).
         """
 
         return self.__offset
     #-def
 
     def scale(self):
-        """
+        """Concrete implementation of :meth:`AbstractOperand.scale() \
+        <doit.asm.asm.AbstractOperand.scale>`.
+
+        :returns: The scale part of this operand expression (:class:`int`).
         """
 
         return self.__base.scale()
@@ -358,12 +429,20 @@ class Offset(AbstractOperand):
 #-class
 
 class Address(AbstractOperand):
-    """
+    """Base class for ``segment[scale*base + offset]`` operand expressions.
     """
     __slots__ = [ '__segment', '__offset' ]
 
     def __init__(self, segment, offset):
-        """
+        """Initializes the ``segment[scale*base + offset]`` operand expression.
+
+        :param segment: Segment.
+        :type segment: :class:`SegmentRegister <doit.asm.asm.SegmentRegister>`
+        :param offset: Base register or scale operand expression or offset \
+            operand expression.
+        :type offset: :class:`BaseRegister <doit.asm.asm.BaseRegister>` or \
+            :class:`Scale <doit.asm.asm.Scale>` or :class:`Offset \
+            <doit.asm.asm.Offset>`
         """
 
         AbstractOperand.__init__(self)
@@ -372,28 +451,42 @@ class Address(AbstractOperand):
     #-def
 
     def base(self):
-        """
+        """Concrete implementation of :meth:`AbstractOperand.base() \
+        <doit.asm.asm.AbstractOperand.base>`.
+
+        :returns: The base part of this operand expression \
+            (:class:`BaseRegister <doit.asm.asm.BaseRegister>`).
         """
 
         return self.__offset.base()
     #-def
 
     def offset(self):
-        """
+        """Concrete implementation of :meth:`AbstractOperand.offset() \
+        <doit.asm.asm.AbstractOperand.offset>`.
+
+        :returns: The offset part of this operand expression (:class:`int`).
         """
 
         return self.__offset.offset()
     #-def
 
     def scale(self):
-        """
+        """Concrete implementation of :meth:`AbstractOperand.scale() \
+        <doit.asm.asm.AbstractOperand.scale>`.
+
+        :returns: The scale part of this operand expression (:class:`int`).
         """
 
         return self.__offset.scale()
     #-def
 
     def segment(self):
-        """
+        """Concrete implementation of :meth:`AbstractOperand.segment() \
+        <doit.asm.asm.AbstractOperand.segment>`.
+
+        :returns: The segment part of this operand expression \
+            (:class:`SegmentRegister <doit.asm.asm.SegmentRegister`).
         """
 
         return self.__segment.segment()
