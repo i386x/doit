@@ -111,7 +111,7 @@ class InstructionOperand(object):
             (:class:`MultNode <doit.asm.asm.MultNode>`).
         """
 
-        return MultNode(lhs, self):
+        return MultNode(lhs, self)
     #-def
 
     def __getitem__(self, idx):
@@ -238,6 +238,7 @@ class AbstractAssembler(object):
         """
         """
 
+        self.__secname = None
         self.__labels = []
         self.__links = {}
     #-def
@@ -259,10 +260,21 @@ class AbstractAssembler(object):
         return self
     #-def
 
+    def start_section(self, name):
+        """
+        """
+
+        assert self.__secname is None, "Section is already started."
+        self.__secname = name
+        return self
+    #-def
+
     def end_section(self, name):
         """
         """
 
+        assert self.__secname == name, "Mismatched section name."
+        self.__secname = None
     #-def
 #-class
 
