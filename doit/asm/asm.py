@@ -33,470 +33,199 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-class AbstractOperand(object):
-    """Base class for all instruction operand expressions.
-
-    This class defines operations ``+``, ``-``, ``*``, and ``[]`` to make more
-    complex instruction operands from the simple ones according to following
-    rules:
-
-    * :class:`BaseRegister <doit.asm.asm.BaseRegister>` (``+`` or ``-``) \
-        :class:`int` gives :class:`Offset <doit.asm.asm.Offset>`
-    * :class:`Scale <doit.asm.asm.Scale>` (``+`` or ``-``) :class:`int` gives \
-        :class:`Offset <doit.asm.asm.Offset>`
-    * :class:`BaseRegister <doit.asm.asm.BaseRegister>` ``*`` :class:`int` \
-        gives :class:`Scale <doit.asm.asm.Scale>`
-    * :class:`int` ``*`` :class:`BaseRegister <doit.asm.asm.BaseRegister>` \
-        gives :class:`Scale <doit.asm.asm.Scale>`
-    * :class:`SegmentRegister <doit.asm.asm.SegmentRegister>` ``[`` \
-        :class:`int` ``]`` gives :class:`Address <doit.asm.asm.Address>`
-    * :class:`SegmentRegister <doit.asm.asm.SegmentRegister>` ``[`` \
-        :class:`BaseRegister <doit.asm.asm.BaseRegister>` ``]`` gives \
-        :class:`Address <doit.asm.asm.Address>`
-    * :class:`SegmentRegister <doit.asm.asm.SegmentRegister>` ``[`` \
-        :class:`Scale <doit.asm.asm.Scale>` ``]`` gives \
-        :class:`Address <doit.asm.asm.Address>`
-    * :class:`SegmentRegister <doit.asm.asm.SegmentRegister>` ``[`` \
-        :class:`Offset <doit.asm.asm.Offset>` ``]`` gives \
-        :class:`Address <doit.asm.asm.Address>`
+class InstructionOperand(object):
+    """Base class for all instruction operands.
     """
     __slots__ = []
 
     def __init__(self):
-        """Initializes the instruction operand expression.
+        """Initializes the instruction operand object.
         """
 
         pass
     #-def
 
-    def __add__(self, rhs):
-        """Handle the ``base + offset`` instruction operand expression.
+    def traverse(self, f):
+        """Visits the nodes of this tree in postorder applying `f` on each
+        visited node (including the node representing this tree).
 
-        :param int rhs: Right-hand side of expression which specifies the \
-            offset value.
+        :param f: Functor which, when applied, takes \
+            :class:`InstructionOperand <doit.asm.asm.InstructionOperand>` \
+            instance as its argument.
+        :type f: callable object
 
-        :returns: The offset-expression node (:class:`Offset \
-            <doit.asm.asm.Offset>`).
-
-        :raises AssertionError: If left-hand side of expression is not \
-            :class:`BaseRegister <doit.asm.asm.BaseRegister>` or \
-            :class:`Scale <doit.asm.asm.Scale>`, or if right-hand side is not \
-            :class:`int`.
+        :raises NotImplementedError: If this method is not implemented.
         """
 
-        assert isinstance(self, BaseRegister) or isinstance(self, Scale), \
-            "Left-hand side must be a (scaled) base register."
-        assert isinstance(rhs, int), "Right-hand side must be int."
-        return Offset(self, rhs)
+        raise NotImplementedError(
+            "%s.traverse(f) is not implemented." % self.__class__.__name__
+        )
+    #-def
+
+    def __add__(self, rhs):
+        """Handle the ``self + rhs`` expression.
+
+        :param rhs: Right-hand side.
+        :type rhs: any type
+
+        :returns: The node/tree for ``self + rhs`` expression \
+            (:class:`AddNode <doit.asm.asm.AddNode>`).
+        """
+
+        return AddNode(self, rhs)
     #-def
 
     def __sub__(self, rhs):
-        """Handle the ``base - offset`` instruction operand expression.
+        """Handle the ``self - rhs`` expression.
 
-        :param int rhs: Right-hand side of expression which specifies the \
-            offset value.
+        :param rhs: Right-hand side.
+        :type rhs: any type
 
-        :returns: The offset-expression node (:class:`Offset \
-            <doit.asm.asm.Offset>`).
-
-        :raises AssertionError: If left-hand side of expression is not \
-            :class:`BaseRegister <doit.asm.asm.BaseRegister>` or \
-            :class:`Scale <doit.asm.asm.Scale>`, or if right-hand side is not \
-            :class:`int`.
+        :returns: The node/tree for ``self - rhs`` expression \
+            (:class:`SubNode <doit.asm.asm.SubNode>`).
         """
 
-        assert isinstance(self, BaseRegister) or isinstance(self, Scale), \
-            "Left-hand side must be a (scaled) base register."
-        assert isinstance(rhs, int), "Right-hand side must be int."
-        return Offset(self, -rhs)
+        return SubNode(self, rhs)
     #-def
 
     def __mul__(self, rhs):
-        """Handle the ``base * scale`` instruction operand expression.
+        """Handle the ``self * rhs`` expression.
 
-        :param int rhs: Right-hand side of expression which specifies the \
-            scale. Must be power of two.
+        :param rhs: Right-hand side.
+        :type rhs: any type
 
-        :returns: The scale-expression node (:class:`Scale \
-            <doit.asm.asm.Scale>`).
-
-        :raises AssertionError: If left-hand side of expression is not \
-            :class:`BaseRegister <doit.asm.asm.BaseRegister>`, or if \
-            right-hand side is not a power of two.
+        :returns: The node/tree for ``self * rhs`` expression \
+            (:class:`MultNode <doit.asm.asm.MultNode>`).
         """
 
-        assert isinstance(self, BaseRegister), \
-            "Left-hand side must be a base register."
-        assert isinstance(rhs, int) and rhs > 0 and (rhs & (rhs - 1)) == 0, \
-            "Right-hand side must be the power-of-two int."
-        return Scale(self, rhs)
+        return MultNode(self, rhs)
     #-def
 
     def __rmul__(self, lhs):
-        """Handle the ``scale * base`` instruction operand expression.
+        """Handle the ``lhs * self`` expression.
 
-        :param int lhs: Left-hand side of expression which specifies the \
-            scale. Must be power of two.
+        :param lhs: Left-hand side.
+        :type lhs: any type
 
-        :returns: The scale-expression node (:class:`Scale \
-            <doit.asm.asm.Scale>`).
-
-        :raises AssertionError: If right-hand side of expression is not \
-            :class:`BaseRegister <doit.asm.asm.BaseRegister>`, or if \
-            left-hand side is not a power of two.
+        :returns: The node/tree for ``lhs * self`` expression \
+            (:class:`MultNode <doit.asm.asm.MultNode>`).
         """
 
-        assert isinstance(self, BaseRegister), \
-            "Right-hand side must be a base register."
-        assert isinstance(lhs, int) and lhs > 0 and (lhs & (lhs - 1)) == 0, \
-            "Left-hand side must be the power-of-two int."
-        return Scale(self, lhs)
+        return MultNode(lhs, self):
     #-def
 
-    def __getitem__(self, expr):
-        """Handle the ``segment[int]``, ``segment[base_register]``,
-        ``segment[scale]``, or ``segment[offset]`` address-expressions.
+    def __getitem__(self, idx):
+        """Handle the ``self[idx]`` expression.
 
-        :param expr: Expression between ``[`` and ``]``.
-        :type expr: :class:`int` or :class:`BaseRegister \
-            <doit.asm.asm.BaseRegister>` or :class:`Scale \
-            <doit.asm.asm.Scale>` or :class:`Offset <doit.asm.asm.Offset>`.
+        :param idx: Index expression.
+        :type idx: any type
 
-        :returns: The address-expression node (:class:`Address \
-            <doit.asm.asm.Address>`).
-
-        :raises AssertionError: If in expression ``x[y]``, ``x`` is not \
-            :class:`SegmentRegister <doit.asm.asm.SegmentRegister>`, or if \
-            ``y`` is not one of :class:`int`, \
-            :class:`BaseRegister <doit.asm.asm.BaseRegister>`, \
-            :class:`Scale <doit.asm.asm.Scale>` or \
-            :class:`Offset <doit.asm.asm.Offset>`.
+        :returns: The node/tree for ``self[idx]`` expression \
+            (:class:`IndexNode <doit.asm.asm.IndexNode>`).
         """
 
-        assert isinstance(self, SegmentRegister), \
-            "In x[y], x must be a segment register."
-        assert isinstance(expr, int) or isinstance(expr, BaseRegister) \
-            or isinstance(expr, Scale) or isinstance(expr, Offset), \
-            "In x[y], y must be the valid address expression."
-        return Address(self, expr)
-    #-def
-
-    def eval(self, env):
-        """Get the operand value. The operand value should be computed when the
-        instruction is invoked since it depends on the current state of `env`.
-        This method is not implemented as default.
-
-        :param env: Runtime environment.
-        :type env: mostly :class:`Interpreter <doit.runtime.vm.Interpreter>`
-
-        :returns: The computed value (mostly :class:`int` or :class:`Pointer \
-            <doit.runtime.atoms.Pointer>`).
-
-        :raises NotImplementedError: If this method is not implemented.
-        """
-
-        raise NotImplementedError(
-            "%s.eval is not implemented." % self.__class__.__name__
-        )
-    #-def
-
-    def __repr__(self):
-        """Returns the representation of operand suitable for its storage as
-        persistent object.
-
-        :returns: This object representation (mostly :class:`str`).
-
-        :raises NotImplementedError: If this method is not implemented.
-        """
-
-        raise NotImplementedError(
-            "repr(%s) is not implemented." % self.__class__.__name__
-        )
-    #-def
-
-    def __str__(self):
-        """Returns the text representation of operand. The default
-        implementation is an alias for :meth:`AbstractOperand.__repr__() \
-        <doit.asm.asm.AbstractOperand.__repr__>`.
-
-        :returns: This object text representation (:class:`str`).
-
-        :raises NotImplementedError: If this method implementation is the \
-            default implementation and :meth:`AbstractOperand.__repr__() \
-            <doit.asm.asm.AbstractOperand.__repr__>` method is not implemented.
-        """
-
-        return repr(self)
-    #-def
-
-    def base(self):
-        """Returns the base register. The default value is :obj:`None`.
-
-        :returns: Base register (:class:`BaseRegister \
-            <doit.asm.asm.BaseRegister>` or :obj:`None`).
-
-        From ``segreg[scale*basereg + offset]`` returns ``basereg``.
-        """
-
-        return None
-    #-def
-
-    def offset(self):
-        """Returns the offset. The default value is 0.
-
-        :returns: Offset (:class:`int`).
-
-        From ``segreg[scale*basereg + offset]`` returns ``offset``.
-        """
-
-        return 0
-    #-def
-
-    def scale(self):
-        """Returns the scale. The default value is 1.
-
-        :returns: Scale (:class:`int`).
-
-        From ``segreg[scale*basereg + offset]`` returns ``scale``.
-        """
-
-        return 1
-    #-def
-
-    def segment(self):
-        """Returns the segment register. The default value is :obj:`None`.
-
-        :returns: Segment register (:class:`SegmentRegister \
-            <doit.asm.asm.SegmentRegister>` or :obj:`None`).
-
-        From ``segreg[scale*basereg + offset]`` returns ``segreg``.
-        """
-
-        return None
+        return IndexNode(self, idx)
     #-def
 #-class
 
-class Register(AbstractOperand):
-    """Base class for ``register`` operand expressions.
+class Register(InstructionOperand):
+    """Base class for all registers.
     """
     __slots__ = []
 
     def __init__(self):
-        """Initializes the ``register`` operand expression.
+        """Initializes the register object.
         """
 
-        AbstractOperand.__init__(self)
+        InstructionOperand.__init__(self)
     #-def
 #-class
 
-class BaseRegister(Register):
-    """Base class for ``base`` operand expressions.
+class BinOpNode(InstructionOperand):
+    """Base class for binary operator node.
+    """
+    __slots__ = [ '__lhs', '__rhs' ]
+
+    def __init__(self, lhs, rhs):
+        """Initializes the binary operator node.
+
+        :param lhs: Left-hand side.
+        :type lhs: any type
+        :param rhs: Right-hand side.
+        :type rhs: any type
+        """
+
+        InstructionOperand.__init__(self)
+        self.__lhs = lhs
+        self.__rhs = rhs
+    #-def
+
+    def traverse(self, f):
+        """See :meth:`InstructionOperand.traverse(f) \
+        <doit.asm.asm.InstructionOperand.traverse>`.
+        """
+
+        if isinstance(self.__lhs, InstructionOperand):
+            self.__lhs.traverse(f)
+        else:
+            f(self.__lhs)
+        if isinstance(self.__rhs, InstructionOperand):
+            self.__rhs.traverse(f)
+        else:
+            f(self.__rhs)
+        f(self)
+    #-def
+#-class
+
+class AddNode(BinOpNode):
+    """Base class for addition node.
     """
     __slots__ = []
 
-    def __init__(self):
-        """Initializes the ``base`` operand expression.
+    def __init__(self, lhs, rhs):
+        """Initializes the addition node object.
         """
 
-        Register.__init__(self)
-    #-def
-
-    def base(self):
-        """Concrete implementation of :meth:`AbstractOperand.base() \
-        <doit.asm.asm.AbstractOperand.base>`.
-
-        :returns: This object (:class:`BaseRegister \
-            <doit.asm.asm.BaseRegister>`).
-        """
-
-        return self
+        BinOpNode.__init__(self, lhs, rhs)
     #-def
 #-class
 
-class SegmentRegister(Register):
-    """Base class for ``segment`` operand expressions.
+class SubNode(BinOpNode):
+    """Base class for subtraction node.
     """
     __slots__ = []
 
-    def __init__(self):
-        """Initializes the ``segment`` operand expression.
+    def __init__(self, lhs, rhs):
+        """Initializes the subtraction node object.
         """
 
-        Register.__init__(self)
-    #-def
-
-    def segment(self):
-        """Concrete implementation of :meth:`AbstractOperand.segment() \
-        <doit.asm.asm.AbstractOperand.segment>`.
-
-        :returns: This object (:class:`SegmentRegister \
-            <doit.asm.asm.SegmentRegister>`).
-        """
-
-        return self
+        BinOpNode.__init__(self, lhs, rhs)
     #-def
 #-class
 
-class Scale(AbstractOperand):
-    """Base class for ``scale*base`` operand expressions.
+class MultNode(BinOpNode):
+    """Base class for multiplication node.
     """
-    __slots__ = [ '__base', '__scale' ]
+    __slots__ = []
 
-    def __init__(self, base, scale):
-        """Initializes the ``scale*base`` operand expression.
-
-        :param base: Base register.
-        :type base: :class:`BaseRegister <doit.asm.asm.BaseRegister>`
-        :param int scale: Scale.
+    def __init__(self, lhs, rhs):
+        """Initializes the multiplication node object.
         """
 
-        AbstractOperand.__init__(self)
-        self.__base = base
-        self.__scale = scale
-    #-def
-
-    def base(self):
-        """Concrete implementation of :meth:`AbstractOperand.base() \
-        <doit.asm.asm.AbstractOperand.base>`.
-
-        :returns: The base part of this operand expression \
-            (:class:`BaseRegister <doit.asm.asm.BaseRegister>`).
-        """
-
-        return self.__base.base()
-    #-def
-
-    def scale(self):
-        """Concrete implementation of :meth:`AbstractOperand.scale() \
-        <doit.asm.asm.AbstractOperand.scale>`.
-
-        :returns: The scale part of this operand expression (:class:`int`).
-        """
-
-        return self.__scale
+        BinOpNode.__init__(self, lhs, rhs)
     #-def
 #-class
 
-class Offset(AbstractOperand):
-    """Base class for ``scale*base + offset`` operand expressions.
+class IndexNode(BinOpNode):
+    """Base class for index node.
     """
-    __slots__ = [ '__base', '__offset' ]
+    __slots__ = []
 
-    def __init__(self, base, offset):
-        """Initializes the ``scale*base + offset`` operand expression.
-
-        :param base: Base register or scale operand expression.
-        :type base: :class:`BaseRegister <doit.asm.asm.BaseRegister>` or \
-            :class:`Scale <doit.asm.asm.Scale>`
-        :param int offset: Offset.
+    def __init__(self, lhs, rhs):
+        """Initializes the index node object.
         """
 
-        AbstractOperand.__init__(self)
-        self.__base = base
-        self.__offset = offset
-    #-def
-
-    def base(self):
-        """Concrete implementation of :meth:`AbstractOperand.base() \
-        <doit.asm.asm.AbstractOperand.base>`.
-
-        :returns: The base part of this operand expression \
-            (:class:`BaseRegister <doit.asm.asm.BaseRegister>`).
-        """
-
-        return self.__base.base()
-    #-def
-
-    def offset(self):
-        """Concrete implementation of :meth:`AbstractOperand.offset() \
-        <doit.asm.asm.AbstractOperand.offset>`.
-
-        :returns: The offset part of this operand expression (:class:`int`).
-        """
-
-        return self.__offset
-    #-def
-
-    def scale(self):
-        """Concrete implementation of :meth:`AbstractOperand.scale() \
-        <doit.asm.asm.AbstractOperand.scale>`.
-
-        :returns: The scale part of this operand expression (:class:`int`).
-        """
-
-        return self.__base.scale()
-    #-def
-#-class
-
-class Address(AbstractOperand):
-    """Base class for ``segment[scale*base + offset]`` operand expressions.
-    """
-    __slots__ = [ '__segment', '__offset' ]
-
-    def __init__(self, segment, offset):
-        """Initializes the ``segment[scale*base + offset]`` operand expression.
-
-        :param segment: Segment.
-        :type segment: :class:`SegmentRegister <doit.asm.asm.SegmentRegister>`
-        :param offset: Base register or scale operand expression or offset \
-            operand expression.
-        :type offset: :class:`BaseRegister <doit.asm.asm.BaseRegister>` or \
-            :class:`Scale <doit.asm.asm.Scale>` or :class:`Offset \
-            <doit.asm.asm.Offset>`
-        """
-
-        AbstractOperand.__init__(self)
-        self.__segment = segment
-        self.__offset = offset
-    #-def
-
-    def base(self):
-        """Concrete implementation of :meth:`AbstractOperand.base() \
-        <doit.asm.asm.AbstractOperand.base>`.
-
-        :returns: The base part of this operand expression \
-            (:class:`BaseRegister <doit.asm.asm.BaseRegister>`).
-        """
-
-        return self.__offset.base()
-    #-def
-
-    def offset(self):
-        """Concrete implementation of :meth:`AbstractOperand.offset() \
-        <doit.asm.asm.AbstractOperand.offset>`.
-
-        :returns: The offset part of this operand expression (:class:`int`).
-        """
-
-        return self.__offset.offset()
-    #-def
-
-    def scale(self):
-        """Concrete implementation of :meth:`AbstractOperand.scale() \
-        <doit.asm.asm.AbstractOperand.scale>`.
-
-        :returns: The scale part of this operand expression (:class:`int`).
-        """
-
-        return self.__offset.scale()
-    #-def
-
-    def segment(self):
-        """Concrete implementation of :meth:`AbstractOperand.segment() \
-        <doit.asm.asm.AbstractOperand.segment>`.
-
-        :returns: The segment part of this operand expression \
-            (:class:`SegmentRegister <doit.asm.asm.SegmentRegister`).
-        """
-
-        return self.__segment.segment()
-    #-def
-
-    def eval(self, env):
-        """
-        """
-
-        return Pointer(self.__segment.eval(env), self.__offset.eval(env))
+        BinOpNode.__init__(self, lhs, rhs)
     #-def
 #-class
 
@@ -529,4 +258,18 @@ class AbstractAssembler(object):
         self.__links[l] = len(self.buffer)
         return self
     #-def
+
+    def end_section(self, name):
+        """
+        """
+
+    #-def
 #-class
+
+def section(obj, name):
+    """
+    """
+
+    obj.start_section(name)
+    return obj
+#-def

@@ -86,9 +86,9 @@ the locations from foreign memory segments (which are in fact the instances of
 ```````````````````````````````````````````````
 
 Since writing the binary code by hand may be tedious, this module provides an
-interface for writing the code in assebly language way. This module contains an
-abstract assembler class as a base interface class and several concrete
-assembler implementations, one per concrete architecture. Asseblers are
+interface for writing the code in assembly language way. This module contains
+an abstract assembler class as a base interface class and several concrete
+assembler implementations, one per concrete architecture. Assemblers are
 designed as fluent interfaces. That is, for every assembly instruction there is
 a corresponding method which, when invoked, writes the binary representation of
 instruction to the buffer and returns its owner, which is of course an instance
@@ -102,7 +102,13 @@ of assembler, so the method invokations can be chained.
 
 Common interface for all concrete assembler implementations.
 
-.. autoclass:: doit.asm.asm.AbstractOperand
+.. autoclass:: doit.asm.asm.InstructionOperand
+   :show-inheritance:
+   :members:
+   :special-members:
+   :private-members:
+
+.. autoclass:: doit.asm.asm.Register
    :show-inheritance:
    :members:
    :special-members:
