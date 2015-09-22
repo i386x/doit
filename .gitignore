@@ -1,6 +1,7 @@
 # Python:
 *.py[co]
 __pycache__/
+/objects.txt
 
 # Obsolete files:
 /C/
