@@ -46,6 +46,8 @@ PYTHON_OBJECT_REPR_STR_ss = "%s('%s', '%s')"
 RAISE_FROM_ENTER = 1
 SUPRESS = 2
 
+OPEN_FAIL = 1
+
 class ContextManagerMock(object):
     __slots__ = [ '__raising_strategy' ]
 
@@ -65,8 +67,6 @@ class ContextManagerMock(object):
         return False
     #-def
 #-class
-
-OPEN_FAIL = 1
 
 class FileMock(object):
     __slots__ = [
@@ -151,5 +151,31 @@ class OpenContext(object):
     def __exit__(self, et, ev, tb):
         __builtins__['open'] = self.__old_open
         return False
+    #-def
+#-class
+
+class ModuleContext(object):
+    __slots__ = [ '__env' ]
+
+    def __init__(self, env):
+        self.__env = env
+    #-def
+
+    def __enter__(self):
+        self.replace(self.__env)
+        return self
+    #-def
+
+    def __exit__(self, et, ev, tb):
+        self.restore()
+        return False
+    #-def
+
+    def replace(self, env):
+        raise NotImplementedError()
+    #-def
+
+    def restore(self):
+        raise NotImplementedError()
     #-def
 #-class

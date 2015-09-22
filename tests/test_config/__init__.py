@@ -1,14 +1,14 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/test_support/__init__.py
+#! \file    ./tests/test_config/__init__.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
-#! \stamp   2015-05-06 01:37:36 (UTC+01:00, DST+01:00)
+#! \stamp   2015-09-10 01:17:04 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
-DoIt! test_support package initialization file.\
+DoIt! test_config package initialization file.\
 """
 
 __license__ = """\
@@ -35,11 +35,11 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_utils, test_errors
+from . import test_version, test_config
 
 def suite():
     suite = unittest.TestSuite()
-    suite.addTest(test_errors.suite())
-    suite.addTest(test_utils.suite())
+    suite.addTest(test_version.suite())
+    suite.addTest(test_config.suite())
     return suite
 #-def

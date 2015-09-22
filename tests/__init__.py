@@ -35,11 +35,12 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_support, test_runtime
+from . import test_support, test_config, test_runtime
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(test_support.suite())
+    suite.addTest(test_config.suite())
     suite.addTest(test_runtime.suite())
 #    suite.addTest(test_input.suite())
 #    suite.addTest(test_errors.suite())
