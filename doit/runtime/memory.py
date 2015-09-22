@@ -8,7 +8,7 @@
 #! \fdesc   @pyfile.docstr
 #
 """\
-DoIt! VM's memory.\
+DoIt! VM memory.\
 """
 
 __license__ = """\
@@ -32,6 +32,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
+
+from doit.support.errors import DoItMemoryAccessError, doit_assert
+
+_assert = doit_assert
+_massert = lambda cond, emsg: doit_assert(cond, emsg, DoItMemoryAccessError, 2)
 
 class Pointer(object):
     """Data structure which keeps the memory location as a pair of segment
@@ -60,12 +65,12 @@ class Pointer(object):
     __slots__ = [ '__segment', '__offset' ]
 
     def __init__(self, segment, offset = 0):
-        """Initializes the pointer object.
+        """Initializes the pointer.
 
-        :param segment: Segment or pointer.
+        :param segment: A segment or a pointer.
         :type segment: :class:`Memory <doit.runtime.memory.Memory>` or \
             :class:`Pointer <doit.runtime.memory.Pointer>`
-        :param int offset: Offset (optional; the default value is 0).
+        :param int offset: An offset (optional; the default value is 0).
 
         If `segment` is pointer, the segment part of new pointer will be
         ``segment.segment()`` and the offset part will be
@@ -84,7 +89,7 @@ class Pointer(object):
     def segment(self):
         """Returns the segment part of pointer.
 
-        :returns: Segment (:class:`Memory <doit.runtime.memory.Memory>`).
+        :returns: The segment (:class:`Memory <doit.runtime.memory.Memory>`).
         """
 
         return self.__segment
@@ -93,7 +98,7 @@ class Pointer(object):
     def offset(self):
         """Returns the offset part of pointer.
 
-        :returns: Offset (:class:`int`).
+        :returns: The offset (:class:`int`).
         """
 
         return self.__offset
@@ -102,9 +107,10 @@ class Pointer(object):
     def read(self):
         """Reads the data the pointer refers to.
 
-        :returns: Data stored at the referred location.
+        :returns: The data stored at the referred location (:class:`object`).
 
-        :raises AssertionError: If the location is invalid.
+        :raises ~doit.support.errors.DoItMemoryAccessError: If the location \
+            is invalid.
         """
 
         return self.__segment[self.__offset]
@@ -113,10 +119,10 @@ class Pointer(object):
     def write(self, data):
         """Writes the `data` to the location the pointer refers to.
 
-        :param data: Data to be written.
-        :type data: any type
+        :param object data: A data to be written.
 
-        :raises AssertionError: If the location is invalid.
+        :raises ~doit.support.errors.DoItMemoryAccessError: If the location \
+            is invalid.
         """
 
         self.__segment[self.__offset] = data
@@ -126,9 +132,9 @@ class Pointer(object):
         """Implements the ``pointer + i``. This is equivalent to
         ``Pointer(pointer.segment(), pointer.offset() + i)``.
 
-        :param int i: The pointer offset increment.
+        :param int i: A pointer offset increment.
 
-        :returns: New instance of :class:`Pointer \
+        :returns: The new instance of :class:`Pointer \
             <doit.runtime.memory.Pointer>`.
         """
 
@@ -138,7 +144,7 @@ class Pointer(object):
     def __iadd__(self, i):
         """Implements the ``pointer += i`` (adds `i` to pointer's offset).
 
-        :param int i: The pointer offset increment.
+        :param int i: A pointer offset increment.
 
         :returns: This object (:class:`Pointer <doit.runtime.memory.Pointer>`).
         """
@@ -154,20 +160,23 @@ class Pointer(object):
         segment as ``pointer``, the result is the distance between ``pointer``
         and `i`.
 
-        :param i: The pointer offset decrement or pointer.
-        :type i: :class:`int` or :class:`Pointer <doit.runtime.memory.Pointer>`
+        :param i: A pointer or a pointer offset decrement.
+        :type i: :class:`Pointer <doit.runtime.memory.Pointer>` or :class:`int`
 
-        :returns: New instance of :class:`Pointer \
-            <doit.runtime.memory.Pointer>` or :class:`int`.
+        :returns: The new instance of :class:`Pointer \
+            <doit.runtime.memory.Pointer>` or the distance between two \
+            pointers  (:class:`int`).
 
-        :raises AssertionError: If ``pointer`` and `i` have different \
-            segments (in the case the `i` is :class:`Pointer \
-            <doit.runtime.memory.Pointer>`).
+        :raises ~doit.support.errors.DoItAssertionError: If ``pointer`` and \
+            `i` have different segments (in the case the `i` is \
+            :class:`Pointer <doit.runtime.memory.Pointer>`).
         """
 
         if isinstance(i, self.__class__):
-            assert self.__segment is i.segment(), \
-                "Pointers have different segments."
+            _assert(
+                self.__segment is i.segment(),
+                "Pointers have different segments"
+            )
             return self.__offset - i.offset()
         return self.__class__(self.__segment, self.__offset - i)
     #-def
@@ -175,7 +184,7 @@ class Pointer(object):
     def __isub__(self, i):
         """Implements the ``pointer -= i`` (adds `-i` to pointer's offset).
 
-        :param int i: The pointer offset decrement.
+        :param int i: A pointer offset decrement.
 
         :returns: This object (:class:`Pointer <doit.runtime.memory.Pointer>`).
         """
@@ -188,11 +197,11 @@ class Pointer(object):
         """Implements ``pointer[i] = v`` (writes `v` to the location referred
         by ``pointer`` and adjusted by `i`).
 
-        :param int i: Relative position to the pointer's referred location.
-        :param v: Data to be written.
-        :type v: any type
+        :param int i: A relative position to the pointer's referred location.
+        :param object v: A data to be written.
 
-        :raises AssertionError: If the target location is invalid.
+        :raises ~doit.support.errors.DoItMemoryAccessError: If the target \
+            location is invalid.
         """
 
         self.__segment[self.__offset + i] = v
@@ -202,11 +211,12 @@ class Pointer(object):
         """Implements ``pointer[i]`` (reads data from the location referred by
         ``pointer`` and adjusted by `i`).
 
-        :param int i: Relative position to the pointer's referred location.
+        :param int i: A relative position to the pointer's referred location.
 
-        :returns: Data stored at the requested location.
+        :returns: The data stored at the requested location (:class:`object`).
 
-        :raises AssertionError: If the target location is invalid.
+        :raises ~doit.support.errors.DoItMemoryAccessError: If the target \
+            location is invalid.
         """
 
         return self.__segment[self.__offset + i]
@@ -215,13 +225,13 @@ class Pointer(object):
 
 class Memory(list):
     """The memory abstraction base class. Instances of this class or the class
-    derived from this class are used by DoIt! virtual machine as a storage for
-    code or data.
+    derived from this class are used by `DoIt!` virtual machine as a storage
+    for code or data.
     """
     __slots__ = [ '__memused' ]
 
     def __init__(self):
-        """Initializes the memory object.
+        """Initializes the memory.
         """
 
         list.__init__(self, [])
@@ -231,12 +241,13 @@ class Memory(list):
     def sbrk(self, brk):
         """Set the upper bound of used memory.
 
-        :param int brk: The new upper bound value ("break").
+        :param int brk: A new upper bound value ("break").
 
-        :raises AssertionError: If `brk` value is invalid.
+        :raises ~doit.support.errors.DoItAssertionError: If `brk` value is \
+            invalid.
         """
 
-        assert brk >= 0, "Invalid memory break value (%d)." % brk
+        _assert(brk >= 0, "Invalid memory break value (%d)" % brk)
         if brk > len(self):
             list.extend(self, [None]*(brk - len(self)))
         self.__memused = brk
@@ -245,7 +256,7 @@ class Memory(list):
     def __add__(self, i):
         """Implements ``mem + i``.
 
-        :param int i: Index to memory.
+        :param int i: An index to the memory.
 
         :returns: :class:`Pointer <doit.runtime.memory.Pointer>` with segment \
             as this object and offset as `i`.
@@ -258,36 +269,38 @@ class Memory(list):
         """Implements ``mem[i] = v`` (writes `v` to position `i` in the
         memory).
 
-        :param int i: Index to memory.
-        :param v: Data to be written.
-        :type v: any type
+        :param int i: An index to the memory.
+        :param object v: A data to be written.
 
-        :raises AssertionError: If index `i` to memory is invalid.
+        :raises ~doit.support.errors.DoItMemoryAccessError: If the index `i` \
+            to the memory is invalid.
         """
 
-        assert i >= 0 and i < self.__memused, "Memory write error at %d." % i
+        _massert(i >= 0 and i < self.__memused, "Memory write error at %d" % i)
         list.__setitem__(self, i, v)
     #-def
 
     def __getitem__(self, i):
-        """Implements ``mem[i]`` (reads data from memory location at `i`).
+        """Implements ``mem[i]`` (reads data from the memory location at `i`).
 
-        :param int i: Index to memory.
+        :param int i: An index to the memory.
 
-        :returns: Data stored at the location `i` in the memory.
+        :returns: The data stored at the location `i` in the memory \
+            (:class:`object`).
 
-        :raises AssertionError: If index `i` to memory is invalid.
+        :raises ~doit.support.errors.DoItMemoryAccessError: If the index `i` \
+            to the memory is invalid.
         """
 
-        assert i >= 0 and i < self.__memused, "Memory read error at %d." % i
+        _massert(i >= 0 and i < self.__memused, "Memory read error at %d" % i)
         return list.__getitem__(self, i)
     #-def
 
     def stats(self):
         """Get the memory statistic.
 
-        :returns: Pair of :class:`int` values, where first is the size of \
-            used memory and second is the total memory size.
+        :returns: The pair of :class:`int` values, where the first is the \
+            size of used memory and the second is the total memory size.
         """
 
         return self.__memused, len(self)

@@ -33,51 +33,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-import os
+from doit.support.errors import doit_assert
 
-def sys2path(p):
-    """Convert a system path to DoIt! universal path.
-
-    :param str p: System path.
-
-    :returns: DoIt! universal path (:class:`str`).
-
-    DoIt! universal path is a UNIX-like relative path. It is recomended the
-    system path `p` to be also relative.
-    """
-
-    d = os.path.dirname(p)
-    b = os.path.basename(p)
-    if d == '':
-        return b
-    d = d.replace(os.sep, '/').replace(os.pardir, '..').replace(os.curdir, '.')
-    return "%s/%s" % (d, b)
-#-def
-
-def path2sys(p):
-    """Convert a DoIt! universal path to system path.
-
-    :param str p: DoIt! universal path.
-
-    :returns: System path (:class:`str`).
-
-    DoIt! universal path is a UNIX-like relative path.
-    """
-
-    if p.startswith("./"):
-        p = p[2:]
-    def f(x):
-        if x == '.':
-            return os.curdir
-        elif x == '..':
-            return os.pardir
-        return x
-    return os.path.join(*[f(x) for x in p.split('/')])
-#-def
+_assert = doit_assert
 
 class WithStatementExceptionHandler(object):
     """Implements exception handler which catch any exception raised inside
     with-statement.
+
+    Member variables:
+
+    * `etype` (:class:`type`) -- an exception type
+    * `evalue` (:class:`Exception`) -- an exception value
+    * `etraceback` (:class:`traceback`) -- a traceback object
     """
     __slots__ = [ 'etype', 'evalue', 'etraceback' ]
 
@@ -103,9 +71,10 @@ class WithStatementExceptionHandler(object):
     def __exit__(self, etype, evalue, etraceback):
         """Called when exiting from with-statement.
 
-        :param type etype: Exception type.
-        :param Exception evalue: Exception value.
-        :param traceback etraceback: Traceback.
+        :param type etype: An exception type.
+        :param Exception evalue: An exception value.
+        :param etraceback: A traceback object.
+        :type etraceback: :class:`traceback`
 
         :returns: :obj:`True` to suppress the caught exception.
         """
@@ -117,25 +86,6 @@ class WithStatementExceptionHandler(object):
     #-def
 #-class
 
-def doit_read(fpath):
-    """Read the text file encoded in UTF-8.
-
-    :param str fpath: DoIt! path to the location of file.
-
-    :returns: Content of file at `fpath` (:class:`str`).
-
-    In case of error, :obj:`None` is returned.
-    """
-
-    s = ""
-    wseh = WithStatementExceptionHandler()
-    with wseh, open(path2sys(fpath), 'r', encoding = 'utf-8') as f:
-        s = f.read()
-    if wseh.evalue is not None:
-        return None
-    return s
-#-def
-
 #
 # Based on Pygments _TokenType from pygments-main/pygments/token.py
 # (http://pygments.org/)
@@ -144,41 +94,27 @@ class Collection(object):
     """A factory for making unique objects. Each object has attribute `name`
     with its name and `qname` with its qualified name (complete path).
 
-    Example of use::
+    Member variables:
 
-        # Create an anonymous object:
-        a = Collection()
-
-        # Create new object named 'ItemA':
-        ItemA = Collection("ItemA")
-
-        # Create a subobject named 'SubItem1':
-        SubItem1 = ItemA.SubItem1
-
-        # This is true now:
-        SubItem1.name == "SubItem1"
-        SubItem1.qname == "ItemA.SubItem1"
-
-        # Create new object 'ItemB' and inherits subobjects from 'ItemA':
-        ItemB = Collection("ItemB", "ItemA")
-
-        # This is now also true:
-        SubItem1 is ItemB.SubItem1
+    * `name` (:class:`str`) -- an unique object name
+    * `qname` (:class:`str`) -- an unique object full name
     """
-    __slots__ = [ 'name', 'qname', 'siblings' ]
-    collections = {}
+    __collections = {}
     __locked = False
+    __slots__ = [ 'name', 'qname', 'siblings_', '__x' ]
 
     def __new__(cls, *args):
-        """Creates a new or return existing unique object (instance of
+        """Creates a new or returns existing unique object (instance of
         :class:`Collection <doit.support.utils.Collection>`).
 
-        :returns: Unique object (:class:`Collection \
+        :param tuple args: See below.
+
+        :returns: The unique object (:class:`Collection \
             <doit.support.utils.Collection>`).
 
-        :raises AssertionError: When :class:`Collection \
-            <doit.support.utils.Collection>` is locked (see :meth:`lock() \
-            <doit.support.utils.Collection.lock>`).
+        :raises ~doit.support.errors.DoItAssertionError: When \
+            :class:`Collection <doit.support.utils.Collection>` is locked \
+            (see :meth:`lock() <doit.support.utils.Collection.lock>`).
 
         Called with no argument, creates an anonymous instance of
         :class:`Collection <doit.support.utils.Collection>`. Otherwise, the
@@ -188,21 +124,21 @@ class Collection(object):
         name.
         """
 
-        assert not cls.__locked, "Collection is locked."
+        _assert(not cls.__locked, "Collection is locked")
         if len(args) == 0:
             inst = object.__new__(cls)
             setattr(inst, 'name', repr(inst))
             setattr(inst, 'qname', repr(inst))
-            setattr(inst, 'siblings', {})
+            setattr(inst, 'siblings_', {})
             return inst
         name = args[0]
-        inst = cls.collections.get(name, None)
+        inst = cls.__collections.get(name, None)
         if inst is not None:
             return inst
-        cls.collections[name] = inst = object.__new__(cls)
+        cls.__collections[name] = inst = object.__new__(cls)
         setattr(inst, 'name', name)
         setattr(inst, 'qname', name)
-        setattr(inst, 'siblings', {})
+        setattr(inst, 'siblings_', {})
         for p in args[1:]:
             cls.__link(inst, p)
         return inst
@@ -211,43 +147,50 @@ class Collection(object):
     @classmethod
     def __link(cls, destobj, srcpath):
         """Helper class method for inheriting subobjects from `srcpath`.
+
+        :param destobj: A destination object.
+        :type destobj: :class:`Collection <doit.support.utils.Collection>`
+        :param str srcpath: A path to source object.
         """
 
         parts = srcpath.split('.')
-        root = cls.collections.get(parts[0], None)
+        root = cls.__collections.get(parts[0], None)
         for sibname in parts[1:]:
             if root is None:
                 break
-            root = root.siblings.get(sibname, None)
+            root = root.siblings_.get(sibname, None)
         if root is None:
             return
-        for k in root.siblings.keys():
-            destobj.siblings[k] = root.siblings[k]
+        for k in root.siblings_.keys():
+            destobj.siblings_[k] = root.siblings_[k]
     #-def
 
     def __init__(self, *args):
         """Initializes the unique object.
+
+        :param tuple args: See :meth:`__new__(*args) \
+            <doit.support.utils.Collection.__new__>`.
         """
 
         pass
     #-def
 
     def __getattr__(self, value):
-        """Return a unique object with name `value` and qualified name
+        """Returns the unique object with name `value` and qualified name
         ``self.qname + '.' + value``.
 
-        :param str value: Unique object name.
+        :param str value: The unique object name.
 
-        :returns: Unique object (:class:`Collection \
+        :returns: The unique object (:class:`Collection \
             <doit.support.utils.Collection>`).
         """
 
         if not value[0].isupper():
             return object.__getattribute__(self, value)
-        inst = self.siblings.get(value, None)
+        inst = self.siblings_.get(value, None)
         if inst is not None:
             return inst
-        self.siblings[value] = inst = Collection()
+        self.siblings_[value] = inst = Collection()
         setattr(inst, 'name', value)
         setattr(inst, 'qname', "%s.%s" % (self.qname, value))
         return inst
@@ -256,29 +199,27 @@ class Collection(object):
     def __contains__(self, item):
         """Tests the `item` ownership.
 
-        :param item: Item to be tested.
+        :param item: An item to be tested.
         :type item: :class:`Collection <doit.support.utils.Collection>`
 
         :returns: :obj:`True` if `item` is in this object scope \
             (:class:`bool`).
-
-        Examples:
-
-        >>> A in A
-        True
-        >>> A.B in A.B
-        True
-        >>> A.C in A.B
-        False
-        >>> A in A.B
-        False
-        >>> A.B in A
-        True
-        >>> A.B.C.D in A.B
-        True
         """
 
-        return self is item or item.qname.startswith("%s." % self.qname)
+        return self is item or repr(item).startswith("%s." % repr(self))
+    #-def
+
+    def __repr__(self):
+        """Implements the ``repr`` operator.
+
+        :returns: The qualified name of this unique object or, if this object \
+            was created as anonymous, its default representation \
+            (:class:`str`).
+        """
+
+        if hasattr(self, 'qname'):
+            return self.qname
+        return object.__repr__(self)
     #-def
 
     @classmethod
