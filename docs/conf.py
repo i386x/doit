@@ -31,9 +31,13 @@ needs_sphinx = '1.0'
 # ones.
 extensions = [
   "sphinx.ext.autodoc",
-  "sphinx.ext.intersphinx"
+  "sphinx.ext.intersphinx",
+  "sphinx.ext.graphviz"
 ]
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
+graphviz_dot = 'dot'
+graphviz_dot_args = []
+graphviz_output_format = 'png'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = [ "templates" ]
@@ -107,7 +111,7 @@ autodoc_member_order = 'bysource'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -189,7 +193,16 @@ htmlhelp_basename = 'doit-lang'
 
 # Sphinx customization.
 def setup(app):
+    from docutils import nodes
     from sphinx.ext.autodoc import MethodDocumenter, add_documenter
+    from sphinx.domains.python import PyXrefMixin, PyObject
+    from sphinx.locale import _
+    from sphinx.util.docfields import GroupedField
+    from sphinx.writers.html import SmartyPantsHTMLTranslator
+
+    class PyXrefGroupedField(PyXrefMixin, GroupedField):
+        pass
+    #-class
 
     class MethodDocumenterNoDecoratedPrivateMembers(MethodDocumenter):
         """Converts names like '_Class__private' to '__private'.
@@ -208,4 +221,89 @@ def setup(app):
     #-class
 
     add_documenter(MethodDocumenterNoDecoratedPrivateMembers)
+
+    # Patch PyObject.doc_field_types:
+    item = 0
+    for field in PyObject.doc_field_types:
+        if field.name == 'exceptions':
+            break
+        item += 1
+    if item < len(PyObject.doc_field_types):
+        PyObject.doc_field_types[item] = PyXrefGroupedField(
+            field.name,
+            label = field.label,
+            rolename = field.rolename,
+            names = field.names,
+            can_collapse = field.can_collapse
+        )
+
+    # Patch Sphinx bug #1788:
+    class CorrectedHTMLTranslator(SmartyPantsHTMLTranslator):
+
+        def __init__(self, *args, **kwargs):
+            SmartyPantsHTMLTranslator.__init__(self, *args, **kwargs)
+        #-def
+
+        def depart_caption(self, node):
+            self.body.append('</span>')
+
+            # append permalink if available
+            if isinstance(node.parent, nodes.container) \
+            and node.parent.get('literal_block'):
+                self.add_permalink_ref(
+                    node.parent, _('Permalink to this code')
+                )
+            elif isinstance(node.parent, nodes.figure):
+                image_nodes = node.parent.traverse(nodes.image)
+                target_node = image_nodes and image_nodes[0] or node.parent
+                self.add_permalink_ref(
+                    target_node, _('Permalink to this image')
+                )
+            elif node.parent.get('toctree'):
+                self.add_permalink_ref(
+                    node.parent.parent, _('Permalink to this toctree')
+                )
+
+            if isinstance(node.parent, nodes.container) \
+            and node.parent.get('literal_block'):
+                self.body.append('</div>\n')
+            else:
+                SmartyPantsHTMLTranslator.__bases__[0].__bases__[0] \
+                    .depart_caption(self, node)
+        #-def
+    #-class
+
+    def process_signature(
+        app, what, name, obj, options, signature, return_annotation
+    ):
+        if what != 'function':
+            return signature, return_annotation
+        params = []
+        # We suppose that we have not something like this:
+        #
+        #     def fnc(x, y, z = "Hello, World!", g = "== Problem? =="):
+        #         ...
+        #
+        for p in [p.strip() for p in signature[1:-1].split(',')]:
+            if '=' not in p:
+                params.append(p)
+                continue
+            key, value = p.split('=')
+            s, e = "<class '", "'>"
+            if not value.startswith(s) or not value.endswith(e):
+                params.append(p)
+                continue
+            value = value[len(s):-len(e)]
+            if '.' not in value or '.' not in name \
+            or name.split('.')[:-1] != value.split('.')[:-1]:
+                params.append('='.join([key, value]))
+                continue
+            # `value` is from the same module as `name`:
+            params.append('='.join([key, value.split('.')[-1]]))
+        return "(%s)" % ', '.join(params), return_annotation
+    #-def
+
+    app.set_translator('html', CorrectedHTMLTranslator)
+    app.add_stylesheet('custom.css')
+    app.connect('autodoc-process-signature', process_signature)
 #-def

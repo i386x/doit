@@ -1,4 +1,4 @@
-DoIt! Language Manual
-=====================
+`DoIt!` Language Manual
+=======================
 
 In preparation.
