@@ -284,14 +284,14 @@ class Configuration(object):
                 return
             platform_parts = platform_id.split('-')
             self.__host_platform = self.__decode_os(platform_parts[0])
-            if not self.__host_platform:
-                self.__probe_host_platform2(*args, **kwargs)
-                return
             platform_parts[0] = self.__host_platform
             self.__host_version = self.__decode_os_version(platform_parts)
             if not self.__host_version:
                 self.__host_version = Version(0, 0, 0, -1, "")
             self.__host_version.info = platform_id
+            if not self.__host_platform:
+                self.__probe_host_platform2(*args, **kwargs)
+                return
             self.__post_probe_host_platform(*args, **kwargs)
         except Exception as e:
             self.__host_platform = ""
@@ -350,6 +350,10 @@ class Configuration(object):
                 self.__host_arch = ARCH_64
             elif sys.maxsize > 2**16:
                 self.__host_arch = ARCH_32
+            elif self.__host_machine == MACHINE_x86:
+                self.__host_arch = ARCH_32
+            elif self.__host_machine == MACHINE_x86_64:
+                self.__host_arch = ARCH_64
         except Exception as e:
             self.__host_arch = ""
             if not self.__what_is_wrong:
@@ -368,16 +372,22 @@ class Configuration(object):
         :param dict kwargs: A keyword arguments.
         """
 
-        if self.__host_platform == PLATFORM_DARWIN \
-        and self.__host_arch == ARCH_32 \
-        and sys.maxsize > 2**32:
+        if self.__host_arch == ARCH_64 and sys.maxsize > 2**16:
+            self.__host_arch = ARCH_32
+        if self.__host_arch == ARCH_32 and sys.maxsize > 2**32:
             self.__host_arch = ARCH_64
     #-def
 
     def __fix_host_machine(self, *args, **kwargs):
-        """
+        """Resolves the ambiguity between machine and architecture.
+
+        :param tuple args: A positinal arguments.
+        :param dict kwargs: A keyword arguments.
         """
 
+        if self.__host_machine == MACHINE_x86_64 \
+        and self.__host_arch == ARCH_32:
+            self.__host_machine = MACHINE_x86
         if self.__host_machine == MACHINE_x86 and self.__host_arch == ARCH_64:
             self.__host_machine = MACHINE_x86_64
     #-def
@@ -426,14 +436,11 @@ class Configuration(object):
         :param dict kwargs: A keyword arguments.
         """
 
-        _ = lambda x: False
         self.__jitable = False
         if self.__host_interpreter != PYTHON_CPYTHON \
         or not self.__host_arch \
         or not self.__host_machine \
-        or not self.__host_platform \
-        or _("64bit interpreter on 32bit machine? We are doomed.") \
-        or self.__host_machine == MACHINE_x86 and self.__host_arch == ARCH_64:
+        or not self.__host_platform:
             return
         self.__jitable = True
     #-def
@@ -447,14 +454,10 @@ class Configuration(object):
 
         self.__target_machine = MACHINE_DOIT
         self.__target_platform = PLATFORM_ANY
-        self.__jitable = False
         allow_JIT = self.__class__.OPT_JIT in args
         if self.__jitable and allow_JIT:
             self.__target_platform = self.__host_platform
             self.__target_machine = self.__host_machine
-        if self.__target_machine == MACHINE_x86_64 \
-        and self.__host_arch == ARCH_32:
-            self.__target_machine = MACHINE_x86
     #-def
 
     def __probe_host_platform2(self, *args, **kwargs):
@@ -545,12 +548,13 @@ class Configuration(object):
             <doit.config.version.Version>` or :obj:`None`).
         """
 
-        if platform_parts[0] in [
+        if (platform_parts[0] in [
             PLATFORM_DARWIN,
             PLATFORM_FREEBSD, PLATFORM_NETBSD, PLATFORM_OPENBSD,
             PLATFORM_LINUX,
             PLATFORM_SUNOS
-        ] and len(platform_parts) >= 2:
+        ] or platform_parts[0] == PLATFORM_WINDOWS and os.name == "posix") \
+        and len(platform_parts) >= 2:
             return Configuration.__to_version(platform_parts[1])
         if platform_parts[0] == PLATFORM_WINDOWS and len(platform_parts) >= 3:
             return Configuration.__to_version(platform_parts[2])
