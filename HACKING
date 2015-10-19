@@ -138,4 +138,6 @@ Development state
 
 [X] ./tests/test_support/test_errors.py
 [X] ./tests/test_support/test_utils.py
+[_] ./tests/test_config/test_version.py
+[_] ./tests/test_config/test_config.py
 [X] ./tests/test_runtime/test_memory.py

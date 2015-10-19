@@ -209,6 +209,5 @@ class Version(object):
 #-class
 
 UNUSED_VERSION = None
-NULL_VERSION = Version(0, 0, 0, 0, "")
 
 DOIT_VERSION = Version(0, 0, 0, 20140101, "Development")

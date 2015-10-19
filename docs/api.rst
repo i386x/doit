@@ -746,6 +746,49 @@ General purpose utility functions and classes.
    :special-members:
    :private-members:
 
+.. module:: config
+   :synopsis: `DoIt!` version and configuration.
+
+:mod:`doit.config` -- `DoIt!` version and configuration
+```````````````````````````````````````````````````````
+
+The `DoIt!` configuration and version.
+
+.. module:: config.version
+   :synopsis: `DoIt!` version.
+
+:mod:`doit.config.version` -- `DoIt!` version
+'''''''''''''''''''''''''''''''''''''''''''''
+
+There are two variables defined in this module:
+
+* ``UNUSED_VERSION = None`` -- for unused versions;
+* ``DOIT_VERSION`` (:class:`Version <doit.config.version.Version>`) -- holds
+  the recent version of `DoIt!`.
+
+The version itself is represented by the
+:class:`Version <doit.config.version.Version>` class.
+
+.. autoclass:: doit.config.version.Version
+   :show-inheritance:
+   :members:
+   :special-members:
+   :private-members:
+
+.. module:: config.config
+   :synopsis: `DoIt!` configuration.
+
+:mod:`doit.config.config` -- `DoIt!` configuration
+''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Classes and functions for configuring `DoIt!`, system probing etc.
+
+.. autoclass:: doit.config.config.Configuration
+   :show-inheritance:
+   :members:
+   :special-members:
+   :private-members:
+
 .. module:: runtime
    :synopsis: `DoIt!` virtual machine (VM) and VM runtime services.
 
