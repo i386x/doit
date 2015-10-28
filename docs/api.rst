@@ -366,48 +366,12 @@ and stack manipulation:
 
         <center>
 
-   .. graphviz::
-
-        digraph StackFrame {
-          rankdir = LR;
-
-          pnode [shape = point, width = 0.01, height = 0.01, fixedsize = true];
-          next_frame [shape = none, margin = 0, label = <next frame>];
-          {rank = same; pnode; next_frame;}
-          stackframe [shape = record, label = "\
-            <a> Mth local variable\
-            |\
-            <b> ...\
-            |\
-            <c> 1st local variable\
-            |\
-            <d> 0th local variable\
-            |\
-            <e> old vm.fp\
-            |\
-            <f> return address\
-            |\
-            <g> 0th argument\
-            |\
-            <h> 1st argument\
-            |\
-            <i> ...\
-            |\
-            <j> Nth argument\
-          "];
-          fpreg [shape = none, margin = 0, label = <vm.fp>];
-
-          pnode -> stackframe:e [arrowhead = none];
-          next_frame -> stackframe:j [style = invis];
-          stackframe:d -> fpreg [style = invis];
-          fpreg -> stackframe:d;
-          pnode -> next_frame [minlen = 5];
-          stackframe:e -> next_frame [style = invis];
-        }
+   .. image:: static/stackframe.png
+      :width: 450px
 
    .. raw:: html
 
-        </center>
+        </center><br />
 
    The `return address` is either `offset` (near call) or `segment:offset` (far
    call), where `segment` is pushed onto the stack earlier than `offset`.

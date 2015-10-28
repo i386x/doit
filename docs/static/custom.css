@@ -1,0 +1,5 @@
+/*  See: https://github.com/snide/sphinx_rtd_theme/issues/117  */
+table td, table tr {
+  white-space: normal !important;
+  overflow: visible !important;
+}
