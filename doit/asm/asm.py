@@ -663,7 +663,7 @@ class Sections(object):
         :returns: The full (qualified) name of the symbol (:class:`str`).
         """
 
-        if name.startswith('.') and not name.startswith('..'):
+        if self.__is_local_name(name):
             name = "%s%s" % (self.__scope, name)
         return name
     #-def
@@ -674,6 +674,8 @@ class Sections(object):
         :param str scope: A scope name.
         """
 
+        if self.__is_local_name(scope):
+            return
         self.__scope = scope
     #-def
 
@@ -714,6 +716,21 @@ class Sections(object):
         """
 
         return self.__symbols
+    #-def
+
+    @staticmethod
+    def __is_local_name(name):
+        """Test whether `name` is local.
+
+        :param str name: A name.
+
+        :returns: :obj:`True` if `name` is local (:class:`bool`).
+
+        Local names begins with one dot, eg. ``.label``, ``.foo``, but not
+        ``..bar``.
+        """
+
+        return name.startswith('.') and not name.startswith('..')
     #-def
 #-class
 
