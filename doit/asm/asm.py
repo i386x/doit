@@ -545,7 +545,7 @@ class Sections(object):
     """Base class for section containers.
     """
     __slots__ = [
-        '__creator', '__sections', '__name2pos', '__namespace', '__symbols'
+        '__creator', '__sections', '__name2pos', '__scope', '__symbols'
     ]
 
     def __init__(self, creator):
@@ -558,7 +558,7 @@ class Sections(object):
         self.__creator = creator
         self.__sections = []
         self.__name2pos = {}
-        self.__namespace = ""
+        self.__scope = ""
         self.__symbols = {}
     #-def
 
@@ -664,10 +664,17 @@ class Sections(object):
         """
 
         if name.startswith('.') and not name.startswith('..'):
-            name = "%s%s" % (self.__namespace, name)
-        else:
-            self.__namespace = name
+            name = "%s%s" % (self.__scope, name)
         return name
+    #-def
+
+    def set_scope(self, scope):
+        """Set the scope name.
+
+        :param str scope: A scope name.
+        """
+
+        self.__scope = scope
     #-def
 
     def clear(self):
@@ -676,7 +683,7 @@ class Sections(object):
 
         self.__sections = []
         self.__name2pos = {}
-        self.__namespace = ""
+        self.__scope = ""
         self.__symbols.clear()
     #-def
 
