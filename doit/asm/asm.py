@@ -556,10 +556,7 @@ class Sections(object):
         """
 
         self.__creator = creator
-        self.__sections = []
-        self.__name2pos = {}
-        self.__scope = ""
-        self.__symbols = {}
+        self.reinitialize()
     #-def
 
     def end(self):
@@ -679,12 +676,22 @@ class Sections(object):
         self.__scope = scope
     #-def
 
-    def clear(self):
-        """Clear the container of sections (including symbol table).
+    def reinitialize(self):
+        """Reinitializes the container.
         """
 
         self.__sections = []
         self.__name2pos = {}
+        self.__scope = ""
+        self.__symbols = {}
+    #-def
+
+    def clear(self):
+        """Clear the container of sections (including symbol table).
+        """
+
+        self.__sections.clear()
+        self.__name2pos.clear()
         self.__scope = ""
         self.__symbols.clear()
     #-def
@@ -707,6 +714,15 @@ class Sections(object):
         """
 
         return self.__sections, self.__name2pos
+    #-def
+
+    def scope(self):
+        """Get the recent scope name.
+
+        :returns: The recent scope name (:class:`str`).
+        """
+
+        return self.__scope
     #-def
 
     def symbols(self):
@@ -754,7 +770,7 @@ class Assembler(object):
         """
 
         self.on_start()
-        self.__sections.clear()
+        self.__sections.reinitialize()
         return self.__sections
     #-def
 
