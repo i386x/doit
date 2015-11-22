@@ -23,10 +23,12 @@ endif
 
 PYTHON = $(PYTHON_)
 PYTHONFLAGS =
+COPY = cp
+COPYFLAGS =
 
-.PHONY: all help test docs clean
+.PHONY: all help test markdown docs clean
 
-all: docs
+all: markdown docs
 
 help:
 	@echo "Usage: $(MAKE) <target>"
@@ -39,8 +41,19 @@ help:
 test:
 	$(PYTHON) $(PYTHONFLAGS) runtests.py
 
+markdown: README.md HACKING.md TODO.md
+
 docs:
 	$(MAKE) -C docs html
 
 clean:
 	$(MAKE) -C docs clean
+
+README.md: README
+	$(COPY) $(COPYFLAGS) README README.md
+
+HACKING.md: HACKING
+	$(COPY) $(COPYFLAGS) HACKING HACKING.md
+
+TODO.md: TODO
+	$(COPY) $(COPYFLAGS) TODO TODO.md
