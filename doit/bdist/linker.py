@@ -33,96 +33,122 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+import time
+import collections
+
+from doit.config.version import UNUSED_VERSION
+
+class Section(collections.OrderedDict):
+    """
+    """
+    __slots__ = [ 'name' ]
+
+    def __init__(self, name):
+        """
+        """
+
+        collections.OrderedDict.__init__(self)
+        self.name = name
+    #-def
+#-class
+
 class LinkableBase(object):
     """Linkable base class.
     """
-    __slots__ = [
-        'arch', 'arch_version',
-        'platform', 'platform_version',
-        'flags', 'timedate',
-        'sections'
-    ]
+    version = UNUSED_VERSION
+    __slots__ = [ '__name', '__timedate', '__sections' ]
 
-    def __init__(self):
+    def __init__(self, name, content_source, timedate = -1):
         """Initializes the linkable base.
-
-        Member variables:
-
-        * `arch` (:class:`str`) -- architecture identifier
-        * `arch_version` (:class:`tuple`) -- architecture version
-        * `platform` (:class:`str`) -- platform identifier
-        * `platform_version` (:class:`tuple`) -- platform version
-        * `flags` (:class:`int`) -- additional informations
-        * `timedate` (:class:`int`) -- time date stamp (in seconds)
-        * `sections` (:class:`dict`) -- sections with data
         """
 
-        self.arch = ''
-        self.arch_version = ()
-        self.platform = ''
-        self.platform_version = ()
-        self.flags = 0
-        self.timedate = -1
-        self.sections = {}
+        self.__name = name
+        self.__timedate = timedate
+        self.__sections = collections.OrderedDict()
+        self.make_sections(self.__sections, content_source)
+    #-def
+
+    def make_sections(self, dest, src):
+        """
+        """
+
+        pass
+    #-def
+
+    def timestamp(self, now = -1):
+        """
+        """
+
+        if self.__timedate < 0:
+            self.__timedate = \
+                int(time.mktime(time.gmtime())) if now < 0 else now
+    #-def
+
+    def name(self):
+        """
+        """
+
+        return self.__name
+    #-def
+
+    def timedate(self):
+        """
+        """
+
+        return self.__timedate
+    #-def
+
+    def get_section(self, name):
+        """
+        """
+
+        return self.__sections[name]
+    #-def
+
+    def each_section(self, f):
+        """
+        """
+
+        for k in self.__sections:
+            f(k, self.__sections[k])
+    #-def
+#-class
+
+class AssembledObject(LinkableBase):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, name, asm):
+        """
+        """
+
+        LinkableBase.__init__(self, name, asm)
     #-def
 #-class
 
 class LinkableObject(LinkableBase):
     """Base class for linkable objects.
-
-    Member variables:
-
-    * `linkable_version` (:class:`tuple`) -- the version of linkable object
-    * `linker_name` (:class:`str`) -- the name of the linker or assembler
-    * `linker_version` (:class:`tuple`) -- the version of the linker or \
-        assembler
-    """
-    __slots__ = [ 'linkable_version', 'linker_name', 'linker_version' ]
-
-    def __init__(self):
-        """Initializes the linkable object.
-        """
-
-        LinkableBase.__init__(self)
-        self.linkable_version = ()
-        self.linker_name = ''
-        self.linker_version = ()
-    #-def
-#-class
-
-class Executable(LinkableBase):
-    """Base class for executable objects.
-
-    Member variables:
-
-    * `executable_version` (:class:`tuple`) -- the version of executable \
-        object (not the executable code)
-    * `entry_point` (:class:`int`) -- where the executable code begins
-    * `code_section_idx` (:class:`str`) -- where the section with executable \
-        code is located (in `sections`)
-    """
-    __slots__ = [ 'executable_version', 'entry_point', 'code_section_idx' ]
-
-    def __init__(self):
-        """Initializes the executable object.
-        """
-
-        LinkableBase.__init__(self)
-        self.executable_version = ()
-        self.entry_point = -1
-        self.code_section_idx = ''
-    #-def
-#-class
-
-class Linker(object):
-    """Base class for linkers.
     """
     __slots__ = []
 
-    def __init__(self):
-        """Initializes the linker.
+    def __init__(self, object):
+        """Initializes the linkable object.
         """
 
-        pass
+        LinkableBase.__init__(self, object.name(), object)
+    #-def
+#-class
+
+class Executable(LinkableObject):
+    """Base class for executable objects.
+    """
+    __slots__ = []
+
+    def __init__(self, name, objects, options, version):
+        """Initializes the executable object.
+        """
+
+        LinkableObject.__init__(self, name, (objects, options), version)
     #-def
 #-class
