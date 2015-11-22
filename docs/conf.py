@@ -106,6 +106,10 @@ keep_warnings = False
 # source code.
 autodoc_member_order = 'bysource'
 
+rst_prolog = """
+.. |doit| replace:: `DoIt!`
+"""
+
 # =============================================================================
 # == Options for HTML output                                                 ==
 
