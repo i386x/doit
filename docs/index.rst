@@ -1,9 +1,14 @@
-`DoIt!`: A Simple Extendable Command Language Documentation
-===========================================================
+|doit|: A Simple Extendable Command Language Documentation
+==========================================================
 
-Welcome to `DoIt!` documentation. `DoIt!` is a modern
+.. admonition:: TODO
+   :class: warning
+
+   Update this doc after first version of |doit| will be released.
+
+Welcome to |doit| documentation. |doit| is a modern
 command/scripting/programming language which allows user to redefine itself. In
-`DoIt!`, the user is capable to
+|doit|, the user is capable to
 
 - define new lexical elements, syntax constructs, and semantic rules
 - manipulate with source input
@@ -12,13 +17,13 @@ command/scripting/programming language which allows user to redefine itself. In
 - communicate with host environment
 - and more
 
-Contents
---------
+.. rubric:: Table of Contents
+
 .. toctree::
    :maxdepth: 2
 
    lang
-   api
+   dev/index
 
 * :ref:`genindex`
 * :ref:`modindex`
