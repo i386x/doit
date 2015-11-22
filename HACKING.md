@@ -66,14 +66,18 @@ IN THE SOFTWARE.\
 
     * brief info about class
 
-    * class variables (visible to user)::
+    * class variables (visible to user):
 
-          :cvar type name: Description.
+      ```
+      :cvar type name: Description.
+      ```
 
-          or
+      or
 
-          :cvar name: Description.
-          :vartype name: :class:`type`
+      ```
+      :cvar name: Description.
+      :vartype name: :class:`type`
+      ```
 
     * member variables (visible to user)::
 
