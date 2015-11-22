@@ -41,11 +41,12 @@ class WithStatementExceptionHandler(object):
     """Implements exception handler which catch any exception raised inside
     with-statement.
 
-    Member variables:
-
-    * `etype` (:class:`type`) -- an exception type
-    * `evalue` (:class:`Exception`) -- an exception value
-    * `etraceback` (:class:`traceback`) -- a traceback object
+    :ivar etype: Exception type.
+    :vartype etype: type
+    :ivar evalue: Exception value.
+    :vartype evalue: Exception
+    :ivar etraceback: Traceback object.
+    :vartype etraceback: :class:`traceback`
     """
     __slots__ = [ 'etype', 'evalue', 'etraceback' ]
 
@@ -94,10 +95,8 @@ class Collection(object):
     """A factory for making unique objects. Each object has attribute `name`
     with its name and `qname` with its qualified name (complete path).
 
-    Member variables:
-
-    * `name` (:class:`str`) -- an unique object name
-    * `qname` (:class:`str`) -- an unique object full name
+    :ivar str name: Unique object name.
+    :ivar str qname: Unique object full name.
     """
     __collections = {}
     __locked = False

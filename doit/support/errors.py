@@ -46,16 +46,11 @@ ERROR_LINKER = 6
 ERROR_UNKNOWN = 255
 
 class DoItError(Exception):
-    """General `DoIt!` exception.
+    """General |doit| exception.
 
-    Class variables:
-
-    * `ERRMSGFMT` (:class:`str`) -- error message format string
-
-    Member variables:
-
-    * `errcode` (:class:`int`) -- error code
-    * `detail` (:class:`str`) -- why the exception was raised
+    :cvar str ERRMSGFMT: Error message format string.
+    :ivar int errcode: Error code.
+    :ivar str detail: Why the exception was raised.
     """
     ERRMSGFMT = "%s [errcode = %d]: %s."
     __slots__ = [ 'errcode', 'detail' ]
@@ -139,7 +134,7 @@ class DoItMemoryAccessError(DoItError):
 #-class
 
 class DoItRuntimeError(DoItError):
-    """Raised when the execution of `DoIt!` code fails.
+    """Raised when the execution of |doit| code fails.
     """
     __slots__ = []
 

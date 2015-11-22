@@ -62,12 +62,23 @@ IN THE SOFTWARE.\
 
     * brief info about class
 
-    * class variables (visible to user)
-    * member variables (visible to user)
+    * class variables (visible to user)::
 
-      - both must have format:
+          :cvar type name: Description.
 
-        ``* `name` (:class:`type`) -- description``
+          or
+
+          :cvar name: Description.
+          :vartype name: :class:`type`
+
+    * member variables (visible to user)::
+
+          :ivar type name: Description.
+
+          or
+
+          :ivar name: Description.
+          :vartype name: :class:`type`
 
   - class variables definitions
   - __slots__
@@ -77,28 +88,33 @@ IN THE SOFTWARE.\
     * doc string:
 
       - brief info
-      - params (use backslash and indentation if the line limit was exceeded):
+      - params (use backslash and indentation if the line limit was exceeded)::
 
-        * ``:param type name: Description.``
-          or
-          ``:param name: Description.``
-          ``:type type: :class:`type```
+            :param type name: Description.
 
-      - returns (use backslash and indentation if the line limit was exceeded):
+            or
 
-        * ``:returns: Description (:class:`type`).``
+            :param name: Description.
+            :type name: :class:`type`
 
-      - raises (use backslash and indentation if the line limit was exceeded):
+      - returns (use backslash and indentation if the line limit was
+        exceeded)::
 
-        * ``:raises exception: Reason.``
-          or
-          ``:raises ~DoItException: Reason.``
+            :returns: Description (:class:`type`).
+
+      - raises (use backslash and indentation if the line limit was exceeded)::
+
+            :raises exception: Reason.
+
+            or
+
+            :raises ~DoItException: Reason.
 
       - notes
 
-    * #-def
+    * ``#-def``
 
-  - #-class
+  - ``#-class``
 
 * routines (see methods)
 
@@ -126,18 +142,3 @@ Documentation
     * :class:`traceback` -- not documented in the official Python documentation
 
 * the order of documented stuff must reflects the order in source file
-
-Development state
-=================
-
-[X] ./doit/support/errors.py
-[X] ./doit/support/utils.py
-[_] ./doit/config/version.py
-[_] ./doit/config/config.py
-[X] ./doit/runtime/memory.py
-
-[X] ./tests/test_support/test_errors.py
-[X] ./tests/test_support/test_utils.py
-[_] ./tests/test_config/test_version.py
-[_] ./tests/test_config/test_config.py
-[X] ./tests/test_runtime/test_memory.py
