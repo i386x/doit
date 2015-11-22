@@ -21,9 +21,21 @@ else
   $(error Python interpreter of version 3 is needed)
 endif
 
+SED_ = sed
+ifeq ($(shell which $(SED_) >/dev/null 2>&1; echo $$?), 1)
+  $(error $(SED_) utility is not installed)
+endif
+
+COPY_ = cp
+ifeq ($(shell which $(COPY_) >/dev/null 2>&1; echo $$?), 1)
+  $(error $(COPY_) utility is not installed)
+endif
+
 PYTHON = $(PYTHON_)
 PYTHONFLAGS =
-COPY = cp
+SED = $(SED_)
+SEDFLAGS =
+COPY = $(COPY_)
 COPYFLAGS =
 
 .PHONY: all help test markdown docs clean
@@ -50,10 +62,11 @@ clean:
 	$(MAKE) -C docs clean
 
 README.md: README
-	$(COPY) $(COPYFLAGS) README README.md
+	$(COPY) $(COPYFLAGS) README $@
 
 HACKING.md: HACKING
-	$(COPY) $(COPYFLAGS) HACKING HACKING.md
+	$(COPY) $(COPYFLAGS) HACKING $@
+	$(PYTHON) $(PYTHONFLAGS) ndash.py $@
 
 TODO.md: TODO
-	$(COPY) $(COPYFLAGS) TODO TODO.md
+	$(COPY) $(COPYFLAGS) TODO $@

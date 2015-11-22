@@ -160,7 +160,7 @@ Documentation
 
   - there are some exceptions:
 
-    * `:class:\`traceback\`` -- not documented in the official Python
+    * `` :class:`traceback` `` -- not documented in the official Python
       documentation
 
 * the order of documented stuff must reflects the order in source file
