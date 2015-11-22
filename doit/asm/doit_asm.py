@@ -48,13 +48,18 @@ from doit.asm.asm import SECTION_INFO, SECTION_TEXT, SECTION_DATA, \
                          BufferMixinBase, Section, \
                          Sections, Assembler
 
-from doit.config.version import DOIT_VERSION
+from doit.runtime.memory import Memory
+from doit.config.version import Version, UNUSED_VERSION, DOIT_VERSION
+from doit.config.config import MACHINE_DOIT
 
 _assert = lambda cond, emsg: doit_assert(cond, emsg, DoItAssemblerError, 2)
 _fail = lambda emsg: doit_assert(False, emsg, DoItAssemblerError, 2)
 _reraise = lambda exc: doit_assert(False, str(exc), DoItAssemblerError, 2)
 _lassert = lambda cond, emsg: doit_assert(cond, emsg, DoItLinkerError, 2)
 _rtassert = lambda cond, emsg: doit_assert(cond, emsg, DoItRuntimeError, 2)
+_on_undefined_symbol = lambda s: doit_assert(
+    False, "Undefined symbol %s" % repr(s), DoItLinkerError, 2
+)
 
 class DoItInstructionOperand(InstructionOperand):
     """`DoIt!` instruction operand base class.
@@ -97,7 +102,7 @@ class DoItInstructionOperand(InstructionOperand):
         not_implemented()
     #-def
 
-    def update(self, symbols):
+    def update(self, symbols, on_undefined_symbol = _on_undefined_symbol):
         """Computes the final value of `DoIt!` instruction operand.
 
         :param dict symbols: A symbol table.
@@ -397,7 +402,7 @@ class Immediate(DoItInstructionOperand):
         """
 
         DoItInstructionOperand.__init__(self)
-        self.__relocable_parts = {relocable: 1}
+        self.__relocable_parts = {relocable: 1} if relocable else {}
         self.__constant_part = constant
         self.__value = 0
     #-def
@@ -453,29 +458,29 @@ class Immediate(DoItInstructionOperand):
             <doit.asm.doit_asm.Immediate>`).
         """
 
-        relocable_parts = rhs.get_relocable_parts()
-        for name in relocable_parts:
+        for name in rhs.__relocable_parts:
             if name not in self.__relocable_parts:
                 self.__relocable_parts[name] = 0
-            self.__relocable_parts[name] += sgn*relocable_parts[name]
-        self.__constant_part += sgn*rhs.get_constant_part()
+            self.__relocable_parts[name] += sgn*rhs.__relocable_parts[name]
+        self.__constant_part += sgn*rhs.__constant_part
         return self
     #-def
 
-    def update(self, symbols):
+    def update(self, symbols, on_undefined_symbol = _on_undefined_symbol):
         """See :meth:`DoItInstructionOperand.update(symbols) \
         <doit.asm.doit_asm.DoItInstructionOperand.update>`.
         """
 
         rp = self.__relocable_parts
         # Discard the useless entries.
-        self.__relocable_parts = dict([(k, rp[k]) for k in rp if k and rp[k]])
+        self.__relocable_parts = dict([(k, rp[k]) for k in rp if rp[k]])
         self.__value = self.__constant_part
         sec_ = ""
         for r in self.__relocable_parts:
-            # All symbols must be defined.
-            _lassert(r in symbols, "Undefined symbol %s" % repr(r))
-            sec, loc = symbols[r]
+            if r not in symbols:
+                on_undefined_symbol(r)
+                continue
+            sec, loc, _ = symbols[r]
             sec_ = sec if not sec_ else sec_
             # All symbols used in one instruction operand expression must be
             # from the same section.
@@ -533,12 +538,12 @@ class BasePlusOffset(DoItInstructionOperand):
         return self.__base.getval(vm) + self.__offset.getval(vm)
     #-def
 
-    def update(self, symbols):
+    def update(self, symbols, on_undefined_symbol = _on_undefined_symbol):
         """See :meth:`DoItInstructionOperand.update(symbols) \
         <doit.asm.doit_asm.DoItInstructionOperand.update>`.
         """
 
-        self.__offset.update(symbols)
+        self.__offset.update(symbols, on_undefined_symbol)
     #-def
 
     def __iadd__(self, rhs):
@@ -622,12 +627,12 @@ class MemoryLocation(DoItInstructionOperand):
         return self.__segment.getval(vm)[self.__offset.getval(vm)]
     #-def
 
-    def update(self, symbols):
+    def update(self, symbols, on_undefined_symbol = _on_undefined_symbol):
         """See :meth:`DoItInstructionOperand.update(symbols) \
         <doit.asm.doit_asm.DoItInstructionOperand.update>`.
         """
 
-        self.__offset.update(symbols)
+        self.__offset.update(symbols, on_undefined_symbol)
     #-def
 #-class
 
@@ -790,7 +795,7 @@ class ListLikeBufferMixin(BufferMixinBase):
 
         try:
             self.data_[idx] = value
-        except IndexError as e:
+        except (IndexError, TypeError) as e:
             _reraise(e)
     #-def
 
@@ -807,7 +812,7 @@ class ListLikeBufferMixin(BufferMixinBase):
 
         try:
             return self.data_[idx]
-        except IndexError as e:
+        except (IndexError, TypeError) as e:
             _reraise(e)
     #-def
 
@@ -906,10 +911,8 @@ class InfoSection(DictLikeBufferMixin, Section):
     """
     ARCH_FIELD = 'arch'
     ARCH_VERSION_FIELD = 'arch_version'
-    PLATFORM_FIELD = 'platform'
-    PLATFORM_VERSION_FIELD = 'platform_version'
     ASM_FIELD = 'asm'
-    VERSION_FIELD = 'version'
+    ASM_VERSION_FIELD = 'asm_version'
     TIMEDATE_FIELD = 'timedate'
     __slots__ = [ 'data_' ]
 
@@ -959,38 +962,6 @@ class InfoSection(DictLikeBufferMixin, Section):
         return self
     #-def
 
-    def platform(self, platform_name):
-        """Implements the ``platform`` pseudo instruction.
-
-        :param str platform_name: A name of target platform.
-
-        :returns: This object (:class:`InfoSection \
-            <doit.asm.doit_asm.InfoSection>`).
-        """
-
-        self[self.__class__.PLATFORM_FIELD] = platform_name
-        return self
-    #-def
-
-    def platform_version(self, major, minor, patchlevel, date, info):
-        """Implements the ``platform_version`` pseudo instruction.
-
-        :param int major: A major version number.
-        :param int minor: A minor version number.
-        :param int patchlevel: A patch level.
-        :param int date: A date (``10000*year + 100*month + day``).
-        :param str info: An additional informations.
-
-        :returns: This object (:class:`InfoSection \
-            <doit.asm.doit_asm.InfoSection>`).
-        """
-
-        self[self.__class__.PLATFORM_VERSION_FIELD] = Version(
-            major, minor, patchlevel, date, info
-        )
-        return self
-    #-def
-
     def asm(self, asm_name):
         """Implements the ``asm`` pseudo instruction.
 
@@ -1017,7 +988,7 @@ class InfoSection(DictLikeBufferMixin, Section):
             <doit.asm.doit_asm.InfoSection>`).
         """
 
-        self[self.__class__.VERSION_FIELD] = Version(
+        self[self.__class__.ASM_VERSION_FIELD] = Version(
             major, minor, patchlevel, date, info
         )
         return self
@@ -1031,7 +1002,7 @@ class InfoSection(DictLikeBufferMixin, Section):
         :returns: This object (:class:`InfoSection \
             <doit.asm.doit_asm.InfoSection>`).
 
-        If now is negative, it is set by assembler at the end of assembling
+        If `now` is negative, it is set by assembler at the end of assembling
         process.
         """
 
@@ -1043,6 +1014,8 @@ class InfoSection(DictLikeBufferMixin, Section):
 class TextOrDataSection(ListLikeBufferMixin, Section):
     """Implements the ``.text`` and ``.data`` sections.
     """
+    ORIGIN_FIELD = 'origin'
+    SECTION_ALIGN_FIELD = 'section_align'
     __slots__ = [ 'data_' ]
 
     def __init__(self, creator, name, properties):
@@ -1056,7 +1029,40 @@ class TextOrDataSection(ListLikeBufferMixin, Section):
 
         ListLikeBufferMixin.__init__(self)
         Section.__init__(self, creator, name, properties)
+        self.__something_emitted = False
         self.data_ = []
+        p = self.properties()
+        p[self.__class__.ORIGIN_FIELD] = 0
+        p[self.__class__.SECTION_ALIGN_FIELD] = 1
+    #-def
+
+    def org(self, org, align = 1):
+        """Implements the ``org`` pseudo instruction.
+
+        :param int org: An origin.
+        :param int align: A section alignment.
+
+        :returns: This object (:class:`TextOrDataSection \
+            <doit.asm.doit_asm.TextOrDataSection>`).
+
+        :raises ~doit.support.errors.DoItAssemblerError: If this instruction \
+            is not used as first or its arguments are wrong.
+
+        Origin must be a non-negative integer, section alignment must be
+        positive integer and power of two.
+        """
+
+        _assert(not self.__something_emitted,
+            "Use `org` as a first instruction"
+        )
+        _assert(org >= 0, "`org` value must be non-negative")
+        _assert(align > 0, "Section alignment must be positive")
+        _assert((align - 1) & align == 0, "Alignment must be power of two")
+        p = self.properties()
+        p[self.__class__.ORIGIN_FIELD] = org
+        p[self.__class__.SECTION_ALIGN_FIELD] = align
+        self.__something_emitted = True
+        return self
     #-def
 
     def label(self, name):
@@ -1071,7 +1077,9 @@ class TextOrDataSection(ListLikeBufferMixin, Section):
             defined.
         """
 
-        self.creator().add_symbol(name, self.name(), len(self))
+        self.creator().set_scope(name)
+        self.creator().add_symbol(name, self.name(), len(self), None)
+        self.__something_emitted = True
         return self
     #-def
 
@@ -1090,6 +1098,7 @@ class TextOrDataSection(ListLikeBufferMixin, Section):
         """
 
         self.append(Push(self.__compile(ioe)))
+        self.__something_emitted = True
         return self
     #-def
 
@@ -1198,7 +1207,7 @@ class DoItAssembler(Assembler):
           :class:`stack pointer <doit.asm.doit_asm.RegisterSP>` \
           and :class:`frame pointer <doit.asm.doit_asm.RegisterFP>`)
     """
-    sections = tuple(DoItSections.name2section.keys())
+    supported_sections = tuple(DoItSections.name2section.keys())
     registers = (
         RegisterCS(), RegisterDS(), RegisterSS(), RegisterSP(), RegisterFP()
     )
@@ -1213,13 +1222,11 @@ class DoItAssembler(Assembler):
         # Section container is created now - add an .info section:
         self.sections().section(
             SECTION_INFO,
-            arch = ARCH_NAME,
-            arch_version = ARCH_VERSION,
-            platform = PLATFORM_ANY,
-            platform_version = VERSION_UNUSED,
-            timedate = -1,
+            arch = MACHINE_DOIT,
+            arch_version = DOIT_VERSION,
             asm = self.__class__.__name__,
-            version = self.__class__.version
+            asm_version = self.__class__.version,
+            timedate = -1
         )
         # Add a .symbols section:
         self.sections().section(SECTION_SYMBOLS)

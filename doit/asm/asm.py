@@ -33,6 +33,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+import collections
+
 from doit.support.errors import DoItAssemblerError, \
                                 doit_assert, not_implemented
 
@@ -545,7 +547,7 @@ class Sections(object):
     """Base class for section containers.
     """
     __slots__ = [
-        '__creator', '__sections', '__name2pos', '__scope', '__symbols'
+        '__creator', '__sections', '__scope', '__symbols'
     ]
 
     def __init__(self, creator):
@@ -586,12 +588,11 @@ class Sections(object):
         """
 
         _assert(
-            name not in self.__name2pos,
+            name not in self.__sections,
             "Section %s already exists" % repr(name)
         )
         s = self.create_section(name, properties)
-        self.__name2pos[name] = len(self.__sections)
-        self.__sections.append(s)
+        self.__sections[name] = s
         self.on_section(name, properties)
         return s
     #-def
@@ -680,10 +681,9 @@ class Sections(object):
         """Reinitializes the container.
         """
 
-        self.__sections = []
-        self.__name2pos = {}
+        self.__sections = collections.OrderedDict()
         self.__scope = ""
-        self.__symbols = {}
+        self.__symbols = collections.OrderedDict()
     #-def
 
     def clear(self):
@@ -691,7 +691,6 @@ class Sections(object):
         """
 
         self.__sections.clear()
-        self.__name2pos.clear()
         self.__scope = ""
         self.__symbols.clear()
     #-def
@@ -713,7 +712,7 @@ class Sections(object):
             to index to list of sections dictionary (:class:`tuple`).
         """
 
-        return self.__sections, self.__name2pos
+        return self.__sections
     #-def
 
     def scope(self):
