@@ -79,50 +79,63 @@ IN THE SOFTWARE.\
       :vartype name: :class:`type`
       ```
 
-    * member variables (visible to user)::
+    * member variables (visible to user):
 
-          :ivar type name: Description.
+      ```
+      :ivar type name: Description.
+      ```
 
-          or
+      or
 
-          :ivar name: Description.
-          :vartype name: :class:`type`
+      ```
+      :ivar name: Description.
+      :vartype name: :class:`type`
+      ```
 
   - class variables definitions
-  - __slots__
+  - `__slots__`
 
   - methods:
 
     * doc string:
 
       - brief info
-      - params (use backslash and indentation if the line limit was exceeded)::
+      - params (use backslash and indentation if the line limit was exceeded):
 
-            :param type name: Description.
+        ```
+        :param type name: Description.
+        ```
 
-            or
+        or
 
-            :param name: Description.
-            :type name: :class:`type`
+        ```
+        :param name: Description.
+        :type name: :class:`type`
+        ```
 
-      - returns (use backslash and indentation if the line limit was
-        exceeded)::
+      - returns (use backslash and indentation if the line limit was exceeded):
 
-            :returns: Description (:class:`type`).
+        ```
+        :returns: Description (:class:`type`).
+        ```
 
-      - raises (use backslash and indentation if the line limit was exceeded)::
+      - raises (use backslash and indentation if the line limit was exceeded):
 
-            :raises exception: Reason.
+        ```
+        :raises exception: Reason.
+        ```
 
-            or
+        or
 
-            :raises ~DoItException: Reason.
+        ```
+        :raises ~DoItException: Reason.
+        ```
 
       - notes
 
-    * ``#-def``
+    * `#-def`
 
-  - ``#-class``
+  - `#-class`
 
 * routines (see methods)
 
@@ -131,14 +144,14 @@ Test directory format
 
 * test directory must reflects the source directory
 
-  - ``test_`` prefix must appears at the begining of the each file and
-    directory name
+  - `test_` prefix must appears at the begining of the each file and directory
+    name
 
 * test files have the structure very similar to source files, except:
 
   - no doc strings are used (except file doc string)
   - auxiliary subroutines and classes must appear before tests
-  - classes derived from ``unittest.TestCase`` do not have ``__slots__``
+  - classes derived from `unittest.TestCase` do not have `__slots__`
 
 Documentation
 =============
@@ -147,6 +160,7 @@ Documentation
 
   - there are some exceptions:
 
-    * :class:`traceback` -- not documented in the official Python documentation
+    * `:class:\`traceback\`` -- not documented in the official Python
+      documentation
 
 * the order of documented stuff must reflects the order in source file
