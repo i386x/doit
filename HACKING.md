@@ -5,8 +5,9 @@ Source file format
 * line endings: UNIX style (0x0A)
 * max. line length: 80 characters (including LF)
 * allowed white spaces: 0x20 (SPACE), 0x0A (LF)
-* header comment format::
+* header comment format:
 
+```python
 #                                                         -*- coding: utf-8 -*-
 #! \file    ./path/to/file.py
 #! \author  Name Surname, <email@server.com>
@@ -16,13 +17,15 @@ Source file format
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
+```
 
-* \file must reflect the real position of source file
-* version (for now) must be 0.0.0
+* `\file` must reflect the real position of source file
+* `\version` (for now) must be `0.0.0`
 
 * doc string
-* license::
+* license:
 
+```python
 __license__ = """\
 Copyright (c) 2014 - 2015 Name Surname.
 
@@ -44,12 +47,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
+```
 
 * license must be MIT with 2014 - 2015
 
 * standard Python library imports
 * 3rd party libraries imports
-* DoIt! modules imports:
+* *DoIt!* modules imports:
 
   - in the order of their definitions in imported module
 
