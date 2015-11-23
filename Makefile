@@ -21,22 +21,10 @@ else
   $(error Python interpreter of version 3 is needed)
 endif
 
-SED_ = sed
-ifeq ($(shell which $(SED_) >/dev/null 2>&1; echo $$?), 1)
-  $(error $(SED_) utility is not installed)
-endif
-
-COPY_ = cp
-ifeq ($(shell which $(COPY_) >/dev/null 2>&1; echo $$?), 1)
-  $(error $(COPY_) utility is not installed)
-endif
-
 PYTHON = $(PYTHON_)
 PYTHONFLAGS =
-SED = $(SED_)
-SEDFLAGS =
-COPY = $(COPY_)
-COPYFLAGS =
+RUNTESTS = $(PYTHON) $(PYTHONFLAGS) runtests.py
+NDASH = $(PYTHON) $(PYTHONFLAGS) ndash.py
 
 .PHONY: all help test markdown docs clean
 
@@ -51,7 +39,7 @@ help:
 	@echo "    clean - remove all generated files"
 
 test:
-	$(PYTHON) $(PYTHONFLAGS) runtests.py
+	$(RUNTESTS)
 
 markdown: README.md HACKING.md TODO.md
 
@@ -62,11 +50,10 @@ clean:
 	$(MAKE) -C docs clean
 
 README.md: README
-	$(COPY) $(COPYFLAGS) README $@
+	$(NDASH) README $@
 
 HACKING.md: HACKING
-	$(COPY) $(COPYFLAGS) HACKING $@
-	$(PYTHON) $(PYTHONFLAGS) ndash.py $@
+	$(NDASH) HACKING $@
 
 TODO.md: TODO
-	$(COPY) $(COPYFLAGS) TODO $@
+	$(NDASH) TODO $@

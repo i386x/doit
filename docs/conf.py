@@ -311,3 +311,8 @@ def setup(app):
     app.add_stylesheet('custom.css')
     app.connect('autodoc-process-signature', process_signature)
 #-def
+
+if __name__ == '__main__':
+    sys.stdout.write(html_file_suffix)
+    exit(0)
+#-if

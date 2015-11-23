@@ -40,7 +40,7 @@ from doit.support.utils import WithStatementExceptionHandler
 def main(argv):
     wseh = WithStatementExceptionHandler()
 
-    if len(argv) < 2:
+    if len(argv) < 3:
         sys.stderr.write("%s: Not enough arguments.\n" % argv[0])
         return 1
 
@@ -52,10 +52,10 @@ def main(argv):
 
     fcontent = fcontent.replace(b"--", b"&#8211;")
 
-    with wseh, open(argv[1], "wb") as fd:
+    with wseh, open(argv[2], "wb") as fd:
         fd.write(fcontent)
     if wseh.etype is not None:
-        sys.stderr.write("%s: Can't write to %s.\n" % tuple(argv[:2]))
+        sys.stderr.write("%s: Can't write to %s.\n" % (argv[0], argv[2]))
         return 1
 
     return 0
