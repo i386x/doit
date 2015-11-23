@@ -2,7 +2,7 @@ Task List
 =========
 
 Testing
-&#8211;&#8211;&#8211;-
+-------
 
 - [x] test `./doit/asm/asm.py`
 - [ ] test `./doit/asm/doit_asm.py`
@@ -10,7 +10,7 @@ Testing
 - [ ] test `./doit/bdist/doit_linker.py`
 
 Format Checking
-&#8211;&#8211;&#8211;&#8211;&#8211;&#8211;&#8211;-
+---------------
 
 - [x] check `./doit/support/errors.py`
 - [x] check `./doit/support/utils.py`
@@ -20,7 +20,7 @@ Format Checking
 - [x] check `./doit/runtime/memory.py`
 
 Tests Checking
-&#8211;&#8211;&#8211;&#8211;&#8211;&#8211;&#8211;
+--------------
 
 - [x] check `./tests/test_support/test_errors.py`
 - [x] check `./tests/test_support/test_utils.py`
@@ -30,7 +30,7 @@ Tests Checking
 - [x] check `./tests/test_runtime/test_memory.py`
 
 Documenting
-&#8211;&#8211;&#8211;&#8211;&#8211;-
+-----------
 
 - [ ] convert images from graphviz to tikz
 - [x] use `:cvar:` and `:ivar:` for documenting class member variables (reflect

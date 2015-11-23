@@ -37,6 +37,24 @@ import sys
 
 from doit.support.utils import WithStatementExceptionHandler
 
+def sanitize(s):
+    lines = s.split(b'\x0A')
+    i, sz = 0, len(lines)
+
+    while i < sz:
+        have_h2 = False
+        l = lines[i]
+        if l and i + 1 < sz:
+            l_ = lines[i + 1]
+            if l_ and l_[0] == b'-'[0] and l_.rstrip() == b'-'*len(l.rstrip()):
+                have_h2 = True
+                i += 1
+        if not have_h2:
+            lines[i] = lines[i].replace(b"--", b"&#8211;")
+        i += 1
+    return b'\x0A'.join(lines)
+#-def
+
 def main(argv):
     wseh = WithStatementExceptionHandler()
 
@@ -50,7 +68,7 @@ def main(argv):
         sys.stderr.write("%s: Can't read from %s.\n" % tuple(argv[:2]))
         return 1
 
-    fcontent = fcontent.replace(b"--", b"&#8211;")
+    fcontent = sanitize(fcontent)
 
     with wseh, open(argv[2], "wb") as fd:
         fd.write(fcontent)
