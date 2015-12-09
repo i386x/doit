@@ -90,11 +90,14 @@ API_DOC_IMG01_BASE = stackframe
 API_DOC_IMG01 = $(MEDIADIR)/$(API_DOC_IMG01_BASE).png
 API_DOC_MEDIA = $(API_DOC_IMG01)
 
-SOURCES = index.rst lang.rst \
-          dev/index.rst dev/basics.rst \
-          dev/api/index.rst \
-          dev/api/support/index.rst \
-          dev/api/support/errors.rst
+SUPPORT_ERRORS = support/errors
+
+DEPS = index.rst lang.rst \
+       dev/index.rst dev/basics.rst \
+       dev/api/index.rst \
+       dev/api/support/index.rst \
+       dev/api/$(SUPPORT_ERRORS).rst \
+       ../doit/$(SUPPORT_ERRORS).py
 
 .PHONY: all help html clean
 
@@ -109,7 +112,7 @@ help:
 
 html: $(INDEX_HTML)
 
-$(INDEX_HTML): $(SOURCES)
+$(INDEX_HTML): $(DEPS)
 	$(SPHINXBUILD) -b html $(SPHINXBUILDFLAGS) $(BUILDDIR)/html
 
 $(API_DOC_IMG01): $(MEDIADIR)/$(API_DOC_IMG01_BASE).ps

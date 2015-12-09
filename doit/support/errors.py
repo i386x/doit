@@ -39,10 +39,13 @@ import inspect
 ERROR_OK = 0
 ERROR_ASSERT = 1
 ERROR_NOT_IMPLEMENTED = 2
-ERROR_MEMORY_ACCESS = 3
-ERROR_RUNTIME = 4
-ERROR_ASSEMBLER = 5
-ERROR_LINKER = 6
+ERROR_OVERFLOW = 3
+ERROR_UNDERFLOW = 4
+ERROR_MEMORY_ACCESS = 5
+ERROR_RUNTIME = 6
+ERROR_TYPE = 7
+ERROR_ASSEMBLER = 8
+ERROR_LINKER = 9
 ERROR_UNKNOWN = 255
 
 class DoItError(Exception):
@@ -118,6 +121,36 @@ class DoItNotImplementedError(DoItError):
     #-def
 #-class
 
+class DoItOverflowError(DoItError):
+    """Raised when arithmetic operation overflows.
+    """
+    __slots__ = []
+
+    def __init__(self, emsg):
+        """Initializes the exception.
+
+        :param str emsg: An error message.
+        """
+
+        DoItError.__init__(self, ERROR_OVERFLOW, emsg)
+    #-def
+#-class
+
+class DoItUnderflowError(DoItError):
+    """Raised when arithmetic operation underflows.
+    """
+    __slots__ = []
+
+    def __init__(self, emsg):
+        """Initializes the exception.
+
+        :param str emsg: An error message.
+        """
+
+        DoItError.__init__(self, ERROR_UNDERFLOW, emsg)
+    #-def
+#-class
+
 class DoItMemoryAccessError(DoItError):
     """Raised when the attempt to access to the given memory location fails.
     """
@@ -145,6 +178,21 @@ class DoItRuntimeError(DoItError):
         """
 
         DoItError.__init__(self, ERROR_RUNTIME, emsg)
+    #-def
+#-class
+
+class DoItTypeError(DoItError):
+    """Raised when operand has a bad type.
+    """
+    __slots__ = []
+
+    def __init__(self, emsg):
+        """Initializes the exception.
+
+        :param str emsg: An error message.
+        """
+
+        DoItError.__init__(self, ERROR_TYPE, emsg)
     #-def
 #-class
 
@@ -205,7 +253,7 @@ def doit_assert(
 
     :param bool cond: A condition.
     :param str emsg: An error message.
-    :param type exc: An :exc:`DoItError <doit.support.errors.DoItError>` \
+    :param type exc: A :exc:`DoItError <doit.support.errors.DoItError>` \
         based exception class.
     :param int nframe: A caller's frame position.
 
@@ -219,7 +267,8 @@ def doit_assert(
 def not_implemented():
     """Raise an exception if the called method or function is not implemented.
 
-    :raises ~doit.support.errors.DoItNotImplementedError: When called.
+    :raises ~doit.support.errors.DoItNotImplementedError: When the invoked \
+        method or function is not implemented.
 
     Call this function from another function or method. If you call this
     function from method, it must not to be a static method or class method
