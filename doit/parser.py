@@ -12,7 +12,7 @@ DoIt! parser and lexer.\
 """
 
 __license__ = """\
-Copyright (c) 2014 Jiří Kučera.
+Copyright (c) 2014 - 2016 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,92 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
+
+class DoItLexerGrammar(Grammar):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        Grammar.__init__(self)
+
+        emit = self.__emit
+
+        self['start']      = V('COMMENT')
+                           | V('WHITESPACE')
+                           | V('ID')
+                           | V('INT')
+                           | V('BINT')
+                           | V('OINT')
+                           | V('XINT')
+                           | V('FLOAT')
+                           | V('CHAR')
+                           | V('STRING')
+
+        self['COMMENT']    = S('#') + (~S('\n'))['*'] + S('\n')['?']
+
+        self['ID']         = V('LETTER_') + V('ALNUM_')['*']
+                             + emit('ID', '$0')
+
+        self['INT']        = V('INT_PART') + emit('INT', '$1', DEC)
+        self['BINT']       = -S('0') + -(S('B') | S('b'))
+                             + V('BIT')['+']
+                             + emit('INT', '$0', BIN)
+        self['OINT']       = -S('0') + V('ODIGIT')['+']
+                             + emit('INT', '$0', OCT)
+        self['XINT']       = -S('0') + -(S('X') | S('x'))
+                             + V('XDIGIT')['+']
+                             + emit('INT', '$0', HEX)
+        self['FLOAT']      = V('INT_PART') + V('FLOAT_PART')
+                             + emit('FLOAT', '$1', 'frac', 'sign', 'exp')
+        self['INT_PART']   = S('0')
+                           | V('NZ_DIGIT') + V('DIGIT')['*']
+        self['FLOAT_PART'] = V('EXP_PART')
+                           | V('FRAC_PART') + V('EXP_PART')['?']
+        self['FRAC_PART']  = -S('.') + V('DIGIT')['+'] % 'frac'
+        self['EXP_PART']   = -(S('E') | S('e'))
+                             + (S('+') | S('-'))['?'] % 'sign'
+                             + V('DIGIT')['+'] % 'exp'
+
+        self['CHAR']       = -S('\'') + V('SYMBOL') + -S('\'')
+                             + emit('CHAR', '$1')
+
+        self['ALNUM_']     = A(S('_') | V('ALNUM'))
+        self['ALNUM']      = A(V('DIGIT') | V('LETTER'))
+        self['LETTER_']    = A(S('_') | V('LETTER'))
+        self['LETTER']     = A(V('UPPER') | V('LOWER'))
+        self['UPPER']      = A(S('A') - S('Z'))
+        self['LOWER']      = A(S('a') - S('z'))
+        self['NZ_DIGIT']   = A(S('1') - S('9'))
+        self['DIGIT']      = A(S('0') - S('9'))
+        self['SYMBOL']     = V('ESCAPE')
+    #-def
+
+    def __emit(self, name, *values):
+        """
+        """
+
+        name = Id(name)
+        values = [ Id(v) for v in values ]
+        Token = Id('Token')
+
+        return Action(
+            Return(Token(name, *values))
+        )
+    #-def
+#-class
+
+class DoItParser(Grammar):
+    __slots__ = []
+
+    def __init__(self):
+        self['start'] = Var('')
+
+
+#==============================================================================
 
 class Lexer(object):
     """Base class for lexical analyzer.

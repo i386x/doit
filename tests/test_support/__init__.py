@@ -12,7 +12,7 @@ DoIt! test_support package initialization file.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2015 Jiří Kučera.
+Copyright (c) 2014 - 2016 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -35,11 +35,12 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_utils, test_errors
+from . import test_utils, test_errors, test_visitnode
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(test_errors.suite())
     suite.addTest(test_utils.suite())
+    suite.addTest(test_visitnode.suite())
     return suite
 #-def
