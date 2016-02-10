@@ -142,6 +142,19 @@ class BinaryNode(RuleNode, BinaryVisitableNode):
     #-def
 #-class
 
+class Epsilon(TerminalNode):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        TerminalNode.__init__(self, "")
+    #-def
+#-class
+
 class Sym(TerminalNode):
     """
     """
