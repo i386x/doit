@@ -33,17 +33,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-def find_blocking_variables_visitor(node, *args):
-    """
-    """
-
-    if isinstance(node, (Sym, Range, Action)):
-        return (True, [])
-    elif isinstance(node, Var):
-        var, root = args
-        return (False, [args[0]])
-    elif isinstance(node, ):
-
 def extract_variables_visitor(node, *args):
     """
     """
@@ -54,6 +43,36 @@ def extract_variables_visitor(node, *args):
     return None
 #-def
 
+def termination_checker_visitor(node, *args):
+    """
+    """
+
+    if isinstance(node, (Sym, Range, Action)):
+        return True
+    elif isinstance(node, Var):
+        var, tv, _ = args
+        return var in tv
+    elif isinstance(node, (Alias, DoNotRecord, Complement, PositiveIteration)):
+         # args[0] == node.visit(...)
+        return args[0]
+    elif isinstance(node, (Iteration, Optional)):
+        # X* and X? sets always contain an empty string
+        return True
+    elif isinstance(node, Label):
+        # args[0] == left_node.visit(...)
+        return args[0]
+    elif isinstance(node, Catenation):
+        # args[0] == left_node.visit(...)
+        # args[1] == right_node.visit(...)
+        return args[0] and args[1]
+    elif isinstance(node, Alternation):
+        # args[0] == left_node.visit(...)
+        # args[1] == right_node.visit(...)
+        return args[0] or args[1]
+    else:
+        _badnode()
+#-def
+
 def get_variables_stats(cfg):
     """
     """
@@ -62,8 +81,6 @@ def get_variables_stats(cfg):
         lhs_variables = set()
         rhs_variables = set()
         variable_deps = {}
-        undefined_variables = set()
-        unreacheable_variables = set()
         is_cycle_free = True
 
         # Get variable dependencies:
@@ -75,10 +92,7 @@ def get_variables_stats(cfg):
             rhs_variables |= variable_deps[lhs]
         variables = lhs_variables | rhs_variables
 
-        # Build inverse variable dependencies:
-        inv_variable_deps = {}
-
-        # BFS the grammar:
+        # BFS the grammar for reachable variables:
         visited = set()
         to_visit = [cfg.get_start()]
         while to_visit:
@@ -95,12 +109,35 @@ def get_variables_stats(cfg):
             #-if
         #-while
 
+        # Compute the set of nonterminating variables:
+        nonterminating_variables = variables.copy()
+        terminating_variables = set()
+        while True:
+            old_tv_card = len(terminating_variables)
+            for lhs in rules:
+                if lhs in terminating_variables:
+                    continue
+                if rules[lhs].visit(
+                    termination_checker_visitor,
+                    terminating_variables,
+                    nonterminating_variables
+                ):
+                    terminating_variables.add(lhs)
+                    nonterminating_variables.discard(lhs)
+                #-if
+            #-for
+            if old_tv_card == len(terminating_variables):
+                break
+            #-if
+        #-while
+
         cfg.cache[get_variables_stats] = dict(
             lhs_variables = lhs_variables,
             rhs_variables = rhs_variables,
             variables = variables,
             undefined_variables = rhs_variables - lhs_variables,
             unreachable_variables = variables - visited,
+            nonterminating_variables = nonterminating_variables,
             is_cycle_free = is_cycle_free,
             variable_deps = variable_deps,
             has_start = cfg.get_start() in visited
@@ -163,6 +200,17 @@ def get_unreachable_variables(cfg):
     return cfg.cache[get_unreachable_variables]
 #-def
 
+def get_nonterminating_variables(cfg):
+    """
+    """
+
+    if get_nonterminating_variables not in cfg.cache:
+        cfg.cache[get_nonterminating_variables] = get_variables_stats(cfg)[
+            'nonterminating_variables'
+        ]
+    return cfg.cache[get_nonterminating_variables]
+#-def
+
 def is_cycle_free(cfg):
     """
     """
@@ -194,4 +242,37 @@ def has_start(cfg):
             'has_start'
         ]
     return cfg.cache[has_start]
+#-def
+
+def is_well_defined(cfg):
+    """
+    """
+
+    if is_well_defined not in cfg.cache:
+        cfg.cache[is_well_defined] = (
+            not get_undefined_variables(cfg) \
+            and not get_unreachable_variables(cfg) \
+            and not get_nonterminating_variables(cfg) \
+            and has_start(cfg)
+        )
+    return cfg.cache[is_well_defined]
+#-def
+
+def is_classic(cfg):
+    """
+    """
+
+    # Every right-hand side of every rule in a "classic" grammar consists of a
+    # string over set of terminal symbols and variables:
+    if is_classic not in cfg.cache:
+        cfg.cache[is_classic] = True
+
+        rules = cfg.get_rules()
+        for lhs in rules:
+            if not rules[lhs].visit(is_classic_rhs_visitor):
+                cfg.cache[is_classic] = False
+                break
+            #-if
+        #-for
+    return cfg.cache[is_classic]
 #-def
