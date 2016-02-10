@@ -353,9 +353,8 @@ class Grammar(object):
         """
         """
 
-        _assert(key not in self.__rules,
-            "Grammar rule for %r is already defined" % key
-        )
+        if key in self.__rules:
+            value = self[key] | value
         self.__rules[key] = value
     #-def
 
