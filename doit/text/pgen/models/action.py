@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/parsing/action.py
+#! \file    ./doit/text/pgen/models/action.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-01-07 18:11:58 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language

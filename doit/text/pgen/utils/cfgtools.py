@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/parsing/cfgtools.py
+#! \file    ./doit/text/pgen/utils/cfgtools.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-01-12 21:31:16 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language

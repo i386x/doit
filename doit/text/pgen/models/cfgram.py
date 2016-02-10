@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/parsing/cfgram.py
+#! \file    ./doit/text/pgen/models/cfgram.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2015-12-21 20:50:49 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
