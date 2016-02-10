@@ -47,7 +47,7 @@ def termination_checker_visitor(node, *args):
     """
     """
 
-    if isinstance(node, (Sym, Range, Action)):
+    if isinstance(node, (Epsilon, Sym, Range, Action)):
         return True
     elif isinstance(node, Var):
         var, tv, _ = args
@@ -262,7 +262,7 @@ def is_classic_rhs_visitor(node, *args):
     """
     """
 
-    if isinstance(node, (Sym, Var, Action)):
+    if isinstance(node, (Epsilon, Sym, Var, Action)):
         return True
     elif isinstance(node, (Alias, DoNotRecord, Label)):
         return args[0]
