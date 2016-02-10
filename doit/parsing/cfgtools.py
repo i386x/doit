@@ -258,6 +258,20 @@ def is_well_defined(cfg):
     return cfg.cache[is_well_defined]
 #-def
 
+def is_classic_rhs_visitor(node, *args):
+    """
+    """
+
+    if isinstance(node, (Sym, Var, Action)):
+        return True
+    elif isinstance(node, (Alias, DoNotRecord, Label)):
+        return args[0]
+    elif isinstance(node, (Catenation, Alternation)):
+        return args[0] and args[1]
+    else:
+        return False
+#-def
+
 def is_classic(cfg):
     """
     """
