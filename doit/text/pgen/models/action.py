@@ -33,7 +33,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-class ActionNode(object):
+class ActionNode(AbstractSyntaxTree):
     """
     """
     __slots__ = []
@@ -42,7 +42,7 @@ class ActionNode(object):
         """
         """
 
-        pass
+        AbstractSyntaxTree.__init__(self)
     #-def
 #-class
 
