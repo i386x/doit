@@ -220,7 +220,7 @@ class TestTernaryVisitableNodeCase(unittest.TestCase):
             "if ((x(1) + x(2))) then x() else -((x(3) + x()))"
         )
         self.assertEqual(n.traverse(traverser, "y"),
-            "if [[y[1] + y[2]]] then y[] else -[[x[3] + x[]]]"
+            "if [[y[1] + y[2]]] then y[] else -[[y[3] + y[]]]"
         )
     #-def
 #-class
