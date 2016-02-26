@@ -27,7 +27,7 @@ Source file format
 
 ```python
 __license__ = """\
-Copyright (c) 2014 - 2015 Name Surname.
+Copyright (c) 2014 - 2016 Name Surname.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ IN THE SOFTWARE.\
 """
 ```
 
-* license must be MIT with 2014 - 2015
+* license must be MIT with 2014 - 2016
 
 * standard Python library imports
 * 3rd party libraries imports

@@ -1,6 +1,14 @@
 Task List
 =========
 
+Programming
+-----------
+
+- [ ] `./doit/support/visitnode.py`
+- [ ] `./doit/parsing/cfgram.py`
+- [ ] `./doit/parsing/cfgtools.py`
+- [ ] `./doit/parsing/action.py`
+
 Testing
 -------
 
