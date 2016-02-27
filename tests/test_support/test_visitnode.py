@@ -90,6 +90,7 @@ def traverser(node, *args):
 #-def
 
 class Atom(VisitableLeaf):
+    __slots__ = []
 
     def __init__(self, v):
         VisitableLeaf.__init__(self, v)
@@ -97,6 +98,7 @@ class Atom(VisitableLeaf):
 #-class
 
 class Break(NullaryVisitableNode):
+    __slots__ = []
 
     def __init__(self):
         NullaryVisitableNode.__init__(self)
@@ -104,6 +106,7 @@ class Break(NullaryVisitableNode):
 #-class
 
 class Neg(UnaryVisitableNode):
+    __slots__ = []
 
     def __init__(self, n):
         UnaryVisitableNode.__init__(self, n)
@@ -111,6 +114,7 @@ class Neg(UnaryVisitableNode):
 #-class
 
 class Add(BinaryVisitableNode):
+    __slots__ = []
 
     def __init__(self, n1, n2):
         BinaryVisitableNode.__init__(self, n1, n2)
@@ -118,6 +122,7 @@ class Add(BinaryVisitableNode):
 #-class
 
 class If(TernaryVisitableNode):
+    __slots__ = []
 
     def __init__(self, n1, n2, n3):
         TernaryVisitableNode.__init__(self, n1, n2, n3)
