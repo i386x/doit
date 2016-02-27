@@ -35,12 +35,13 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_utils, test_errors, test_visitnode
+from . import test_utils, test_errors, test_visitnode, test_observer
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(test_errors.suite())
     suite.addTest(test_utils.suite())
     suite.addTest(test_visitnode.suite())
+    suite.addTest(test_observer.suite())
     return suite
 #-def
