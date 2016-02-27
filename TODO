@@ -1,41 +1,57 @@
 Task List
 =========
 
-Programming
------------
-
-- [ ] `./doit/support/visitnode.py`
-- [ ] `./doit/parsing/cfgram.py`
-- [ ] `./doit/parsing/cfgtools.py`
-- [ ] `./doit/parsing/action.py`
-
 Testing
 -------
 
-- [x] test `./doit/asm/asm.py`
-- [ ] test `./doit/asm/doit_asm.py`
-- [ ] test `./doit/bdist/linker.py`
-- [ ] test `./doit/bdist/doit_linker.py`
+- [x] test `./doit/support/errors.py`
+- [x] test `./doit/support/utils.py`
+- [x] test `./doit/support/visitnode.py`
+- [x] test `./doit/support/observer.py`
+
+- [ ] test `./doit/text/pgen/builders/builder.py`
+- [ ] test `./doit/text/pgen/builders/cfg2glap.py`
+- [ ] test `./doit/text/pgen/models/action.py`
+- [ ] test `./doit/text/pgen/models/ast.py`
+- [ ] test `./doit/text/pgen/models/cfgram.py`
+- [ ] test `./doit/text/pgen/models/token.py`
+- [ ] test `./doit/text/pgen/readers/glap/cmd/commands.py`
+- [ ] test `./doit/text/pgen/readers/glap/cmd/errors.py`
+- [ ] test `./doit/text/pgen/readers/glap/cmd/eval.py`
+- [ ] test `./doit/text/pgen/readers/glap/grammar.py`
+- [ ] test `./doit/text/pgen/readers/reader.py`
+- [ ] test `./doit/text/pgen/utils/cfgtools.py`
+- [ ] test `./doit/text/pgen/writers/writer.py`
 
 Format Checking
 ---------------
 
 - [x] check `./doit/support/errors.py`
 - [x] check `./doit/support/utils.py`
-- [ ] check `./doit/config/version.py`
-- [ ] check `./doit/config/config.py`
-- [ ] check `./doit/asm/asm.py`
-- [x] check `./doit/runtime/memory.py`
+- [x] check `./doit/support/visitnode.py` (doc)
+- [x] check `./doit/support/observer.py` (doc)
+
+- [ ] check `./doit/text/pgen/builders/builder.py`
+- [ ] check `./doit/text/pgen/builders/cfg2glap.py`
+- [ ] check `./doit/text/pgen/models/action.py`
+- [ ] check `./doit/text/pgen/models/ast.py`
+- [ ] check `./doit/text/pgen/models/cfgram.py`
+- [ ] check `./doit/text/pgen/models/token.py`
+- [ ] check `./doit/text/pgen/readers/glap/cmd/commands.py`
+- [ ] check `./doit/text/pgen/readers/glap/cmd/errors.py`
+- [ ] check `./doit/text/pgen/readers/glap/cmd/eval.py`
+- [ ] check `./doit/text/pgen/readers/glap/grammar.py`
+- [ ] check `./doit/text/pgen/readers/reader.py`
+- [ ] check `./doit/text/pgen/utils/cfgtools.py`
+- [ ] check `./doit/text/pgen/writers/writer.py`
 
 Tests Checking
 --------------
 
 - [x] check `./tests/test_support/test_errors.py`
 - [x] check `./tests/test_support/test_utils.py`
-- [ ] check `./tests/test_config/test_version.py`
-- [ ] check `./tests/test_config/test_config.py`
-- [ ] check `./tests/test_asm/test_asm.py`
-- [x] check `./tests/test_runtime/test_memory.py`
+- [x] check `./tests/test_support/test_visitnode.py`
+- [x] check `./tests/test_support/test_observer.py`
 
 Documenting
 -----------
