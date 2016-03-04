@@ -51,12 +51,34 @@ ERROR_UNKNOWN = 255
 class DoItError(Exception):
     """General |doit| exception.
 
+    :cvar int __base: Base for error codes.
     :cvar str ERRMSGFMT: Error message format string.
     :ivar int errcode: Error code.
     :ivar str detail: Why the exception was raised.
     """
+    __base = ERROR_UNKNOWN + 1
     ERRMSGFMT = "%s [errcode = %d]: %s."
     __slots__ = [ 'errcode', 'detail' ]
+
+    @classmethod
+    def alloc_codes(cls, ncodes):
+        """Reserve the next `ncodes`.
+
+        :param int ncodes: A number of error codes to be reserved.
+
+        :returns: The number of first reserved error code (:class:`int`).
+
+        :raises ~doit.support.errors.DoItAssertionError: When `ncodes` has \
+            negative value.
+        """
+
+        doit_assert(ncodes >= 0, \
+            "The number of error codes must be nonnegative"
+        )
+        base = cls.__base
+        cls.__base += ncodes
+        return base
+    #-def
 
     def __init__(self, ecode, emsg):
         """Initializes the exception.

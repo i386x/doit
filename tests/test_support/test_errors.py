@@ -76,6 +76,23 @@ class SomeClass(object):
     #-def
 #-class
 
+class TestErrorCodeAllocationCase(unittest.TestCase):
+
+    def test_alloc_codes(self):
+        ncodes = 16
+        old_base = DoItError.alloc_codes(0)
+
+        with self.assertRaises(DoItAssertionError):
+            DoItError.alloc_codes(-1)
+
+        base = DoItError.alloc_codes(ncodes)
+        new_base = DoItError.alloc_codes(0)
+
+        self.assertEqual(old_base, base)
+        self.assertEqual(new_base, base + ncodes)
+    #-def
+#-class
+
 class TestDoItErrorCase(unittest.TestCase):
 
     def test_DoItError(self):
@@ -340,6 +357,7 @@ class TestDoItNotImplementedCase(unittest.TestCase):
 
 def suite():
     suite = unittest.TestSuite()
+    suite.addTest(unittest.makeSuite(TestErrorCodeAllocationCase))
     suite.addTest(unittest.makeSuite(TestDoItErrorCase))
     suite.addTest(unittest.makeSuite(TestDoItAssertCase))
     suite.addTest(unittest.makeSuite(TestDoItNotImplementedCase))
