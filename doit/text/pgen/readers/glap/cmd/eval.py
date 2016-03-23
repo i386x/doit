@@ -277,7 +277,7 @@ class CommandProcessor(object):
         return self.__globals.getvar(name)
     #-def
 
-    def eval_commands(self, commands):
+    def do_commands(self, commands):
         """
         """
 
@@ -290,6 +290,19 @@ class CommandProcessor(object):
                 self.__last_error = e
                 return False
         return True
+    #-def
+
+    def eval_commands(self, cmdlist):
+        """
+        """
+
+        r = self.__result
+        for cmd in cmdlist:
+            if self.__exception:
+                break
+            r = self.eval_command(cmd)
+        self.handle_exception()
+        return r
     #-def
 
     def eval_command(self, cmd):
