@@ -98,6 +98,7 @@ class StackItem(TracebackProvider):
         self.__cmd = cmd
         self.__prev = prev
         self.__finalizers = []
+        self.__ehs = []
     #-def
 
     def get_command(self):
@@ -141,6 +142,20 @@ class StackItem(TracebackProvider):
 
         for f in self.__finalizers:
             f()
+    #-def
+
+    def add_exception_handler(self, exception, handler):
+        """
+        """
+
+        self.__ehs.append((exception, handler))
+    #-def
+
+    def get_exception_handlers(self):
+        """
+        """
+
+        return self.__ehs
     #-def
 
     def traceback(self):
@@ -284,10 +299,7 @@ class CommandProcessor(object):
         if self.__last_error:
             return False
         for cmd in commands:
-            try:
-                self.__result = self.eval_command(cmd)
-            except CommandError as e:
-                self.__last_error = e
+            if not self.__safe_cmdrun(cmd):
                 return False
         return True
     #-def
@@ -296,13 +308,12 @@ class CommandProcessor(object):
         """
         """
 
-        r = self.__result
         for cmd in cmdlist:
             if self.__exception:
                 break
-            r = self.eval_command(cmd)
+            self.eval_command(cmd)
         self.handle_exception()
-        return r
+        return self.__result
     #-def
 
     def eval_command(self, cmd):
@@ -311,10 +322,44 @@ class CommandProcessor(object):
 
         self.begin_command(cmd)
         cmd.run_initializers(self)
-        r = cmd.run(self)
+        self.__safe_cmdrun(cmd)
         cmd.run_finalizers(self)
         self.end_command(cmd)
-        return r
+        return self.__result
+    #-def
+
+    def __safe_cmdrun(self, cmd):
+        """
+        """
+
+        try:
+            self.__result = cmd.run(self)
+        except CommandError as e:
+            self.__last_error = e
+            self.exception_from_last_error()
+            return False
+        return True
+    #-def
+
+    def exception_from_last_error(self):
+        """
+        """
+
+        if self.__last_error:
+            self.__exception = CommandErrorException(self.__last_error)
+            self.__last_error = None
+    #-def
+
+    def handle_exception(self):
+        """
+        """
+
+        if not self.__exception:
+            return
+        for e, eh in self.__locals.get_exception_handlers():
+            if e.is_derived(self.__exception.base()):
+                if self.__safe_cmdrun(eh):
+                    self.__exception = None
     #-def
 
     def result(self):

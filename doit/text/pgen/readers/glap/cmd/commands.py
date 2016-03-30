@@ -387,10 +387,20 @@ class Block(Statement):
         """
         """
 
-        r = processor.result()
-        for cmd in self.__commands:
-            r = processor.eval_command(cmd)
-        return r
+        return processor.eval_commands(self.__commands)
+    #-def
+#-class
+
+class ExceptionHandler(Block):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, commands = []):
+        """
+        """
+
+        Block.__init__(self, commands)
     #-def
 #-class
 
@@ -414,5 +424,50 @@ class Print(BuiltinCommand):
         for arg in processor.getlocal("args"):
             env.defout.write(processor.valueof(arg, String).value())
         return Null()
+    #-def
+#-class
+
+class BreakEH(ExceptionHandler):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, outer):
+        """
+        """
+
+        ExceptionHandler.__init__(self)
+        self.__outer = outer
+    #-def
+
+    def run(self, processor):
+        """
+        """
+
+        self.__outer.stop_iteration()
+        return processor.result()
+    #-def
+#-class
+
+class Foreach(Statement):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, var, iterable, commands):
+        """
+        """
+
+        Statement.__init__(self, commands)
+        self.__var = var
+        self.__iterable = iterable
+        self.atstart(self.__install_eh)
+    #-def
+
+    def __install_eh(self, processor):
+        """
+        """
+
+        top.add_exception_handler(BREAK, BreakExceptionHandler(self))
     #-def
 #-class
