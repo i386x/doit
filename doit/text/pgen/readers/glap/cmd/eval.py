@@ -33,194 +33,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-class Traceback(list):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, last_command):
-        """
-        """
-
-        list.__init__(self)
-        _, l, c = last_command.get_location()
-        if l < 0 or c < 0:
-            self.__punctator = ">"
-        else:
-            self.__punctator = "Line %d, column %d:" % (l, c)
-    #-def
-
-    def __str__(self):
-        """
-        """
-
-        if len(self) == 0:
-            return "In <main>:\n"
-        s = "In %s" % str(self[0])
-        i = 1
-        while i < len(self):
-            s += "\n| from %s" % str(self[i])
-            i += 1
-        return "%s:\n%s" % (s, self.__punctator)
-    #-def
-#-class
-
-class TracebackProvider(object):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self):
-        """
-        """
-
-        pass
-    #-def
-
-    def traceback(self):
-        """
-        """
-
-        not_implemented()
-    #-def
-#-class
-
-class StackItem(TracebackProvider):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, cmd, prev):
-        """
-        """
-
-        TracebackProvider.__init__(self)
-        self.__cmd = cmd
-        self.__prev = prev
-        self.__finalizers = []
-        self.__ehs = []
-    #-def
-
-    def get_command(self):
-        """
-        """
-
-        return self.__cmd
-    #-def
-
-    def get_prev(self):
-        """
-        """
-
-        return self.__prev
-    #-def
-
-    def setvar(self, name, value):
-        """
-        """
-
-        self.__prev.setvar(name, value)
-    #-def
-
-    def getvar(self, name):
-        """
-        """
-
-        return self.__prev.getvar(name)
-    #-def
-
-    def add_finalizer(self, finalizer):
-        """
-        """
-
-        self.__finalizers.append(finalizer)
-    #-def
-
-    def run_finalizers(self):
-        """
-        """
-
-        for f in self.__finalizers:
-            f()
-    #-def
-
-    def add_exception_handler(self, exception, handler):
-        """
-        """
-
-        self.__ehs.append((exception, handler))
-    #-def
-
-    def get_exception_handlers(self):
-        """
-        """
-
-        return self.__ehs
-    #-def
-
-    def traceback(self):
-        """
-        """
-
-        tb = Traceback(self.get_command())
-        frame = self
-        while frame:
-            if isinstance(frame, Frame):
-                tb.append(frame.get_command())
-            frame = frame.get_prev()
-        return tb
-    #-def
-#-class
-
-class Scope(StackItem):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, cmd, prev):
-        """
-        """
-
-        StackItem.__init__(self, cmd, prev)
-        self.__vars = {}
-    #-def
-
-    def setvar(self, name, value):
-        """
-        """
-
-        self.__vars[name] = value
-    #-def
-
-    def getvar(self, name):
-        """
-        """
-
-        if name not in self.__vars:
-            prev = self.get_prev()
-            if prev:
-                return prev.getvar(name)
-            raise CmdProcUndefinedVariable(self, name)
-        v = self.__vars[name]
-        if isinstance(v, ArgumentProxy):
-            v = v.value(self)
-        return v
-    #-def
-#-class
-
-class Frame(Scope):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, cmd, prev):
-        """
-        """
-
-        Scope.__init__(self, cmd, prev)
-    #-def
-#-class
-
 class CommandProcessor(object):
     """
     """
@@ -242,7 +54,24 @@ class CommandProcessor(object):
 
         self.__globals = Scope(None, None)
         self.__locals = self.__globals
+        self.__exceptions = Exceptions(self)
+        self.__initialize_exceptions()
         self.clear_state()
+    #-def
+
+    def __initialize_exceptions(self):
+        """
+        """
+
+        self.__exceptions = Exceptions(self)
+        self.__exceptions.register_exceptions(
+            ('Exception', 'BaseException'),
+            ('StopIteration', 'BaseException'),
+            ('NextIteration', 'BaseException'),
+            ('RuntimeError', 'Exception'),
+            ('ArgumentsError', 'Exception'),
+            ('CastError', 'Exception')
+        )
     #-def
 
     def begin_command(self, cmd):
@@ -346,7 +175,7 @@ class CommandProcessor(object):
         """
 
         if self.__last_error:
-            self.__exception = CommandErrorException(self.__last_error)
+            self.__exception = self.__last_error.to_exception()
             self.__last_error = None
     #-def
 
@@ -357,9 +186,10 @@ class CommandProcessor(object):
         if not self.__exception:
             return
         for e, eh in self.__locals.get_exception_handlers():
-            if e.is_derived(self.__exception.base()):
+            if e.is_superclass_of(self.__exception.cls()):
                 if self.__safe_cmdrun(eh):
                     self.__exception = None
+                break
     #-def
 
     def result(self):
@@ -367,6 +197,13 @@ class CommandProcessor(object):
         """
 
         return self.__result
+    #-def
+
+    def exception(self):
+        """
+        """
+
+        return self.__exception
     #-def
 
     def last_error(self):
@@ -383,6 +220,13 @@ class CommandProcessor(object):
         self.__result = None
     #-def
 
+    def clear_exception(self):
+        """
+        """
+
+        self.__exception = None
+    #-def
+
     def clear_error(self):
         """
         """
@@ -395,6 +239,7 @@ class CommandProcessor(object):
         """
 
         self.clear_result()
+        self.clear_exception()
         self.clear_error()
     #-def
 
@@ -420,7 +265,10 @@ class CommandProcessor(object):
         elif isinstance(x, int):
             x = Integer(x)
         elif not isinstance(x, Command):
-            raise CmdErrBadType(self)
+            raise CmdProcTypeError(self,
+                "Command or atom was expected, but %s was given" \
+                % x.__class__.__name__
+            )
         # x is Command:
         return x
     #-def
@@ -453,7 +301,7 @@ class CommandProcessor(object):
         )
 
         if not castfunc:
-            raise CmdErrNotCastableTo(self,
+            raise CmdProcCastError(self,
                 "%s is not castable to %s" % (x2s(x), t2s(t))
             )
         return castfunc(x)
@@ -516,7 +364,7 @@ class CommandProcessor(object):
         """
 
         if x.value() != 0:
-            raise CmdErrNotCastableTo(self,
+            raise CmdProcCastError(self,
                 "%d (integer) cannot be casted to null" % x.value()
             )
         return Null()
@@ -534,7 +382,7 @@ class CommandProcessor(object):
         """
 
         if x.value() != "":
-            raise CmdErrNotCastableTo(self,
+            raise CmdProcCastError(self,
                 "%s (string) cannot be casted to null" % repr(x.value())
             )
         return Null()
@@ -545,7 +393,7 @@ class CommandProcessor(object):
         """
 
         if x.value() == "":
-            raise CmdErrNotCastableTo(self,
+            raise CmdProcCastError(self,
                 "Empty string cannot be converted to symbol"
             )
         return Symbol(x.value())
@@ -558,7 +406,7 @@ class CommandProcessor(object):
         try:
             return int(x.value())
         except ValueError:
-            raise CmdErrNotCastableTo(self,
+            raise CmdProcCastError(self,
                 "%s (string) cannot be converted to integer" % repr(x.value())
             )
     #-def

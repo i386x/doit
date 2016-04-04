@@ -62,4 +62,11 @@ class CommandProcessorError(DoItError):
             return "%s %s" % (str(self.traceback), DoItError.__str__(self))
         return DoItError.__str__(self)
     #-def
+
+    def assoc_exception_name(self):
+        """
+        """
+
+        return 'SystemError'
+    #-def
 #-class
