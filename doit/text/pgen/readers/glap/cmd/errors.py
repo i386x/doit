@@ -37,7 +37,7 @@ from doit.support.errors import DoItError
 
 COMMAND_PROCESSOR_ERROR_BASE = DoItError.alloc_codes(16)
 
-CMDERR_BADCMD = COMMAND_PROCESSOR_ERROR_BASE + 0
+CMDPROCERR_RUNTIME = COMMAND_PROCESSOR_ERROR_BASE + 0
 CMDERR_NARGS  = COMMAND_PROCESSOR_ERROR_BASE + 1
 CMDERR_BADARG = COMMAND_PROCESSOR_ERROR_BASE + 2
 
@@ -63,10 +63,32 @@ class CommandProcessorError(DoItError):
         return DoItError.__str__(self)
     #-def
 
-    def assoc_exception_name(self):
+    def internal_name(self):
         """
         """
 
         return 'SystemError'
+    #-def
+#-class
+
+class CmdProcRuntimeError(CommandProcessorError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, traceback_provider, emsg):
+        """
+        """
+
+        CommandProcessorError.__init__(self,
+            traceback_provider, CMDPROCERR_RUNTIME, emsg
+        )
+    #-def
+
+    def internal_name(self):
+        """
+        """
+
+        return 'RuntimeError'
     #-def
 #-class
