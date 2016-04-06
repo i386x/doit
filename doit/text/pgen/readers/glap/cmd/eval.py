@@ -68,8 +68,10 @@ class CommandProcessor(object):
             ('Exception', 'BaseException'),
             ('StopIteration', 'BaseException'),
             ('NextIteration', 'BaseException'),
+            ('SystemError', 'BaseException'),
             ('RuntimeError', 'Exception'),
             ('ArgumentsError', 'Exception'),
+            ('TypeError', 'Exception'),
             ('CastError', 'Exception')
         )
     #-def
@@ -175,7 +177,12 @@ class CommandProcessor(object):
         """
 
         if self.__last_error:
-            self.__exception = self.__last_error.to_exception()
+            ecls = self.find_exception_class(self.__last_error.internal_name())
+            self.__exception = ExceptionObject(ecls,
+                self.__last_error.errcode,
+                self.__last_error.detail,
+                self.__last_error.traceback
+            )
             self.__last_error = None
     #-def
 
