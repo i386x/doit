@@ -1,18 +1,19 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/__init__.py
+#! \file    ./tests/test_text/test_pgen/ \
+#!              test_readers/test_glap/test_cmd/__init__.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
-#! \stamp   2014-04-09 22:45:13 (UTC+01:00, DST+01:00)
+#! \stamp   2016-04-07 09:54:47 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
-DoIt! tests package initialization file.\
+DoIt! test_cmd package initialization file.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2015 Jiří Kučera.
+Copyright (c) 2014 - 2016 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -35,16 +36,10 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_support, test_config, test_asm, test_runtime, test_text
+from . import test_errors
 
 def suite():
     suite = unittest.TestSuite()
-    suite.addTest(test_support.suite())
-    suite.addTest(test_config.suite())
-    suite.addTest(test_asm.suite())
-    suite.addTest(test_runtime.suite())
-    suite.addTest(test_text.suite())
-#    suite.addTest(test_input.suite())
-#    suite.addTest(test_errors.suite())
+    suite.addTest(test_errors.suite())
     return suite
 #-def

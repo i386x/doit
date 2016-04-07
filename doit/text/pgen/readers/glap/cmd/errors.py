@@ -37,9 +37,10 @@ from doit.support.errors import DoItError
 
 COMMAND_PROCESSOR_ERROR_BASE = DoItError.alloc_codes(16)
 
-CMDPROCERR_RUNTIME = COMMAND_PROCESSOR_ERROR_BASE + 0
-CMDERR_NARGS  = COMMAND_PROCESSOR_ERROR_BASE + 1
-CMDERR_BADARG = COMMAND_PROCESSOR_ERROR_BASE + 2
+ERROR_CMDPROC_RUNTIME   = COMMAND_PROCESSOR_ERROR_BASE + 0
+ERROR_CMDPROC_ARGUMENTS = COMMAND_PROCESSOR_ERROR_BASE + 1
+ERROR_CMDPROC_TYPE      = COMMAND_PROCESSOR_ERROR_BASE + 2
+ERROR_CMDPROC_CAST      = COMMAND_PROCESSOR_ERROR_BASE + 3
 
 class CommandProcessorError(DoItError):
     """
@@ -81,7 +82,7 @@ class CmdProcRuntimeError(CommandProcessorError):
         """
 
         CommandProcessorError.__init__(self,
-            traceback_provider, CMDPROCERR_RUNTIME, emsg
+            traceback_provider, ERROR_CMDPROC_RUNTIME, emsg
         )
     #-def
 
@@ -90,5 +91,71 @@ class CmdProcRuntimeError(CommandProcessorError):
         """
 
         return 'RuntimeError'
+    #-def
+#-class
+
+class CmdProcArgumentsError(CommandProcessorError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, traceback_provider, emsg):
+        """
+        """
+
+        CommandProcessorError.__init__(self,
+            traceback_provider, ERROR_CMDPROC_ARGUMENTS, emsg
+        )
+    #-def
+
+    def internal_name(self):
+        """
+        """
+
+        return 'ArgumentsError'
+    #-def
+#-class
+
+class CmdProcTypeError(CommandProcessorError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, traceback_provider, emsg):
+        """
+        """
+
+        CommandProcessorError.__init__(self,
+            traceback_provider, ERROR_CMDPROC_TYPE, emsg
+        )
+    #-def
+
+    def internal_name(self):
+        """
+        """
+
+        return 'TypeError'
+    #-def
+#-class
+
+class CmdProcCastError(CommandProcessorError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, traceback_provider, emsg):
+        """
+        """
+
+        CommandProcessorError.__init__(self,
+            traceback_provider, ERROR_CMDPROC_CAST, emsg
+        )
+    #-def
+
+    def internal_name(self):
+        """
+        """
+
+        return 'CastError'
     #-def
 #-class
