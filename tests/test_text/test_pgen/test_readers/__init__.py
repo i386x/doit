@@ -1,5 +1,6 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/test_text/test_pgen/test_readers/__init__.py
+#! \file    ./tests/test_text/test_pgen/ \
+#!              test_readers/__init__.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-04-07 09:51:07 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language

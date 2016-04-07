@@ -36,9 +36,19 @@ IN THE SOFTWARE.\
 
 import unittest
 
+from doit.support.errors import DoItError
+
 from doit.text.pgen.readers.glap.cmd.errors import \
     COMMAND_PROCESSOR_ERROR_BASE, \
-    CommandProcessorError
+    ERROR_CMDPROC_RUNTIME, \
+    ERROR_CMDPROC_ARGUMENTS, \
+    ERROR_CMDPROC_TYPE, \
+    ERROR_CMDPROC_CAST, \
+    CommandProcessorError, \
+    CmdProcRuntimeError, \
+    CmdProcArgumentsError, \
+    CmdProcTypeError, \
+    CmdProcCastError
 
 class AuxTraceback(object):
     __slots__ = [ '__content' ]
@@ -64,19 +74,204 @@ class AuxTracebackProvider(object):
     #-def
 #-class
 
+class NoTracebackProvider(object):
+    __slots__ = []
+
+    def __init__(self):
+        pass
+    #-def
+
+    def traceback(self):
+        return None
+    #-def
+#-class
+
 class TestCommandProcessorErrorCase(unittest.TestCase):
 
     def test_CommandProcessorError(self):
         error_code = COMMAND_PROCESSOR_ERROR_BASE
         error_message = "Dummy error message"
         traceback_provider = AuxTracebackProvider("f1", "f2", "g3")
+        no_traceback_provider = NoTracebackProvider()
 
         with self.assertRaises(CommandProcessorError) as eh:
             raise CommandProcessorError(
                 traceback_provider, error_code, error_message
             )
 
-        self.assertEqual(str(eh.exception), "")
+        self.assertEqual(eh.exception.internal_name(), 'SystemError')
+        self.assertEqual(
+            str(eh.exception),
+            "f1.f2.g3 %s" % (
+                DoItError.ERRMSGFMT % (
+                    CommandProcessorError.__name__,
+                    error_code,
+                    error_message
+                )
+            )
+        )
+
+        with self.assertRaises(CommandProcessorError) as eh:
+            raise CommandProcessorError(
+                no_traceback_provider, error_code, error_message
+            )
+
+        self.assertEqual(
+            str(eh.exception),
+            DoItError.ERRMSGFMT % (
+                CommandProcessorError.__name__,
+                error_code,
+                error_message
+            )
+        )
+    #-def
+
+    def test_CmdProcRuntimeError(self):
+        error_message = "Dummy runtime error"
+        traceback_provider = AuxTracebackProvider("f1", "g2", "h3")
+        no_traceback_provider = NoTracebackProvider()
+
+        with self.assertRaises(CmdProcRuntimeError) as eh:
+            raise CmdProcRuntimeError(
+                traceback_provider, error_message
+            )
+
+        self.assertEqual(eh.exception.internal_name(), 'RuntimeError')
+        self.assertEqual(
+            str(eh.exception),
+            "f1.g2.h3 %s" % (
+                DoItError.ERRMSGFMT % (
+                    CmdProcRuntimeError.__name__,
+                    ERROR_CMDPROC_RUNTIME,
+                    error_message
+                )
+            )
+        )
+
+        with self.assertRaises(CmdProcRuntimeError) as eh:
+            raise CmdProcRuntimeError(
+                no_traceback_provider, error_message
+            )
+
+        self.assertEqual(
+            str(eh.exception),
+            DoItError.ERRMSGFMT % (
+                CmdProcRuntimeError.__name__,
+                ERROR_CMDPROC_RUNTIME,
+                error_message
+            )
+        )
+    #-def
+
+    def test_CmdProcArgumentsError(self):
+        error_message = "Dummy arguments error"
+        traceback_provider = AuxTracebackProvider("f4", "g5", "h6")
+        no_traceback_provider = NoTracebackProvider()
+
+        with self.assertRaises(CmdProcArgumentsError) as eh:
+            raise CmdProcArgumentsError(
+                traceback_provider, error_message
+            )
+
+        self.assertEqual(eh.exception.internal_name(), 'ArgumentsError')
+        self.assertEqual(
+            str(eh.exception),
+            "f4.g5.h6 %s" % (
+                DoItError.ERRMSGFMT % (
+                    CmdProcArgumentsError.__name__,
+                    ERROR_CMDPROC_ARGUMENTS,
+                    error_message
+                )
+            )
+        )
+
+        with self.assertRaises(CmdProcArgumentsError) as eh:
+            raise CmdProcArgumentsError(
+                no_traceback_provider, error_message
+            )
+
+        self.assertEqual(
+            str(eh.exception),
+            DoItError.ERRMSGFMT % (
+                CmdProcArgumentsError.__name__,
+                ERROR_CMDPROC_ARGUMENTS,
+                error_message
+            )
+        )
+    #-def
+
+    def test_CmdProcTypeError(self):
+        error_message = "Dummy type error"
+        traceback_provider = AuxTracebackProvider("f_", "g_", "h_")
+        no_traceback_provider = NoTracebackProvider()
+
+        with self.assertRaises(CmdProcTypeError) as eh:
+            raise CmdProcTypeError(
+                traceback_provider, error_message
+            )
+
+        self.assertEqual(eh.exception.internal_name(), 'TypeError')
+        self.assertEqual(
+            str(eh.exception),
+            "f_.g_.h_ %s" % (
+                DoItError.ERRMSGFMT % (
+                    CmdProcTypeError.__name__,
+                    ERROR_CMDPROC_TYPE,
+                    error_message
+                )
+            )
+        )
+
+        with self.assertRaises(CmdProcTypeError) as eh:
+            raise CmdProcTypeError(
+                no_traceback_provider, error_message
+            )
+
+        self.assertEqual(
+            str(eh.exception),
+            DoItError.ERRMSGFMT % (
+                CmdProcTypeError.__name__,
+                ERROR_CMDPROC_TYPE,
+                error_message
+            )
+        )
+    #-def
+
+    def test_CmdProcCastError(self):
+        error_message = "Dummy cast error"
+        traceback_provider = AuxTracebackProvider("fx", "gx", "hx")
+        no_traceback_provider = NoTracebackProvider()
+
+        with self.assertRaises(CmdProcCastError) as eh:
+            raise CmdProcCastError(
+                traceback_provider, error_message
+            )
+
+        self.assertEqual(eh.exception.internal_name(), 'CastError')
+        self.assertEqual(
+            str(eh.exception),
+            "fx.gx.hx %s" % (
+                DoItError.ERRMSGFMT % (
+                    CmdProcCastError.__name__,
+                    ERROR_CMDPROC_CAST,
+                    error_message
+                )
+            )
+        )
+
+        with self.assertRaises(CmdProcCastError) as eh:
+            raise CmdProcCastError(
+                no_traceback_provider, error_message
+            )
+
+        self.assertEqual(
+            str(eh.exception),
+            DoItError.ERRMSGFMT % (
+                CmdProcCastError.__name__,
+                ERROR_CMDPROC_CAST,
+                error_message
+            )
+        )
     #-def
 #-class
 
