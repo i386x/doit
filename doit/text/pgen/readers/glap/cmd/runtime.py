@@ -36,7 +36,7 @@ IN THE SOFTWARE.\
 class ExceptionObject(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__cls', '__args' ]
 
     def __init__(self, cls, *args):
         """
@@ -64,7 +64,7 @@ class ExceptionObject(object):
 class ExceptionClass(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__container', '__name', '__base' ]
 
     def __init__(self, container, name, base):
         """
@@ -93,6 +93,12 @@ class ExceptionClass(object):
         """
         """
 
+        if not isinstance(cls, ExceptionClass):
+            return False
+        if cls.name() not in self.__container:
+            return False
+        if self.__container[cls.name()] is not cls:
+            return False
         if self is cls:
             return True
         if self.__base is self:
@@ -114,33 +120,42 @@ class BaseExceptionClass(ExceptionClass):
     #-def
 #-class
 
-class Exceptions(object):
+class Exceptions(dict):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__processor' ]
 
     def __init__(self, processor):
         """
         """
 
+        dict.__init__(self)
         self.__processor = processor
         base = BaseExceptionClass(self)
-        self.__data = { base.name(): base }
+        self[base.name()] = base
     #-def
 
     def register_exception(self, name, basename):
         """
         """
 
-        if name in self.__data:
+        if name in self:
             raise CmdProcRegisterExceptionError(self.__processor,
                 "Exception %s is already registered" % name
             )
-        if basename not in self.__data:
+        if basename not in self:
             raise CmdProcRegisterExceptionError(self.__processor,
                 "Unknown exception base %s" % basename
             )
-        self.__data[name] = ExceptionClass(self, name, self.__data[basename])
+        self[name] = ExceptionClass(self, name, self[basename])
+    #-def
+
+    def register_exceptions(self, *specs):
+        """
+        """
+
+        for name, basename in specs:
+            self.register_exception(name, basename)
     #-def
 #-class
 

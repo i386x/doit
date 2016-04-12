@@ -36,10 +36,11 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_errors
+from . import test_errors, test_runtime
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(test_errors.suite())
+    suite.addTest(test_runtime.suite())
     return suite
 #-def
