@@ -37,10 +37,12 @@ from doit.support.errors import DoItError
 
 COMMAND_PROCESSOR_ERROR_BASE = DoItError.alloc_codes(16)
 
-ERROR_CMDPROC_RUNTIME   = COMMAND_PROCESSOR_ERROR_BASE + 0
-ERROR_CMDPROC_ARGUMENTS = COMMAND_PROCESSOR_ERROR_BASE + 1
-ERROR_CMDPROC_TYPE      = COMMAND_PROCESSOR_ERROR_BASE + 2
-ERROR_CMDPROC_CAST      = COMMAND_PROCESSOR_ERROR_BASE + 3
+ERROR_CMDPROC_RUNTIME   = COMMAND_PROCESSOR_ERROR_BASE
+ERROR_CMDPROC_ARGUMENTS = ERROR_CMDPROC_RUNTIME + 1
+ERROR_CMDPROC_NAME      = ERROR_CMDPROC_ARGUMENTS + 1
+ERROR_CMDPROC_TYPE      = ERROR_CMDPROC_NAME + 1
+ERROR_CMDPROC_CAST      = ERROR_CMDPROC_TYPE + 1
+ERROR_CMDPROC_CONTAINER = ERROR_CMDPROC_CAST + 1
 
 class CommandProcessorError(DoItError):
     """
@@ -116,6 +118,28 @@ class CmdProcArgumentsError(CommandProcessorError):
     #-def
 #-class
 
+class CmdProcNameError(CommandProcessorError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, traceback_provider, emsg):
+        """
+        """
+
+        CommandProcessorError.__init__(self,
+            traceback_provider, ERROR_CMDPROC_NAME, emsg
+        )
+    #-def
+
+    def internal_name(self):
+        """
+        """
+
+        return 'NameError'
+    #-def
+#-class
+
 class CmdProcTypeError(CommandProcessorError):
     """
     """
@@ -157,5 +181,27 @@ class CmdProcCastError(CommandProcessorError):
         """
 
         return 'CastError'
+    #-def
+#-class
+
+class CmdProcContainerError(CommandProcessorError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, traceback_provider, emsg):
+        """
+        """
+
+        CommandProcessorError.__init__(self,
+            traceback_provider, ERROR_CMDPROC_CONTAINER, emsg
+        )
+    #-def
+
+    def internal_name(self):
+        """
+        """
+
+        return 'ContainerError'
     #-def
 #-class

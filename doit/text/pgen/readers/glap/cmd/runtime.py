@@ -33,6 +33,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.support.errors import not_implemented
+
+from doit.text.pgen.readers.glap.cmd.errors import \
+    CmdProcNameError, \
+    CmdProcContainerError
+
 class ExceptionObject(object):
     """
     """
@@ -101,8 +107,6 @@ class ExceptionClass(object):
             return False
         if self is cls:
             return True
-        if self.__base is self:
-            return False
         return self.is_superclass_of(cls.base())
     #-def
 #-class
@@ -116,7 +120,7 @@ class BaseExceptionClass(ExceptionClass):
         """
         """
 
-        ExceptionClass.__init__(self, container, 'BaseException', self)
+        ExceptionClass.__init__(self, container, 'BaseException', None)
     #-def
 #-class
 
@@ -140,11 +144,11 @@ class Exceptions(dict):
         """
 
         if name in self:
-            raise CmdProcRegisterExceptionError(self.__processor,
+            raise CmdProcContainerError(self.__processor,
                 "Exception %s is already registered" % name
             )
         if basename not in self:
-            raise CmdProcRegisterExceptionError(self.__processor,
+            raise CmdProcContainerError(self.__processor,
                 "Unknown exception base %s" % basename
             )
         self[name] = ExceptionClass(self, name, self[basename])
@@ -159,21 +163,41 @@ class Exceptions(dict):
     #-def
 #-class
 
-class Traceback(list):
+class ValueProvider(object):
     """
     """
     __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        pass
+    #-def
+
+    def value(self, processor):
+        """
+        """
+
+        not_implemented()
+    #-def
+#-class
+
+class Traceback(list):
+    """
+    """
+    __slots__ = [ '__punctator' ]
 
     def __init__(self, last_command):
         """
         """
 
         list.__init__(self)
-        _, l, c = last_command.get_location()
-        if l < 0 or c < 0:
-            self.__punctator = ">"
-        else:
-            self.__punctator = "Line %d, column %d:" % (l, c)
+        self.__punctator = ">"
+        if last_command:
+            f, l, c = last_command.get_location()
+            if f is not None and l >= 0 and c >= 0:
+                self.__punctator += " At [\"%s\":%d:%d]:" % (f, l, c)
     #-def
 
     def __str__(self):
@@ -214,7 +238,7 @@ class TracebackProvider(object):
 class StackItem(TracebackProvider):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__cmd', '__prev', '__finalizers', '__ehs' ]
 
     def __init__(self, cmd, prev):
         """
@@ -248,11 +272,13 @@ class StackItem(TracebackProvider):
         self.__prev.setvar(name, value)
     #-def
 
-    def getvar(self, name):
+    def getvar(self, name, first = None):
         """
         """
 
-        return self.__prev.getvar(name)
+        if first is None:
+            first = self
+        return self.__prev.getvar(name, first)
     #-def
 
     def add_finalizer(self, finalizer):
@@ -301,7 +327,7 @@ class StackItem(TracebackProvider):
 class Scope(StackItem):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__vars' ]
 
     def __init__(self, cmd, prev):
         """
@@ -318,17 +344,19 @@ class Scope(StackItem):
         self.__vars[name] = value
     #-def
 
-    def getvar(self, name):
+    def getvar(self, name, first = None):
         """
         """
 
+        if first is None:
+            first = self
         if name not in self.__vars:
             prev = self.get_prev()
             if prev:
-                return prev.getvar(name)
-            raise CmdProcUndefinedVariable(self, name)
+                return prev.getvar(name, first)
+            raise CmdProcNameError(first, "Undefined symbol '%s'" % name)
         v = self.__vars[name]
-        if isinstance(v, ArgumentProxy):
+        if isinstance(v, ValueProvider):
             v = v.value(self)
         return v
     #-def

@@ -33,7 +33,51 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-class ArgumentProxy(object):
+from doit.text.pgen.readers.glap.cmd.runtime import \
+    ValueProvider
+
+class Location(tuple):
+    """
+    """
+    __slots__ = []
+
+    def __new__(cls, file = None, line = -1, column = -1):
+        """
+        """
+
+        return super(Location, cls).__new__(cls, (file, line, column))
+    #-def
+
+    def __init__(self, file = None, line = -1, column = -1):
+        """
+        """
+
+        tuple.__init__(self)
+    #-def
+
+    def file(self):
+        """
+        """
+
+        return self[0]
+    #-def
+
+    def line(self):
+        """
+        """
+
+        return self[1]
+    #-def
+
+    def column(self):
+        """
+        """
+
+        return self[2]
+    #-def
+#-class
+
+class ArgumentProxy(ValueProvider):
     """
     """
     __slots__ = []
@@ -42,12 +86,13 @@ class ArgumentProxy(object):
         """
         """
 
+        ValueProvider.__init__(self)
         self.__cmd = cmd
         self.__i = i
         self.__isvararg = isvararg
     #-def
 
-    def value(self, processor):
+    def value(self, traceback_provider):
         """
         """
 
@@ -57,7 +102,69 @@ class ArgumentProxy(object):
                 return args[self.__i:]
             return args[self.__i]
         except IndexError:
-            raise CmdErrNArgs(processor, self.__i)
+            raise CmdErrNArgs(traceback_provider, self.__i)
+    #-def
+#-class
+
+class Arguments(list):
+    """
+    """
+    ARGSVAR = 'args'
+    ELLIPSIS = '...'
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        list.__init__(self)
+        self.__proxies = {}
+    #-def
+
+    def set_spec(self, *spec):
+        """
+        """
+
+        self.__proxies.clear()
+        self.add_spec(*spec)
+    #-def
+
+    def add_spec(self, *spec):
+        """
+        """
+
+        self.__install_proxies(spec)
+    #-def
+
+    def set(self, *args):
+        """
+        """
+
+        list.clear(self)
+        self.add(*args)
+    #-def
+
+    def add(self, *args):
+        """
+        """
+
+        list.extend(args)
+    #-def
+
+    def __install_proxies(self, argspec):
+        """
+        """
+
+        i = 0
+        while i < len(argspec):
+            k = argspec[i]
+            isvararg = False
+            if k == self.__class__.ELLIPSIS:
+                k = self.__class__.ARGVAR
+                isvararg = True
+            self.__proxies[k] = ArgumentProxy(self, i, isvararg)
+            i += 1
+        #-while
     #-def
 #-class
 
@@ -71,11 +178,8 @@ class Command(object):
         """
 
         self.__name = self.__class__.__name__.lower()
-        self.__file = None
-        self.__line = -1
-        self.__column = -1
-        self.__args = []
-        self.__argproxies = {}
+        self.__location = Location()
+        self.__arguments = Arguments()
         self.__initializers = [self.init_vars]
         self.__finalizers = []
     #-def
@@ -94,20 +198,18 @@ class Command(object):
         return self.__name
     #-def
 
-    def set_location(self, file, line, column):
+    def set_location(self, file = None, line = -1, column = -1):
         """
         """
 
-        self.__file = file
-        self.__line = line
-        self.__column = column
+        self.__location = Location(file, line, column)
     #-def
 
     def get_location(self):
         """
         """
 
-        return self.__file, self.__line, self.__column
+        return self.__location
     #-def
 
     def __str__(self):
@@ -126,50 +228,35 @@ class Command(object):
         """
         """
 
-        self.__argproxies.clear()
-        self.add_argspec(*argspec)
+        self.__arguments.set_spec(*argspec)
     #-def
 
     def add_argspec(self, *argspec):
         """
         """
 
-        self.__install_argproxies(argspec)
+        self.__arguments.add_spec(*argspec)
     #-def
 
     def set_args(self, *args):
         """
         """
 
-        self.__args = list(args)
+        self.__arguments.set(*args)
     #-def
 
     def add_args(self, *args):
         """
         """
 
-        self.__args.extend(args)
+        self.__arguments.add(*args)
     #-def
 
     def get_args(self):
         """
         """
 
-        return self.__args
-    #-def
-
-    def __install_argproxies(self, argspec):
-        """
-        """
-
-        i = 0
-        while i < len(argspec):
-            k = argspec[i]
-            self.__argproxies['args' if k == '...' else k] = ArgumentProxy(
-                self, i, k == '...'
-            )
-            i += 1
-        #-while
+        return self.__arguments
     #-def
 
     def atstart(self, *inits):
@@ -242,7 +329,7 @@ class Value(Command):
         """
 
         Command.__init__(self)
-        self.set_argspec(())
+        self.set_argspec()
         self.set_args()
         self.__value = None
     #-def
@@ -404,7 +491,7 @@ class ExceptionHandler(Block):
     #-def
 #-class
 
-class Print(BuiltinCommand):
+class Print(Callable):
     """
     """
     __slots__ = []
@@ -413,7 +500,7 @@ class Print(BuiltinCommand):
         """
         """
 
-        BuiltinCommand.__init__(self, ("...",), *args)
+        Callable.__init__(self, ("...",), *args)
     #-def
 
     def run(self, processor):
