@@ -33,6 +33,47 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+class Environment(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        pass
+    #-def
+
+    def fopen(self, name, *args, **kwargs):
+        """
+        """
+
+        not_implemented()
+    #-def
+
+    def read(self, fd, n = 0):
+        """
+        """
+
+        not_implemented()
+    #-def
+
+    def write(self, fd, data):
+        """
+        """
+
+        not_implemented()
+    #-def
+
+    def close(self, fd):
+        """
+        """
+
+        not_implemented()
+    #-def
+#-class
+
 class CommandProcessor(object):
     """
     """
