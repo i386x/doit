@@ -36,17 +36,47 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from doit.text.pgen.readers.glap.cmd.eval import CommandProcessor
+from ......common import StdoutMock
+
+from doit.text.pgen.readers.glap.cmd.eval import \
+    Environment, \
+    CommandProcessor
+
+class TestEnvironmentCase(unittest.TestCase):
+
+    def test_vars(self):
+        e = Environment()
+        e.setvar('x', 42)
+
+        self.assertEqual(e.getvar('x'), 42)
+        self.assertIsNone(e.getvar('y'))
+        e.unsetvar('y')
+        self.assertEqual(e.getvar('x'), 42)
+        e.unsetvar('x')
+        self.assertIsNone(e.getvar('x'))
+        self.assertIsNone(e.getvar('y'))
+    #-def
+
+    def test_wterm(self):
+        m = "Hello!\n"
+        e = Environment()
+
+        with StdoutMock() as stdout:
+            e.wterm(m)
+            self.assertEqual(stdout.data, m)
+    #-def
+#-class
 
 class TestCommandProcessorCase(unittest.TestCase):
 
-    def test(self):
-        ...
+    def test_x(self):
+        pass
     #-def
 #-class
 
 def suite():
     suite = unittest.TestSuite()
+    suite.addTest(unittest.makeSuite(TestEnvironmentCase))
     suite.addTest(unittest.makeSuite(TestCommandProcessorCase))
     return suite
 #-def

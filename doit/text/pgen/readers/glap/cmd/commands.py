@@ -75,6 +75,16 @@ class Location(tuple):
 
         return self[2]
     #-def
+
+    def __str__(self):
+        """
+        """
+
+        f, l, c = self
+        if f is None or l < 0 or c < 0:
+            return "(internal)"
+        return "at [\"%s\":%d:%d]" % self
+    #-def
 #-class
 
 class ArgumentProxy(ValueProvider):
@@ -82,12 +92,12 @@ class ArgumentProxy(ValueProvider):
     """
     __slots__ = []
 
-    def __init__(self, cmd, i, isvararg = False):
+    def __init__(self, args, i, isvararg = False):
         """
         """
 
         ValueProvider.__init__(self)
-        self.__cmd = cmd
+        self.__args = args
         self.__i = i
         self.__isvararg = isvararg
     #-def
@@ -97,10 +107,9 @@ class ArgumentProxy(ValueProvider):
         """
 
         try:
-            args = self.__cmd.get_args()
             if self.__isvararg:
-                return args[self.__i:]
-            return args[self.__i]
+                return self.__args[self.__i:]
+            return self.__args[self.__i]
         except IndexError:
             raise CmdErrNArgs(traceback_provider, self.__i)
     #-def
@@ -111,7 +120,7 @@ class Arguments(list):
     """
     ARGSVAR = 'args'
     ELLIPSIS = '...'
-    __slots__ = []
+    __slots__ = [ '__proxies' ]
 
     def __init__(self):
         """
@@ -171,7 +180,9 @@ class Arguments(list):
 class Command(object):
     """
     """
-    __slots__ = [ '__name', '__argspec', '__args' ]
+    __slots__ = [
+        '__name', '__location', '__arguments', '__initializers', '__finalizers'
+    ]
 
     def __init__(self):
         """
@@ -216,12 +227,7 @@ class Command(object):
         """
         """
 
-        scmd = "\"%s\"" % self.__name
-        if self.__file and self.__line >= 0 and self.__column >= 0:
-            return "%s at [\"%s\":%d:%d]" % (
-                scmd, self.__file, self.__line, self.__column
-            )
-        return "%s (internal)" % scmd
+        return "\"%s\" %s" % (self.__name, self.__location)
     #-def
 
     def set_argspec(self, *argspec):
@@ -509,7 +515,7 @@ class Print(Callable):
 
         env = processor.getenv()
         for arg in processor.getlocal("args"):
-            env.defout.write(processor.valueof(arg, String).value())
+            env.wterm(processor.valueof(arg, String).value())
         return Null()
     #-def
 #-class

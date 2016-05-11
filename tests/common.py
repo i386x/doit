@@ -12,7 +12,7 @@ DoIt! tests common stuff.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2015 Jiří Kučera.
+Copyright (c) 2014 - 2016 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -124,6 +124,25 @@ class StderrMock(FileMock):
 
     def __exit__(self, et, ev, tb):
         sys.stderr = self.__old_stderr
+        return FileMock.__exit__(self, et, ev, tb)
+    #-def
+#-class
+
+class StdoutMock(FileMock):
+    __slots__ = [ '__old_stdout' ]
+
+    def __init__(self):
+        FileMock.__init__(self, 0, '<stdout>', "w", 'utf8', "")
+        self.__old_stdout = sys.stdout
+    #-def
+
+    def __enter__(self):
+        sys.stdout = FileMock.__enter__(self)
+        return sys.stdout
+    #-def
+
+    def __exit__(self, et, ev, tb):
+        sys.stdout = self.__old_stdout
         return FileMock.__exit__(self, et, ev, tb)
     #-def
 #-class

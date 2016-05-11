@@ -36,11 +36,13 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_errors, test_runtime
+from . import test_errors, test_runtime, test_eval, test_commands
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(test_errors.suite())
     suite.addTest(test_runtime.suite())
+    suite.addTest(test_eval.suite())
+    suite.addTest(test_commands.suite())
     return suite
 #-def

@@ -33,44 +33,51 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+import sys
+
+from doit.text.pgen.readers.glap.cmd.runtime import \
+    Exceptions, \
+    Scope
+
 class Environment(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__vars' ]
 
     def __init__(self):
         """
         """
 
-        pass
+        self.__vars = {}
     #-def
 
-    def fopen(self, name, *args, **kwargs):
+    def setvar(self, name, value):
         """
         """
 
-        not_implemented()
+        self.__vars[name] = value
     #-def
 
-    def read(self, fd, n = 0):
+    def getvar(self, name):
         """
         """
 
-        not_implemented()
+        return self.__vars.get(name, None)
     #-def
 
-    def write(self, fd, data):
+    def unsetvar(self, name):
         """
         """
 
-        not_implemented()
+        if name in self.__vars:
+            del self.__vars[name]
     #-def
 
-    def close(self, fd):
+    def wterm(self, s):
         """
         """
 
-        not_implemented()
+        sys.stdout.write(s)
     #-def
 #-class
 
@@ -78,7 +85,8 @@ class CommandProcessor(object):
     """
     """
     __slots__ = [
-        '__env', '__globals', '__locals', '__result', '__last_error'
+        '__env', '__globals', '__locals', '__exceptions', '__result',
+        '__exception', '__last_error'
     ]
 
     def __init__(self, env):
@@ -164,15 +172,15 @@ class CommandProcessor(object):
         return self.__globals.getvar(name)
     #-def
 
-    def do_commands(self, commands):
+    def execute(self, commands):
         """
         """
 
         if self.__last_error:
             return False
-        for cmd in commands:
-            if not self.__safe_cmdrun(cmd):
-                return False
+        self.eval_commands(commands)
+        if self.__last_error:
+            return False
         return True
     #-def
 
