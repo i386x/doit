@@ -466,66 +466,72 @@ class TestStackItemsCase(unittest.TestCase):
         self.assertIs(self.locals3.get_prev(), self.locals2)
     #-def
 
+    def visible(self, scope, var, val):
+        self.assertEqual(scope.getvar(var), val)
+    #-def
+
+    def invisible(self, scope, var):
+        with self.assertRaises(CmdProcNameError):
+            scope.getvar(var)
+    #-def
+
     def test_setvar_getvar(self):
         # Global scope:
-        self.globals.setvar("gvar_A01", 1001)
+        self.globals.setvar("a", 1001)
+        # Binding the "print" with globals:
+        self.locals1.bind(self.globals)
         # "if" scope:
-        self.locals.setvar("lvar_B01", 1002)
+        self.locals.setvar("b", 1002)
+        # Binding the "if" with "print":
+        self.locals2.bind(self.locals1)
         # Global scope:
-        self.locals0.setvar("l0var_C01", 1003)
+        self.locals0.setvar("c", 1003)
         # "print" scope:
-        self.locals1.setvar("l1var_D01", PseudoArgumentProxy(1004))
+        self.locals1.setvar("d", PseudoArgumentProxy(1004))
         # "if" scope:
-        self.locals2.setvar("l2var_E01", 1005)
+        self.locals2.setvar("e", 1005)
         # "if" scope:
-        self.locals3.setvar("l3var_F01", 1006)
+        self.locals3.setvar("f", 1006)
 
         # "if" scope:
-        self.assertEqual(self.locals.getvar("gvar_A01"), 1001)
-        self.assertEqual(self.locals.getvar("lvar_B01"), 1002)
-        self.assertEqual(self.locals.getvar("l0var_C01"), 1003)
-        self.assertEqual(self.locals.getvar("l1var_D01"), 1004)
-        self.assertEqual(self.locals.getvar("l2var_E01"), 1005)
-        self.assertEqual(self.locals.getvar("l3var_F01"), 1006)
+        self.visible(self.locals, 'a', 1001)
+        self.visible(self.locals, 'b', 1002)
+        self.invisible(self.locals, 'c')
+        self.invisible(self.locals, 'd')
+        self.visible(self.locals, 'e', 1005)
+        self.visible(self.locals, 'f', 1006)
 
         # "if" scope:
-        self.assertEqual(self.locals3.getvar("gvar_A01"), 1001)
-        self.assertEqual(self.locals3.getvar("lvar_B01"), 1002)
-        self.assertEqual(self.locals3.getvar("l0var_C01"), 1003)
-        self.assertEqual(self.locals3.getvar("l1var_D01"), 1004)
-        self.assertEqual(self.locals3.getvar("l2var_E01"), 1005)
-        self.assertEqual(self.locals3.getvar("l3var_F01"), 1006)
+        self.visible(self.locals3, 'a', 1001)
+        self.visible(self.locals3, 'b', 1002)
+        self.invisible(self.locals3, 'c')
+        self.invisible(self.locals3, 'd')
+        self.visible(self.locals3, 'e', 1005)
+        self.visible(self.locals3, 'f', 1006)
 
         # "if" scope:
-        self.assertEqual(self.locals2.getvar("gvar_A01"), 1001)
-        self.assertEqual(self.locals2.getvar("lvar_B01"), 1002)
-        self.assertEqual(self.locals2.getvar("l0var_C01"), 1003)
-        self.assertEqual(self.locals2.getvar("l1var_D01"), 1004)
-        self.assertEqual(self.locals2.getvar("l2var_E01"), 1005)
-        self.assertEqual(self.locals2.getvar("l3var_F01"), 1006)
+        self.visible(self.locals2, 'a', 1001)
+        self.visible(self.locals2, 'b', 1002)
+        self.invisible(self.locals2, 'c')
+        self.invisible(self.locals2, 'd')
+        self.visible(self.locals2, 'e', 1005)
+        self.visible(self.locals2, 'f', 1006)
 
         # "print" scope:
-        self.assertEqual(self.locals1.getvar("gvar_A01"), 1001)
-        with self.assertRaises(CmdProcNameError):
-            self.locals1.getvar("lvar_B01")
-        self.assertEqual(self.locals1.getvar("l0var_C01"), 1003)
-        self.assertEqual(self.locals1.getvar("l1var_D01"), 1004)
-        with self.assertRaises(CmdProcNameError):
-            self.locals1.getvar("l2var_E01")
-        with self.assertRaises(CmdProcNameError):
-            self.locals1.getvar("l3var_F01")
+        self.visible(self.locals1, 'a', 1001)
+        self.invisible(self.locals1, 'b')
+        self.invisible(self.locals1, 'c')
+        self.visible(self.locals1, 'd', 1004)
+        self.invisible(self.locals1, 'e')
+        self.invisible(self.locals1, 'f')
 
         # Global scope:
-        self.assertEqual(self.locals0.getvar("gvar_A01"), 1001)
-        with self.assertRaises(CmdProcNameError):
-            self.locals0.getvar("lvar_B01")
-        self.assertEqual(self.locals0.getvar("l0var_C01"), 1003)
-        with self.assertRaises(CmdProcNameError):
-            self.locals0.getvar("l1var_D01")
-        with self.assertRaises(CmdProcNameError):
-            self.locals0.getvar("l2var_E01")
-        with self.assertRaises(CmdProcNameError):
-            self.locals0.getvar("l3var_F01")
+        self.visible(self.locals0, 'a', 1001)
+        self.invisible(self.locals0, 'b')
+        self.visible(self.locals0, 'c', 1003)
+        self.invisible(self.locals0, 'd')
+        self.invisible(self.locals0, 'e')
+        self.invisible(self.locals0, 'f')
     #-def
 
     def test_finalizers_container(self):

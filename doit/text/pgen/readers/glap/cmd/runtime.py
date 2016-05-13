@@ -327,14 +327,38 @@ class StackItem(TracebackProvider):
 class Scope(StackItem):
     """
     """
-    __slots__ = [ '__vars' ]
+    __slots__ = [ '__outer_scope', '__bounded_vars', '__vars' ]
 
     def __init__(self, cmd, prev):
         """
         """
 
         StackItem.__init__(self, cmd, prev)
+        self.__outer_scope = None
+        self.__bounded_vars = []
         self.__vars = {}
+    #-def
+
+    def bind(self, scope):
+        """
+        """
+
+        self.__outer_scope = scope
+        self.__bounded_vars = scope.getvars()
+    #-def
+
+    def outer_scope(self):
+        """
+        """
+
+        return self.__outer_scope
+    #-def
+
+    def bounded_vars(self):
+        """
+        """
+
+        return self.__bounded_vars
     #-def
 
     def setvar(self, name, value):
@@ -348,14 +372,43 @@ class Scope(StackItem):
         """
         """
 
+        # The stack item with the command that requested the variable (this is
+        # in fact the topmost stack item).
         if first is None:
             first = self
-        if name not in self.__vars:
-            prev = self.get_prev()
-            if prev:
-                return prev.getvar(name, first)
-            raise CmdProcNameError(first, "Undefined symbol '%s'" % name)
-        v = self.__vars[name]
+        # Try to find the requested variable in this scope first.
+        v = self.getval(name)
+        if v is None:
+            scope = self
+            # The variable is not in this scope. Try to find it in bounded
+            # scopes.
+            while scope is not None:
+                if name in scope.bounded_vars():
+                    break
+                scope = scope.outer_scope()
+            if scope is None:
+                # The requested variable has been never defined.
+                raise CmdProcNameError(first, "Undefined symbol '%s'" % name)
+            v = scope.outer_scope().getval(name)
+            if v is None:
+                # The requested variable has been defined but now it is
+                # deleted.
+                raise CmdProcNameError(first, "Undefined symbol '%s'" % name)
+        return v
+    #-def
+
+    def getvars(self):
+        """
+        """
+
+        return list(self.__vars.keys())
+    #-def
+
+    def getval(self, name):
+        """
+        """
+
+        v = self.__vars.get(name, None)
         if isinstance(v, ValueProvider):
             v = v.value(self)
         return v
