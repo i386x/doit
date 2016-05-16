@@ -33,8 +33,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.text.pgen.readers.glap.cmd.errors import \
+    CmdProcArgumentsError
+
 from doit.text.pgen.readers.glap.cmd.runtime import \
-    ValueProvider
+    ValueProvider, \
+    StackItem
 
 class Location(tuple):
     """
@@ -90,7 +94,7 @@ class Location(tuple):
 class ArgumentProxy(ValueProvider):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__args', '__i', '__isvararg' ]
 
     def __init__(self, args, i, isvararg = False):
         """
@@ -111,7 +115,10 @@ class ArgumentProxy(ValueProvider):
                 return self.__args[self.__i:]
             return self.__args[self.__i]
         except IndexError:
-            raise CmdErrNArgs(traceback_provider, self.__i)
+            raise CmdProcArgumentsError(traceback_provider,
+                "Not enough arguments. Argument #%d is missing" \
+                % (self.__i + 1)
+            )
     #-def
 #-class
 
@@ -157,7 +164,7 @@ class Arguments(list):
         """
         """
 
-        list.extend(args)
+        list.extend(self, args)
     #-def
 
     def __install_proxies(self, argspec):
@@ -165,15 +172,24 @@ class Arguments(list):
         """
 
         i = 0
+        n = len(self.__proxies)
         while i < len(argspec):
             k = argspec[i]
             isvararg = False
             if k == self.__class__.ELLIPSIS:
-                k = self.__class__.ARGVAR
+                k = self.__class__.ARGSVAR
                 isvararg = True
-            self.__proxies[k] = ArgumentProxy(self, i, isvararg)
+            self.__proxies[k] = ArgumentProxy(self, n + i, isvararg)
             i += 1
         #-while
+    #-def
+
+    def to_locals(self, processor):
+        """
+        """
+
+        for k in self.__proxies:
+            processor.setlocal(k, self.__proxies[k])
     #-def
 #-class
 
@@ -193,6 +209,8 @@ class Command(object):
         self.__arguments = Arguments()
         self.__initializers = [self.init_vars]
         self.__finalizers = []
+        self.__bounded_scope = None
+        self.__bounded_vars = []
     #-def
 
     def set_name(self, name):
@@ -279,6 +297,28 @@ class Command(object):
         self.__finalizers.extend(finits)
     #-def
 
+    def bind(self, scope):
+        """
+        """
+
+        self.__bounded_scope = scope
+        self.__bounded_vars = scope.getvars()
+    #-def
+
+    def bounded_scope(self):
+        """
+        """
+
+        return self.__bounded_scope
+    #-def
+
+    def bounded_vars(self):
+        """
+        """
+
+        return self.__bounded_vars
+    #-def
+
     def help(self, processor):
         """
         """
@@ -313,8 +353,7 @@ class Command(object):
         """
         """
 
-        for k in self.__argproxies:
-            processor.setlocal(k, self.__argproxies[k])
+        self.__arguments.to_locals(processor)
     #-def
 
     def stackitem(self, prev):

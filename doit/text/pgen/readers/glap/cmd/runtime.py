@@ -272,6 +272,13 @@ class StackItem(TracebackProvider):
         self.__prev.setvar(name, value)
     #-def
 
+    def unsetvar(self, name):
+        """
+        """
+
+        self.__prev.unsetvar(name)
+    #-def
+
     def getvar(self, name, first = None):
         """
         """
@@ -334,17 +341,18 @@ class Scope(StackItem):
         """
 
         StackItem.__init__(self, cmd, prev)
-        self.__outer_scope = None
-        self.__bounded_vars = []
+        self.bind(cmd.bounded_scope(), cmd.bounded_vars())
         self.__vars = {}
     #-def
 
-    def bind(self, scope):
+    def bind(self, scope, bounded_vars = None):
         """
         """
 
         self.__outer_scope = scope
-        self.__bounded_vars = scope.getvars()
+        if bounded_vars is None:
+            bounded_vars = scope.getvars()
+        self.__bounded_vars = bounded_vars
     #-def
 
     def outer_scope(self):
@@ -366,6 +374,14 @@ class Scope(StackItem):
         """
 
         self.__vars[name] = value
+    #-def
+
+    def unsetvar(self, name):
+        """
+        """
+
+        if name in self.__vars:
+            del self.__vars[name]
     #-def
 
     def getvar(self, name, first = None):

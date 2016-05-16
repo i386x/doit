@@ -38,9 +38,73 @@ import unittest
 
 from ......common import StdoutMock
 
+from doit.text.pgen.readers.glap.cmd.commands import \
+    Command
+
 from doit.text.pgen.readers.glap.cmd.eval import \
     Environment, \
     CommandProcessor
+
+class DefineCommand(Command):
+    __slots__ = []
+
+    def __init__(self, cmd):
+        Command.__init__(self)
+        self.set_name('defcmd')
+        self.set_argspec('cmd')
+        self.set_args(cmd)
+    #-def
+
+    def run(self, processor):
+        cmd = getlocal('cmd')
+        prev_scope = self.bounded_scope()
+        cmd.bind(prev_scope)
+        prev_scope.setvar(cmd.get_name(), cmd)
+        return Null()
+    #-def
+
+    def stackitem(self, prev):
+        return Frame(self, prev)
+    #-def
+#-class
+
+class CallCorruptStack(Command):
+    __slots__ = []
+
+    def __init__(self):
+        Command.__init__(self)
+        self.set_name('call')
+    #-def
+
+    def run(self, processor):
+        processor.eval_commands([processor.getlocal('corrupt')])
+        return processor.result()
+    #-def
+
+    def stackitem(self, prev):
+        return Frame(self, prev)
+    #-def
+#-class
+
+class CorruptStack(Command):
+    __slots__ = []
+
+    def __init__(self):
+        Command.__init__(self)
+        self.set_name('corrupt')
+    #-def
+
+    def run(self, processor):
+        # Pop stack item early.
+        processor._CommandProcessor__locals = \
+            processor._CommandProcessor__locals.get_prev()
+        return Null()
+    #-def
+
+    def stackitem(self, prev):
+        return Frame(self, prev)
+    #-def
+#-class
 
 class TestEnvironmentCase(unittest.TestCase):
 
@@ -69,8 +133,9 @@ class TestEnvironmentCase(unittest.TestCase):
 
 class TestCommandProcessorCase(unittest.TestCase):
 
-    def test_x(self):
-        pass
+    def test_corrupt_stack(self):
+        p = CommandProcessor(Environment())
+        
     #-def
 #-class
 

@@ -36,12 +36,13 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from doit.support.errors import DoItError
+from doit.support.errors import DoItError, DoItNotImplementedError
 
 from doit.text.pgen.readers.glap.cmd.errors import \
     COMMAND_PROCESSOR_ERROR_BASE, \
     ERROR_CMDPROC_RUNTIME, \
     ERROR_CMDPROC_ARGUMENTS, \
+    ERROR_CMDPROC_EVAL, \
     ERROR_CMDPROC_NAME, \
     ERROR_CMDPROC_TYPE, \
     ERROR_CMDPROC_CAST, \
@@ -49,6 +50,7 @@ from doit.text.pgen.readers.glap.cmd.errors import \
     CommandProcessorError, \
     CmdProcRuntimeError, \
     CmdProcArgumentsError, \
+    CmdProcEvalError, \
     CmdProcNameError, \
     CmdProcTypeError, \
     CmdProcCastError, \
@@ -103,7 +105,8 @@ class TestCommandProcessorErrorCase(unittest.TestCase):
                 traceback_provider, error_code, error_message
             )
 
-        self.assertEqual(eh.exception.internal_name(), 'SystemError')
+        with self.assertRaises(DoItNotImplementedError):
+            eh.exception.internal_name()
         self.assertEqual(
             str(eh.exception),
             "f1.f2.g3 %s" % (
@@ -199,6 +202,43 @@ class TestCommandProcessorErrorCase(unittest.TestCase):
             DoItError.ERRMSGFMT % (
                 CmdProcArgumentsError.__name__,
                 ERROR_CMDPROC_ARGUMENTS,
+                error_message
+            )
+        )
+    #-def
+
+    def test_CmdProcEvalError(self):
+        error_message = "Command evaluation error"
+        traceback_provider = AuxTracebackProvider("aa", "bb", "cc")
+        no_traceback_provider = NoTracebackProvider()
+
+        with self.assertRaises(CmdProcEvalError) as eh:
+            raise CmdProcEvalError(
+                traceback_provider, error_message
+            )
+
+        self.assertEqual(eh.exception.internal_name(), 'EvalError')
+        self.assertEqual(
+            str(eh.exception),
+            "aa.bb.cc %s" % (
+                DoItError.ERRMSGFMT % (
+                    CmdProcEvalError.__name__,
+                    ERROR_CMDPROC_EVAL,
+                    error_message
+                )
+            )
+        )
+
+        with self.assertRaises(CmdProcEvalError) as eh:
+            raise CmdProcEvalError(
+                no_traceback_provider, error_message
+            )
+
+        self.assertEqual(
+            str(eh.exception),
+            DoItError.ERRMSGFMT % (
+                CmdProcEvalError.__name__,
+                ERROR_CMDPROC_EVAL,
                 error_message
             )
         )

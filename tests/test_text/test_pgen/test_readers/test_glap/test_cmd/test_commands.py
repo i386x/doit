@@ -36,15 +36,25 @@ IN THE SOFTWARE.\
 
 import unittest
 
+from doit.text.pgen.readers.glap.cmd.errors import \
+    CmdProcArgumentsError, \
+    CmdProcEvalError
+
+from doit.text.pgen.readers.glap.cmd.runtime import \
+    Frame
+
 from doit.text.pgen.readers.glap.cmd.commands import \
     Location, \
-    Command
+    Arguments, \
+    Command, \
+    Null, \
+    Integer
 
 from doit.text.pgen.readers.glap.cmd.eval import \
     Environment, \
     CommandProcessor
 
-class TEnv(Environment):
+class LoggingEnv(Environment):
     __slots__ = [ 'data' ]
 
     def __init__(self):
@@ -66,11 +76,16 @@ class Relax(Command):
 #-class
 
 class Compute(Command):
+    ADD = 1
+    SUB = 2
+    NEG = 3
+    SWITCH = 4
+    NARGS = 5
     __slots__ = []
 
     def __init__(self, code, *args):
         Command.__init__(self)
-        self.set_name('exec')
+        self.set_name('eval')
         self.set_location("num.l", 33, 4)
         self.set_argspec('code')
         self.add_argspec(Arguments.ELLIPSIS)
@@ -81,19 +96,55 @@ class Compute(Command):
     #-def
 
     def help(self, processor):
-        processor.getenv().wterm("Usage: exec <code> [data]\n")
+        processor.getenv().wterm("Usage: eval <code> [data]\n")
     #-def
 
     def run(self, processor):
-        code = processor.valueof('code')
+        code = processor.evlocal('code').value()
+        args = processor.getlocal(Arguments.ARGSVAR)
+        try:
+            if code == self.__class__.ADD:
+                return Integer(args[0] + args[1])
+            elif code == self.__class__.SUB:
+                return Integer(args[0] - args[1])
+            elif code == self.__class__.NEG:
+                return Integer(-args[0])
+            elif code == self.__class__.SWITCH:
+                return Integer(args[1] if args[0] != 0 else args[2])
+            elif code == self.__class__.NARGS:
+                return Integer(len(args))
+        except IndexError:
+            raise CmdProcArgumentsError(processor, "Not enough arguments")
+        raise CmdProcEvalError(processor, "Invalid code %d" % code)
     #-def
 
     def __logon(self, processor):
-        processor.getenv().wterm("exec: logged on\n")
+        processor.getenv().wterm("eval: logged on\n")
     #-def
 
     def __logoff(self, processor):
-        processor.getenv().wterm("exec: logged off\n")
+        processor.getenv().wterm("eval: logged off\n")
+    #-def
+#-class
+
+class ArgCounter(Command):
+    __slots__ = []
+
+    def __init__(self, *args):
+        Command.__init__(self)
+        self.set_argspec('varname', Arguments.ELLIPSIS)
+        self.set_args(*args)
+    #-def
+
+    def run(self, processor):
+        varname = processor.evlocal('varname').value()
+        args = processor.getlocal(Arguments.ARGSVAR)
+        processor.setglobal(varname, Integer(len(args)))
+        return Null()
+    #-def
+
+    def stackitem(self, prev):
+        return Frame(self, prev)
     #-def
 #-class
 
@@ -124,7 +175,7 @@ class TestLocationCase(unittest.TestCase):
 class TestCommandCase(unittest.TestCase):
 
     def test_simple_command(self):
-        e = TEnv()
+        e = LoggingEnv()
         p = CommandProcessor(e)
         relax = Relax()
 
@@ -134,6 +185,69 @@ class TestCommandCase(unittest.TestCase):
         self.assertEqual(relax.get_args(), [])
         relax.help(p)
         self.assertIs(relax.run(p), relax)
+    #-def
+
+    def test_complex_command(self):
+        e = LoggingEnv()
+        p = CommandProcessor(e)
+        cmdA = Compute(Compute.ADD, 1, 2)
+
+        self.assertEqual(cmdA.get_name(), 'eval')
+        self.assertEqual(cmdA.get_location(), ("num.l", 33, 4))
+        self.assertEqual(str(cmdA), '"eval" at ["num.l":33:4]')
+        self.assertEqual(cmdA.get_args(), [Compute.ADD, 1, 2])
+        cmdA.help(p)
+        self.assertTrue(p.execute([cmdA]))
+        self.assertEqual(p.result().value(), 3)
+        self.assertEqual(e.data, [
+            "Usage: eval <code> [data]\n",
+            "eval: logged on\n",
+            "eval: logged off\n"
+        ])
+
+        p.clear_state()
+        cmdB = Compute(Compute.SUB, 1)
+        self.assertFalse(p.execute([cmdB]))
+        self.assertEqual(p.exception().cls().name(), 'ArgumentsError')
+        self.assertEqual(p.exception().args()[1], "Not enough arguments")
+
+        p.clear_state()
+        cmdC = Compute(Compute.NEG)
+        self.assertFalse(p.execute([cmdC]))
+        self.assertEqual(p.exception().cls().name(), 'ArgumentsError')
+        self.assertEqual(p.exception().args()[1], "Not enough arguments")
+
+        p.clear_state()
+        cmdD = Compute(Compute.SWITCH, 0, 2, 4)
+        cmdE = Compute(Compute.SWITCH, 1, 2, 4)
+        self.assertTrue(p.execute([cmdD]))
+        self.assertEqual(p.result().value(), 4)
+        self.assertTrue(p.execute([cmdE]))
+        self.assertEqual(p.result().value(), 2)
+
+        p.clear_state()
+        cmdF = Compute(Compute.NARGS, 1, 2, 3, 4, 5, 6, 7)
+        cmdG = Compute(Compute.NARGS)
+        self.assertTrue(p.execute([cmdF]))
+        self.assertEqual(p.result().value(), 7)
+        self.assertTrue(p.execute([cmdG]))
+        self.assertEqual(p.result().value(), 0)
+
+        p.clear_state()
+        cmdH = ArgCounter("x", 1, 2)
+        cmdI = ArgCounter("y")
+        self.assertTrue(p.execute([cmdH, cmdI]))
+        self.assertEqual(p.getglobal('x').value(), 2)
+        self.assertEqual(p.getglobal('y').value(), 0)
+
+        p.clear_state()
+        cmdJ = ArgCounter()
+        self.assertFalse(p.execute([cmdJ]))
+        self.assertEqual(p.exception().cls().name(), 'ArgumentsError')
+        self.assertEqual(
+            p.exception().args()[1],
+            "Not enough arguments. Argument #1 is missing"
+        )
     #-def
 #-class
 

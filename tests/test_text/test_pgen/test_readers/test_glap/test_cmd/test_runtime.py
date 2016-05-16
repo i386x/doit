@@ -532,6 +532,38 @@ class TestStackItemsCase(unittest.TestCase):
         self.invisible(self.locals0, 'd')
         self.invisible(self.locals0, 'e')
         self.invisible(self.locals0, 'f')
+
+        # Remove 'a' variable:
+        self.locals0.unsetvar('a')
+        self.invisible(self.locals, 'a')
+        self.visible(self.locals, 'b', 1002)
+        self.invisible(self.locals, 'c')
+        self.invisible(self.locals, 'd')
+        self.visible(self.locals, 'e', 1005)
+        self.visible(self.locals, 'f', 1006)
+        self.locals0.unsetvar('a')
+        self.invisible(self.locals, 'a')
+        self.visible(self.locals, 'b', 1002)
+        self.invisible(self.locals, 'c')
+        self.invisible(self.locals, 'd')
+        self.visible(self.locals, 'e', 1005)
+        self.visible(self.locals, 'f', 1006)
+
+        # Remove 'b' variable:
+        self.locals.unsetvar('b')
+        self.invisible(self.locals, 'a')
+        self.invisible(self.locals, 'b')
+        self.invisible(self.locals, 'c')
+        self.invisible(self.locals, 'd')
+        self.visible(self.locals, 'e', 1005)
+        self.visible(self.locals, 'f', 1006)
+        self.locals.unsetvar('b')
+        self.invisible(self.locals, 'a')
+        self.invisible(self.locals, 'b')
+        self.invisible(self.locals, 'c')
+        self.invisible(self.locals, 'd')
+        self.visible(self.locals, 'e', 1005)
+        self.visible(self.locals, 'f', 1006)
     #-def
 
     def test_finalizers_container(self):
@@ -572,7 +604,7 @@ class TestStackItemsCase(unittest.TestCase):
             "| from write\n" \
             "| from print:\n" \
             "> At [\"z.l\":9:8]: " \
-            "CmdProcNameError [errcode = 258]: Undefined symbol 'a'."
+            "CmdProcNameError [errcode = 259]: Undefined symbol 'a'."
         )
     #-def
 #-class

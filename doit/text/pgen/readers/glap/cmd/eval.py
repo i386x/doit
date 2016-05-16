@@ -35,9 +35,21 @@ IN THE SOFTWARE.\
 
 import sys
 
+from doit.text.pgen.readers.glap.cmd.errors import \
+    ERROR_CMDPROC_CONTAINER, \
+    CommandProcessorError
+
 from doit.text.pgen.readers.glap.cmd.runtime import \
+    ExceptionObject, \
     Exceptions, \
+    TracebackProvider, \
     Scope
+
+from doit.text.pgen.readers.glap.cmd.commands import \
+    Command, \
+    Null, \
+    String, \
+    Integer
 
 class Environment(object):
     """
@@ -81,7 +93,7 @@ class Environment(object):
     #-def
 #-class
 
-class CommandProcessor(object):
+class CommandProcessor(TracebackProvider):
     """
     """
     __slots__ = [
@@ -93,6 +105,7 @@ class CommandProcessor(object):
         """
         """
 
+        TracebackProvider.__init__(self)
         self.__env = env
         self.reinitialize()
     #-def
@@ -120,9 +133,19 @@ class CommandProcessor(object):
             ('SystemError', 'BaseException'),
             ('RuntimeError', 'Exception'),
             ('ArgumentsError', 'Exception'),
+            ('EvalError', 'Exception'),
+            ('NameError', 'Exception'),
             ('TypeError', 'Exception'),
-            ('CastError', 'Exception')
+            ('CastError', 'Exception'),
+            ('ContainerError', 'Exception')
         )
+    #-def
+
+    def getenv(self):
+        """
+        """
+
+        return self.__env
     #-def
 
     def begin_command(self, cmd):
@@ -172,16 +195,20 @@ class CommandProcessor(object):
         return self.__globals.getvar(name)
     #-def
 
+    def is_ok(self):
+        """
+        """
+
+        return self.__last_error is None and self.__exception is None
+    #-def
+
     def execute(self, commands):
         """
         """
 
-        if self.__last_error:
-            return False
-        self.eval_commands(commands)
-        if self.__last_error:
-            return False
-        return True
+        if self.is_ok():
+            self.eval_commands(commands)
+        return self.is_ok()
     #-def
 
     def eval_commands(self, cmdlist):
@@ -214,7 +241,7 @@ class CommandProcessor(object):
 
         try:
             self.__result = cmd.run(self)
-        except CommandError as e:
+        except CommandProcessorError as e:
             self.__last_error = e
             self.exception_from_last_error()
             return False
@@ -226,12 +253,22 @@ class CommandProcessor(object):
         """
 
         if self.__last_error:
-            ecls = self.find_exception_class(self.__last_error.internal_name())
-            self.__exception = ExceptionObject(ecls,
-                self.__last_error.errcode,
-                self.__last_error.detail,
-                self.__last_error.traceback
-            )
+            ename = self.__last_error.internal_name()
+            ecls = self.__exceptions.get(ename)
+            if ecls is None:
+                self.__exception = ExceptionObject(
+                    self.__exceptions['ContainerError'],
+                    ERROR_CMDPROC_CONTAINER,
+                    "Unregistered exception '%s'" % ename,
+                    self.__last_error.traceback
+                )
+            else:
+                self.__exception = ExceptionObject(
+                    ecls,
+                    self.__last_error.errcode,
+                    self.__last_error.detail,
+                    self.__last_error.traceback
+                )
             self.__last_error = None
     #-def
 
@@ -299,13 +336,6 @@ class CommandProcessor(object):
         self.clear_error()
     #-def
 
-    def getenv(self):
-        """
-        """
-
-        return self.__env
-    #-def
-
     def commandize(self, x):
         """
         """
@@ -363,21 +393,21 @@ class CommandProcessor(object):
         return castfunc(x)
     #-def
 
-    def valueof(x, t = None):
+    def valueof(self, x, t = None):
         """
         """
 
-        return self.cast(self.commandize(x), t) if t else self.commandize(t)
+        return self.cast(self.commandize(x), t) if t else self.commandize(x)
     #-def
 
-    def evlocal(name, t = None):
+    def evlocal(self, name, t = None):
         """
         """
 
         return self.valueof(self.getlocal(name), t)
     #-def
 
-    def evglobal(name, t = None):
+    def evglobal(self, name, t = None):
         """
         """
 
@@ -465,5 +495,12 @@ class CommandProcessor(object):
             raise CmdProcCastError(self,
                 "%s (string) cannot be converted to integer" % repr(x.value())
             )
+    #-def
+
+    def traceback(self):
+        """
+        """
+
+        return self.__locals.traceback()
     #-def
 #-class

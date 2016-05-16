@@ -33,13 +33,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from doit.support.errors import DoItError
+from doit.support.errors import DoItError, not_implemented
 
 COMMAND_PROCESSOR_ERROR_BASE = DoItError.alloc_codes(16)
 
 ERROR_CMDPROC_RUNTIME   = COMMAND_PROCESSOR_ERROR_BASE
 ERROR_CMDPROC_ARGUMENTS = ERROR_CMDPROC_RUNTIME + 1
-ERROR_CMDPROC_NAME      = ERROR_CMDPROC_ARGUMENTS + 1
+ERROR_CMDPROC_EVAL      = ERROR_CMDPROC_ARGUMENTS + 1
+ERROR_CMDPROC_NAME      = ERROR_CMDPROC_EVAL + 1
 ERROR_CMDPROC_TYPE      = ERROR_CMDPROC_NAME + 1
 ERROR_CMDPROC_CAST      = ERROR_CMDPROC_TYPE + 1
 ERROR_CMDPROC_CONTAINER = ERROR_CMDPROC_CAST + 1
@@ -70,7 +71,7 @@ class CommandProcessorError(DoItError):
         """
         """
 
-        return 'SystemError'
+        not_implemented()
     #-def
 #-class
 
@@ -115,6 +116,28 @@ class CmdProcArgumentsError(CommandProcessorError):
         """
 
         return 'ArgumentsError'
+    #-def
+#-class
+
+class CmdProcEvalError(CommandProcessorError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, traceback_provider, emsg):
+        """
+        """
+
+        CommandProcessorError.__init__(self,
+            traceback_provider, ERROR_CMDPROC_EVAL, emsg
+        )
+    #-def
+
+    def internal_name(self):
+        """
+        """
+
+        return 'EvalError'
     #-def
 #-class
 
