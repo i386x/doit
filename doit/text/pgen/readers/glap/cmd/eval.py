@@ -93,7 +93,32 @@ class Environment(object):
     #-def
 #-class
 
-class CommandProcessor(TracebackProvider):
+class CommandProcessor(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, env):
+        """
+        """
+
+        self.__env = env
+        self.__stack = []
+        self.__code = []
+    #-def
+
+    def run(self, code):
+        """
+        """
+
+        self.__code += code
+        while self.__code:
+            cmd = self.__code.pop(0)
+            ...
+    #-def
+#-class
+
+class _CommandProcessor(TracebackProvider):
     """
     """
     __slots__ = [
@@ -152,6 +177,9 @@ class CommandProcessor(TracebackProvider):
         """
         """
 
+        scope = self.__locals.scope()
+        if scope is not cmd.bounded_scope():
+            cmd.bind(scope)
         self.__locals = cmd.stackitem(self.__locals)
     #-def
 

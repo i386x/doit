@@ -48,11 +48,11 @@ from doit.text.pgen.readers.glap.cmd.eval import \
 class DefineCommand(Command):
     __slots__ = []
 
-    def __init__(self, cmd):
+    def __init__(self, name, body):
         Command.__init__(self)
         self.set_name('defcmd')
-        self.set_argspec('cmd')
-        self.set_args(cmd)
+        self.set_argspec('cmd', 'body')
+        self.set_args(cmd, body)
     #-def
 
     def run(self, processor):
@@ -135,7 +135,12 @@ class TestCommandProcessorCase(unittest.TestCase):
 
     def test_corrupt_stack(self):
         p = CommandProcessor(Environment())
-        
+        prog = [
+            DefineCommand('corrupt', [
+                CorruptStack()
+            ]),
+            CallCorruptStack()
+        ]
     #-def
 #-class
 

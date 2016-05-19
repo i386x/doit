@@ -91,108 +91,6 @@ class Location(tuple):
     #-def
 #-class
 
-class ArgumentProxy(ValueProvider):
-    """
-    """
-    __slots__ = [ '__args', '__i', '__isvararg' ]
-
-    def __init__(self, args, i, isvararg = False):
-        """
-        """
-
-        ValueProvider.__init__(self)
-        self.__args = args
-        self.__i = i
-        self.__isvararg = isvararg
-    #-def
-
-    def value(self, traceback_provider):
-        """
-        """
-
-        try:
-            if self.__isvararg:
-                return self.__args[self.__i:]
-            return self.__args[self.__i]
-        except IndexError:
-            raise CmdProcArgumentsError(traceback_provider,
-                "Not enough arguments. Argument #%d is missing" \
-                % (self.__i + 1)
-            )
-    #-def
-#-class
-
-class Arguments(list):
-    """
-    """
-    ARGSVAR = 'args'
-    ELLIPSIS = '...'
-    __slots__ = [ '__proxies' ]
-
-    def __init__(self):
-        """
-        """
-
-        list.__init__(self)
-        self.__proxies = {}
-    #-def
-
-    def set_spec(self, *spec):
-        """
-        """
-
-        self.__proxies.clear()
-        self.add_spec(*spec)
-    #-def
-
-    def add_spec(self, *spec):
-        """
-        """
-
-        self.__install_proxies(spec)
-    #-def
-
-    def set(self, *args):
-        """
-        """
-
-        list.clear(self)
-        self.add(*args)
-    #-def
-
-    def add(self, *args):
-        """
-        """
-
-        list.extend(self, args)
-    #-def
-
-    def __install_proxies(self, argspec):
-        """
-        """
-
-        i = 0
-        n = len(self.__proxies)
-        while i < len(argspec):
-            k = argspec[i]
-            isvararg = False
-            if k == self.__class__.ELLIPSIS:
-                k = self.__class__.ARGSVAR
-                isvararg = True
-            self.__proxies[k] = ArgumentProxy(self, n + i, isvararg)
-            i += 1
-        #-while
-    #-def
-
-    def to_locals(self, processor):
-        """
-        """
-
-        for k in self.__proxies:
-            processor.setlocal(k, self.__proxies[k])
-    #-def
-#-class
-
 class Command(object):
     """
     """
@@ -206,11 +104,10 @@ class Command(object):
 
         self.__name = self.__class__.__name__.lower()
         self.__location = Location()
-        self.__arguments = Arguments()
-        self.__initializers = [self.init_vars]
+        self.__initializers = []
         self.__finalizers = []
-        self.__bounded_scope = None
-        self.__bounded_vars = []
+        self.__outer = None
+        self.__vars = {}
     #-def
 
     def set_name(self, name):
@@ -248,39 +145,38 @@ class Command(object):
         return "\"%s\" %s" % (self.__name, self.__location)
     #-def
 
-    def set_argspec(self, *argspec):
+    def setvar(self, name, value):
         """
         """
 
-        self.__arguments.set_spec(*argspec)
+        self.__vars[name] = value
     #-def
 
-    def add_argspec(self, *argspec):
+    def getvar(self, name, top = None):
         """
         """
 
-        self.__arguments.add_spec(*argspec)
+        if top is None:
+            top = self
+        if name in self.__vars:
+            return self.__vars[name]
+        if self.__outer:
+            return self.__outer.getvar(name, top)
+        raise CmdProcNameError(top, "Undefined symbol '%s'" % name)
     #-def
 
-    def set_args(self, *args):
+    def setenv(self, env):
         """
         """
 
-        self.__arguments.set(*args)
+        self.__vars = env
     #-def
 
-    def add_args(self, *args):
+    def getenv(self):
         """
         """
 
-        self.__arguments.add(*args)
-    #-def
-
-    def get_args(self):
-        """
-        """
-
-        return self.__arguments
+        return self.__vars
     #-def
 
     def atstart(self, *inits):
@@ -297,26 +193,18 @@ class Command(object):
         self.__finalizers.extend(finits)
     #-def
 
-    def bind(self, scope):
+    def bind(self, outer):
         """
         """
 
-        self.__bounded_scope = scope
-        self.__bounded_vars = scope.getvars()
+        self.__outer = outer
     #-def
 
-    def bounded_scope(self):
+    def outer(self):
         """
         """
 
-        return self.__bounded_scope
-    #-def
-
-    def bounded_vars(self):
-        """
-        """
-
-        return self.__bounded_vars
+        return self.__outer
     #-def
 
     def help(self, processor):
@@ -330,7 +218,7 @@ class Command(object):
         """
         """
 
-        return self
+        return self.result()
     #-def
 
     def run_initializers(self, processor):
@@ -348,19 +236,64 @@ class Command(object):
         for f in self.__finalizers:
             f(processor)
     #-def
+#-class
 
-    def init_vars(self, processor):
+class Eval(Command):
+    """
+    """
+    CODE = 0
+    __slots__ = []
+
+    def __init__(self, code, env = {}):
         """
         """
 
-        self.__arguments.to_locals(processor)
+        Command.__init__(self)
+        self.setenv(env)
+        self.bind(None)
+        self.setvar(self.__class__.CODE, code)
     #-def
 
-    def stackitem(self, prev):
+    def run(self, processor):
         """
         """
 
-        return StackItem(self, prev)
+        processor.push(self.getvar(self.__class__.CODE))
+    #-def
+#-class
+
+class If(Command):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, *args):
+        """
+        """
+
+        Command.__init__(self)
+        self.setvar(self.__class__.ARGS, args)
+    #-def
+
+    def run(self, processor):
+        """
+        """
+
+        processor.pushcode(
+            self.getvar(self.__class__.IF),
+            self.__if
+        )
+    #-def
+
+    def __if(self, processor):
+        """
+        """
+
+        c = processor.popval()
+        if c:
+            processor.pushcode(self.getvar(self.__class__.THEN))
+        else:
+            processor.pushcode(self.getvar(self.__class__.ELSE))
     #-def
 #-class
 

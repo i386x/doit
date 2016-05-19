@@ -334,7 +334,7 @@ class StackItem(TracebackProvider):
 class Scope(StackItem):
     """
     """
-    __slots__ = [ '__outer_scope', '__bounded_vars', '__vars' ]
+    __slots__ = [ '__vars' ]
 
     def __init__(self, cmd, prev):
         """
