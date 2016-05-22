@@ -35,27 +35,34 @@ IN THE SOFTWARE.\
 
 from doit.support.errors import DoItError, not_implemented
 
-COMMAND_PROCESSOR_ERROR_BASE = DoItError.alloc_codes(16)
+COMMAND_ERROR_PREFIX = "Cmd"
+COMMAND_ERROR_PREFIX_SIZE = len(COMMAND_ERROR_PREFIX)
 
-ERROR_CMDPROC_RUNTIME   = COMMAND_PROCESSOR_ERROR_BASE
-ERROR_CMDPROC_ARGUMENTS = ERROR_CMDPROC_RUNTIME + 1
-ERROR_CMDPROC_EVAL      = ERROR_CMDPROC_ARGUMENTS + 1
-ERROR_CMDPROC_NAME      = ERROR_CMDPROC_EVAL + 1
-ERROR_CMDPROC_TYPE      = ERROR_CMDPROC_NAME + 1
-ERROR_CMDPROC_CAST      = ERROR_CMDPROC_TYPE + 1
-ERROR_CMDPROC_CONTAINER = ERROR_CMDPROC_CAST + 1
+ERROR_COMMAND_PROCESSOR = DoItError.alloc_codes(1)
+ERROR_COMMAND = DoItError.alloc_codes(1)
+
+def command_error(cls):
+    """
+    """
+
+    name = cls.__name__
+    if name.startswith(COMMAND_ERROR_PREFIX):
+        name = name[COMMAND_ERROR_PREFIX_SIZE:]
+    cls.SID = name
+    return cls
+#-def
 
 class CommandProcessorError(DoItError):
     """
     """
     __slots__ = [ 'traceback' ]
 
-    def __init__(self, traceback_provider, ecode, emsg):
+    def __init__(self, tb, emsg):
         """
         """
 
-        DoItError.__init__(self, ecode, emsg)
-        self.traceback = traceback_provider.traceback()
+        DoItError.__init__(self, ERROR_COMMAND_PROCESSOR, emsg)
+        self.traceback = tb
     #-def
 
     def __str__(self):
@@ -63,168 +70,52 @@ class CommandProcessorError(DoItError):
         """
 
         if self.traceback:
-            return "%s %s" % (str(self.traceback), DoItError.__str__(self))
+            return "%s %s" % (self.traceback, DoItError.__str__(self))
         return DoItError.__str__(self)
     #-def
-
-    def internal_name(self):
-        """
-        """
-
-        not_implemented()
-    #-def
 #-class
 
-class CmdProcRuntimeError(CommandProcessorError):
+@command_error
+class CommandError(DoItError):
     """
     """
     __slots__ = []
 
-    def __init__(self, traceback_provider, emsg):
+    def __init__(self, detail):
         """
         """
 
-        CommandProcessorError.__init__(self,
-            traceback_provider, ERROR_CMDPROC_RUNTIME, emsg
+        DoItError.__init__(self, ERROR_COMMAND, detail)
+    #-def
+
+    def __str__(self):
+        """
+        """
+
+        return DoItError.ERRMSGFMT % (
+            "%s <%s>" % (CommandError.__name__, self.__class__.SID),
+            self.errcode, self.detail
         )
     #-def
 
-    def internal_name(self):
+    def __repr__(self):
         """
         """
 
-        return 'RuntimeError'
+        return "%s(\"%s\")" % (self.__class__.SID, self.detail)
     #-def
 #-class
 
-class CmdProcArgumentsError(CommandProcessorError):
+@command_error
+class CmdNameError(CommandError):
     """
     """
     __slots__ = []
 
-    def __init__(self, traceback_provider, emsg):
+    def __init__(self, detail):
         """
         """
 
-        CommandProcessorError.__init__(self,
-            traceback_provider, ERROR_CMDPROC_ARGUMENTS, emsg
-        )
-    #-def
-
-    def internal_name(self):
-        """
-        """
-
-        return 'ArgumentsError'
-    #-def
-#-class
-
-class CmdProcEvalError(CommandProcessorError):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, traceback_provider, emsg):
-        """
-        """
-
-        CommandProcessorError.__init__(self,
-            traceback_provider, ERROR_CMDPROC_EVAL, emsg
-        )
-    #-def
-
-    def internal_name(self):
-        """
-        """
-
-        return 'EvalError'
-    #-def
-#-class
-
-class CmdProcNameError(CommandProcessorError):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, traceback_provider, emsg):
-        """
-        """
-
-        CommandProcessorError.__init__(self,
-            traceback_provider, ERROR_CMDPROC_NAME, emsg
-        )
-    #-def
-
-    def internal_name(self):
-        """
-        """
-
-        return 'NameError'
-    #-def
-#-class
-
-class CmdProcTypeError(CommandProcessorError):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, traceback_provider, emsg):
-        """
-        """
-
-        CommandProcessorError.__init__(self,
-            traceback_provider, ERROR_CMDPROC_TYPE, emsg
-        )
-    #-def
-
-    def internal_name(self):
-        """
-        """
-
-        return 'TypeError'
-    #-def
-#-class
-
-class CmdProcCastError(CommandProcessorError):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, traceback_provider, emsg):
-        """
-        """
-
-        CommandProcessorError.__init__(self,
-            traceback_provider, ERROR_CMDPROC_CAST, emsg
-        )
-    #-def
-
-    def internal_name(self):
-        """
-        """
-
-        return 'CastError'
-    #-def
-#-class
-
-class CmdProcContainerError(CommandProcessorError):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, traceback_provider, emsg):
-        """
-        """
-
-        CommandProcessorError.__init__(self,
-            traceback_provider, ERROR_CMDPROC_CONTAINER, emsg
-        )
-    #-def
-
-    def internal_name(self):
-        """
-        """
-
-        return 'ContainerError'
+        CommandError.__init__(self, detail)
     #-def
 #-class

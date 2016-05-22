@@ -33,33 +33,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-import sys
+import types
 
 from doit.text.pgen.readers.glap.cmd.errors import \
-    ERROR_CMDPROC_CONTAINER, \
-    CommandProcessorError
-
-from doit.text.pgen.readers.glap.cmd.runtime import \
-    ExceptionObject, \
-    Exceptions, \
-    TracebackProvider, \
-    Scope
+    CommandProcessorError, \
+    CommandError
 
 from doit.text.pgen.readers.glap.cmd.commands import \
-    Command, \
-    Null, \
-    String, \
-    Integer
+    Command
 
 class Environment(object):
     """
     """
     __slots__ = [ '__vars' ]
 
-    def __init__(self):
+    def __init__(self, outer = None):
         """
         """
 
+        self.__outer = outer
         self.__vars = {}
     #-def
 
@@ -74,7 +66,11 @@ class Environment(object):
         """
         """
 
-        return self.__vars.get(name, None)
+        if name in self.__vars:
+            return self.__vars[name]
+        if self.__outer:
+            return self.__outer.getvar(name)
+        raise CmdNameError("Undefined variable '%s'" % name)
     #-def
 
     def unsetvar(self, name):
@@ -84,13 +80,6 @@ class Environment(object):
         if name in self.__vars:
             del self.__vars[name]
     #-def
-
-    def wterm(self, s):
-        """
-        """
-
-        sys.stdout.write(s)
-    #-def
 #-class
 
 class CommandProcessor(object):
@@ -98,437 +87,142 @@ class CommandProcessor(object):
     """
     __slots__ = []
 
-    def __init__(self, env):
+    def __init__(self, env = None):
         """
         """
 
-        self.__env = env
-        self.__stack = []
-        self.__code = []
-    #-def
-
-    def run(self, code):
-        """
-        """
-
-        self.__code += code
-        while self.__code:
-            cmd = self.__code.pop(0)
-            ...
-    #-def
-#-class
-
-class _CommandProcessor(TracebackProvider):
-    """
-    """
-    __slots__ = [
-        '__env', '__globals', '__locals', '__exceptions', '__result',
-        '__exception', '__last_error'
-    ]
-
-    def __init__(self, env):
-        """
-        """
-
-        TracebackProvider.__init__(self)
-        self.__env = env
-        self.reinitialize()
-    #-def
-
-    def reinitialize(self):
-        """
-        """
-
-        self.__globals = Scope(None, None)
-        self.__locals = self.__globals
-        self.__exceptions = Exceptions(self)
-        self.__initialize_exceptions()
-        self.clear_state()
-    #-def
-
-    def __initialize_exceptions(self):
-        """
-        """
-
-        self.__exceptions = Exceptions(self)
-        self.__exceptions.register_exceptions(
-            ('Exception', 'BaseException'),
-            ('StopIteration', 'BaseException'),
-            ('NextIteration', 'BaseException'),
-            ('SystemError', 'BaseException'),
-            ('RuntimeError', 'Exception'),
-            ('ArgumentsError', 'Exception'),
-            ('EvalError', 'Exception'),
-            ('NameError', 'Exception'),
-            ('TypeError', 'Exception'),
-            ('CastError', 'Exception'),
-            ('ContainerError', 'Exception')
-        )
+        self.__env = env or Environment()
+        self.__cmdstack = []
+        self.__valstack = []
+        self.__codebuff = []
+        self.__acc = None
     #-def
 
     def getenv(self):
         """
         """
 
-        return self.__env
+        return (self.__cmdstack and self.__cmdstack[-1].env) or self.__env
     #-def
 
-    def begin_command(self, cmd):
+    def pushcmd(self, cmd):
         """
         """
 
-        scope = self.__locals.scope()
-        if scope is not cmd.bounded_scope():
-            cmd.bind(scope)
-        self.__locals = cmd.stackitem(self.__locals)
+        self.__cmdstack.append(cmd)
     #-def
 
-    def end_command(self, cmd):
+    def popcmd(self, cmd):
         """
         """
 
-        last = self.__locals
-        if cmd is not last.get_command():
-            CmdProcRuntimeError(self, "Execution stack is corrupted")
-        last.run_finalizers()
-        self.__locals = last.get_prev()
-        return last
-    #-def
-
-    def setlocal(self, name, value):
-        """
-        """
-
-        self.__locals.setvar(name, value)
-    #-def
-
-    def getlocal(self, name):
-        """
-        """
-
-        return self.__locals.getvar(name)
-    #-def
-
-    def setglobal(self, name, value):
-        """
-        """
-
-        self.__globals.setvar(name, value)
-    #-def
-
-    def getglobal(self, name):
-        """
-        """
-
-        return self.__globals.getvar(name)
-    #-def
-
-    def is_ok(self):
-        """
-        """
-
-        return self.__last_error is None and self.__exception is None
-    #-def
-
-    def execute(self, commands):
-        """
-        """
-
-        if self.is_ok():
-            self.eval_commands(commands)
-        return self.is_ok()
-    #-def
-
-    def eval_commands(self, cmdlist):
-        """
-        """
-
-        for cmd in cmdlist:
-            if self.__exception:
-                break
-            self.eval_command(cmd)
-        self.handle_exception()
-        return self.__result
-    #-def
-
-    def eval_command(self, cmd):
-        """
-        """
-
-        self.begin_command(cmd)
-        cmd.run_initializers(self)
-        self.__safe_cmdrun(cmd)
-        cmd.run_finalizers(self)
-        self.end_command(cmd)
-        return self.__result
-    #-def
-
-    def __safe_cmdrun(self, cmd):
-        """
-        """
-
-        try:
-            self.__result = cmd.run(self)
-        except CommandProcessorError as e:
-            self.__last_error = e
-            self.exception_from_last_error()
-            return False
-        return True
-    #-def
-
-    def exception_from_last_error(self):
-        """
-        """
-
-        if self.__last_error:
-            ename = self.__last_error.internal_name()
-            ecls = self.__exceptions.get(ename)
-            if ecls is None:
-                self.__exception = ExceptionObject(
-                    self.__exceptions['ContainerError'],
-                    ERROR_CMDPROC_CONTAINER,
-                    "Unregistered exception '%s'" % ename,
-                    self.__last_error.traceback
-                )
-            else:
-                self.__exception = ExceptionObject(
-                    ecls,
-                    self.__last_error.errcode,
-                    self.__last_error.detail,
-                    self.__last_error.traceback
-                )
-            self.__last_error = None
-    #-def
-
-    def handle_exception(self):
-        """
-        """
-
-        if not self.__exception:
-            return
-        for e, eh in self.__locals.get_exception_handlers():
-            if e.is_superclass_of(self.__exception.cls()):
-                if self.__safe_cmdrun(eh):
-                    self.__exception = None
-                break
-    #-def
-
-    def result(self):
-        """
-        """
-
-        return self.__result
-    #-def
-
-    def exception(self):
-        """
-        """
-
-        return self.__exception
-    #-def
-
-    def last_error(self):
-        """
-        """
-
-        return self.__last_error
-    #-def
-
-    def clear_result(self):
-        """
-        """
-
-        self.__result = None
-    #-def
-
-    def clear_exception(self):
-        """
-        """
-
-        self.__exception = None
-    #-def
-
-    def clear_error(self):
-        """
-        """
-
-        self.__last_error = None
-    #-def
-
-    def clear_state(self):
-        """
-        """
-
-        self.clear_result()
-        self.clear_exception()
-        self.clear_error()
-    #-def
-
-    def commandize(self, x):
-        """
-        """
-
-        # First, evaluate x:
-        if isinstance(x, Command):
-            x = self.eval_command(x)
-        # Second, convert x to Command instance:
-        if x is None:
-            x = Null()
-        elif isinstance(x, str):
-            x = String(x)
-        elif isinstance(x, int):
-            x = Integer(x)
-        elif not isinstance(x, Command):
-            raise CmdProcTypeError(self,
-                "Command or atom was expected, but %s was given" \
-                % x.__class__.__name__
+        if not self.__cmdstack:
+            raise CommandProcessorError(Traceback([]),
+                "popcmd: Command stack is empty"
             )
-        # x is Command:
-        return x
-    #-def
-
-    def cast(self, x, t):
-        """
-        """
-
-        if isinstance(x, t):
-            return x
-
-        castrules = {
-            (Null, Integer):   self.__null2int,
-            (Null, String):    self.__null2str,
-            (Symbol, String):  self.__sym2str,
-            (Integer, Null):   self.__int2null,
-            (Integer, String): self.__int2str,
-            (String, Null):    self.__str2int,
-            (String, Symbol):  self.__str2sym,
-            (String, Integer): self.__str2int
-        }
-        castfunc = castrules.get(
-            (self.__unify(x, (Null, Symbol, Integer, String)), t), None
-        )
-        x2s = lambda x: (
-            x.get_name() if isinstance(x, Command) else type(x).__name__
-        )
-        t2s = lambda t: (
-            t.__name__.lower() if issubclass(t, Command) else t.__name__
-        )
-
-        if not castfunc:
-            raise CmdProcCastError(self,
-                "%s is not castable to %s" % (x2s(x), t2s(t))
+        if self.__cmdstack[-1] is not cmd:
+            raise CommandProcessorError(Traceback(self.__cmdstack),
+                "popcmd: Command stack is corrupted"
             )
-        return castfunc(x)
+        self.__cmdstack.pop()
     #-def
 
-    def valueof(self, x, t = None):
+    def pushval(self, val):
         """
         """
 
-        return self.cast(self.commandize(x), t) if t else self.commandize(x)
+        self.__valstack.append(val)
     #-def
 
-    def evlocal(self, name, t = None):
+    def pushacc(self):
         """
         """
 
-        return self.valueof(self.getlocal(name), t)
+        self.__valstack.append(self.__acc)
     #-def
 
-    def evglobal(self, name, t = None):
+    def topval(self):
         """
         """
 
-        return self.valueof(self.getglobal(name), t)
-    #-def
-
-    def __unify(self, x, ts):
-        """
-        """
-
-        for t in ts:
-            if isinstance(x, t):
-                return t
-        return None
-    #-def
-
-    def __null2int(self, x):
-        """
-        """
-
-        return Integer(0)
-    #-def
-
-    def __null2str(self, x):
-        """
-        """
-
-        return String("")
-    #-def
-
-    def __sym2str(self, x):
-        """
-        """
-
-        return String(x.value())
-    #-def
-
-    def __int2null(self, x):
-        """
-        """
-
-        if x.value() != 0:
-            raise CmdProcCastError(self,
-                "%d (integer) cannot be casted to null" % x.value()
+        if not self.__valstack:
+            raise CommandProcessorError(Traceback(self.__cmdstack),
+                "topval: Value stack is empty"
             )
-        return Null()
+        return self.__valstack[-1]
     #-def
 
-    def __int2str(self, x):
+    def popval(self):
         """
         """
 
-        return String("%d" % x.value())
-    #-def
-
-    def __str2null(self, x):
-        """
-        """
-
-        if x.value() != "":
-            raise CmdProcCastError(self,
-                "%s (string) cannot be casted to null" % repr(x.value())
+        if not self.__valstack:
+            raise CommandProcessorError(Traceback(self.__cmdstack),
+                "popval: Value stack is empty"
             )
-        return Null()
+        return self.__valstack.pop()
     #-def
 
-    def __str2sym(self, x):
+    def insertcode(self, *ops):
         """
         """
 
-        if x.value() == "":
-            raise CmdProcCastError(self,
-                "Empty string cannot be converted to symbol"
-            )
-        return Symbol(x.value())
+        self.__codebuff[:0] = ops
     #-def
 
-    def __str2int(self, x):
+    def setacc(self, v):
         """
         """
 
-        try:
-            return int(x.value())
-        except ValueError:
-            raise CmdProcCastError(self,
-                "%s (string) cannot be converted to integer" % repr(x.value())
-            )
+        self.__acc = v
     #-def
 
-    def traceback(self):
+    def acc(self):
         """
         """
 
-        return self.__locals.traceback()
+        return self.__acc
+    #-def
+
+    def run(self, commands):
+        """
+        """
+
+        cb = self.__codebuff
+        cb[:0] = commands
+        while cb:
+            x = cb.pop(0)
+            if isinstance(x, Command):
+                x.expand(self)
+            elif isinstance(x, (types.MethodType, Finalizer)):
+                try:
+                    x(self)
+                except CommandError as e:
+                    cb[:0] = [e]
+            elif isinstance(x, CommandError):
+                self.handle_exception(x)
+    #-def
+
+    def handle_exception(self, e):
+        """
+        """
+
+        cb, stack = self.__codebuff, self.__stack
+        tb = Traceback(stack)
+        handled = False
+        while not handled and cb and stack:
+            x = cb.pop(0)
+            if isinstance(x, Finalizer):
+                if x.cmd is not stack[-1]:
+                    raise CommandProcessorError(tb,
+                        "handle_exception: Command stack is corrupted"
+                    )
+                eh = stack[-1].find_exception_handler(e)
+                if eh is not None:
+                    cb[:0] = eh
+                    handled = True
+                x(self)
+        if not handled:
+            raise CommandProcessorError(tb, "Uncaught exception %r" % e)
     #-def
 #-class

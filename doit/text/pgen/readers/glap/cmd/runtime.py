@@ -33,37 +33,71 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from doit.support.errors import not_implemented
-
 from doit.text.pgen.readers.glap.cmd.errors import \
-    CmdProcNameError, \
-    CmdProcContainerError
+    CmdExceptionError
 
-class ExceptionObject(object):
+class BaseIterator(object):
     """
     """
-    __slots__ = [ '__cls', '__args' ]
+    __slots__ = []
 
-    def __init__(self, cls, *args):
+    def __init__(self):
         """
         """
 
-        self.__cls = cls
-        self.__args = args
+        pass
     #-def
 
-    def cls(self):
+    def reset(self):
         """
         """
 
-        return self.__cls
+        pass
     #-def
 
-    def args(self):
+    def next(self):
         """
         """
 
-        return self.__args
+        return self
+    #-def
+#-class
+
+class FiniteIterator(BaseIterator):
+    """
+    """
+    __self__ = []
+
+    def __init__(self, items):
+        """
+        """
+
+        if not (hasattr(items, '__len__') and hasattr(items, '__getitem__')):
+            raise CmdTypeError(
+                "Iterator is initialized with non-iterable object"
+            )
+        BaseIterator.__init__(self)
+        self.__items = items
+        self.__nitems = len(items)
+        self.__idx = 0
+    #-def
+
+    def reset(self):
+        """
+        """
+
+        self.__idx = 0
+    #-def
+
+    def next(self):
+        """
+        """
+
+        if self.__idx < self.__nitems:
+            x = self.__items[self.__idx]
+            self.__idx += 1
+            return x
+        return self
     #-def
 #-class
 
@@ -127,14 +161,13 @@ class BaseExceptionClass(ExceptionClass):
 class Exceptions(dict):
     """
     """
-    __slots__ = [ '__processor' ]
+    __slots__ = []
 
-    def __init__(self, processor):
+    def __init__(self):
         """
         """
 
         dict.__init__(self)
-        self.__processor = processor
         base = BaseExceptionClass(self)
         self[base.name()] = base
     #-def
@@ -144,13 +177,11 @@ class Exceptions(dict):
         """
 
         if name in self:
-            raise CmdProcContainerError(self.__processor,
+            raise CmdExceptionError(
                 "Exception %s is already registered" % name
             )
         if basename not in self:
-            raise CmdProcContainerError(self.__processor,
-                "Unknown exception base %s" % basename
-            )
+            raise CmdExceptionError("Unknown exception base %s" % basename)
         self[name] = ExceptionClass(self, name, self[basename])
     #-def
 
@@ -163,39 +194,19 @@ class Exceptions(dict):
     #-def
 #-class
 
-class ValueProvider(object):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self):
-        """
-        """
-
-        pass
-    #-def
-
-    def value(self, processor):
-        """
-        """
-
-        not_implemented()
-    #-def
-#-class
-
 class Traceback(list):
     """
     """
     __slots__ = [ '__punctator' ]
 
-    def __init__(self, last_command):
+    def __init__(self, stack):
         """
         """
 
-        list.__init__(self)
+        list.__init__(self, [cmd for cmd in stack if cmd.isfunc()])
         self.__punctator = ">"
-        if last_command:
-            f, l, c = last_command.get_location()
+        if stack:
+            f, l, c = stack[-1].location
             if f is not None and l >= 0 and c >= 0:
                 self.__punctator += " At [\"%s\":%d:%d]:" % (f, l, c)
     #-def
@@ -206,240 +217,33 @@ class Traceback(list):
 
         if len(self) == 0:
             return "In <main>:\n"
-        s = "In %s" % str(self[0])
+        s = "In %s" % self[0]
         i = 1
         while i < len(self):
-            s += "\n| from %s" % str(self[i])
+            s += "\n| from %s" % self[i]
             i += 1
         return "%s:\n%s" % (s, self.__punctator)
     #-def
 #-class
 
-class TracebackProvider(object):
+class ProcedureTemplate(tuple):
     """
     """
     __slots__ = []
 
-    def __init__(self):
+    def __new__(cls, bvars, params, body, outer):
         """
         """
 
-        pass
+        return super(ProcedureTemplate, cls).__new__(
+            cls, (bvars, params, body, outer)
+        )
     #-def
 
-    def traceback(self):
+    def __init__(self, bvars, params, body, outer):
         """
         """
 
-        not_implemented()
-    #-def
-#-class
-
-class StackItem(TracebackProvider):
-    """
-    """
-    __slots__ = [ '__cmd', '__prev', '__finalizers', '__ehs' ]
-
-    def __init__(self, cmd, prev):
-        """
-        """
-
-        TracebackProvider.__init__(self)
-        self.__cmd = cmd
-        self.__prev = prev
-        self.__finalizers = []
-        self.__ehs = []
-    #-def
-
-    def get_command(self):
-        """
-        """
-
-        return self.__cmd
-    #-def
-
-    def get_prev(self):
-        """
-        """
-
-        return self.__prev
-    #-def
-
-    def setvar(self, name, value):
-        """
-        """
-
-        self.__prev.setvar(name, value)
-    #-def
-
-    def unsetvar(self, name):
-        """
-        """
-
-        self.__prev.unsetvar(name)
-    #-def
-
-    def getvar(self, name, first = None):
-        """
-        """
-
-        if first is None:
-            first = self
-        return self.__prev.getvar(name, first)
-    #-def
-
-    def add_finalizer(self, finalizer):
-        """
-        """
-
-        self.__finalizers.append(finalizer)
-    #-def
-
-    def run_finalizers(self):
-        """
-        """
-
-        for f in self.__finalizers:
-            f()
-    #-def
-
-    def add_exception_handler(self, exception, handler):
-        """
-        """
-
-        self.__ehs.append((exception, handler))
-    #-def
-
-    def get_exception_handlers(self):
-        """
-        """
-
-        return self.__ehs
-    #-def
-
-    def traceback(self):
-        """
-        """
-
-        tb = Traceback(self.get_command())
-        frame = self
-        while frame:
-            if isinstance(frame, Frame):
-                tb.append(frame.get_command())
-            frame = frame.get_prev()
-        return tb
-    #-def
-#-class
-
-class Scope(StackItem):
-    """
-    """
-    __slots__ = [ '__vars' ]
-
-    def __init__(self, cmd, prev):
-        """
-        """
-
-        StackItem.__init__(self, cmd, prev)
-        self.bind(cmd.bounded_scope(), cmd.bounded_vars())
-        self.__vars = {}
-    #-def
-
-    def bind(self, scope, bounded_vars = None):
-        """
-        """
-
-        self.__outer_scope = scope
-        if bounded_vars is None:
-            bounded_vars = scope.getvars()
-        self.__bounded_vars = bounded_vars
-    #-def
-
-    def outer_scope(self):
-        """
-        """
-
-        return self.__outer_scope
-    #-def
-
-    def bounded_vars(self):
-        """
-        """
-
-        return self.__bounded_vars
-    #-def
-
-    def setvar(self, name, value):
-        """
-        """
-
-        self.__vars[name] = value
-    #-def
-
-    def unsetvar(self, name):
-        """
-        """
-
-        if name in self.__vars:
-            del self.__vars[name]
-    #-def
-
-    def getvar(self, name, first = None):
-        """
-        """
-
-        # The stack item with the command that requested the variable (this is
-        # in fact the topmost stack item).
-        if first is None:
-            first = self
-        # Try to find the requested variable in this scope first.
-        v = self.getval(name)
-        if v is None:
-            scope = self
-            # The variable is not in this scope. Try to find it in bounded
-            # scopes.
-            while scope is not None:
-                if name in scope.bounded_vars():
-                    break
-                scope = scope.outer_scope()
-            if scope is None:
-                # The requested variable has been never defined.
-                raise CmdProcNameError(first, "Undefined symbol '%s'" % name)
-            v = scope.outer_scope().getval(name)
-            if v is None:
-                # The requested variable has been defined but now it is
-                # deleted.
-                raise CmdProcNameError(first, "Undefined symbol '%s'" % name)
-        return v
-    #-def
-
-    def getvars(self):
-        """
-        """
-
-        return list(self.__vars.keys())
-    #-def
-
-    def getval(self, name):
-        """
-        """
-
-        v = self.__vars.get(name, None)
-        if isinstance(v, ValueProvider):
-            v = v.value(self)
-        return v
-    #-def
-#-class
-
-class Frame(Scope):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, cmd, prev):
-        """
-        """
-
-        Scope.__init__(self, cmd, prev)
+        tuple.__init__(self)
     #-def
 #-class

@@ -36,10 +36,6 @@ IN THE SOFTWARE.\
 from doit.text.pgen.readers.glap.cmd.errors import \
     CmdProcArgumentsError
 
-from doit.text.pgen.readers.glap.cmd.runtime import \
-    ValueProvider, \
-    StackItem
-
 class Location(tuple):
     """
     """
@@ -91,120 +87,59 @@ class Location(tuple):
     #-def
 #-class
 
+class Finalizer(object):
+    """
+    """
+    __slots__ = [ 'cmd' ]
+
+    def __init__(self, cmd):
+        """
+        """
+
+        self.cmd = cmd
+    #-def
+
+    def __call__(self, processor):
+        """
+        """
+
+        self.cmd.leave(processor)
+    #-def
+#-class
+
 class Command(object):
     """
     """
-    __slots__ = [
-        '__name', '__location', '__arguments', '__initializers', '__finalizers'
-    ]
+    __slots__ = [ 'name', 'location', 'args', 'env' ]
 
     def __init__(self):
         """
         """
 
-        self.__name = self.__class__.__name__.lower()
-        self.__location = Location()
-        self.__initializers = []
-        self.__finalizers = []
-        self.__outer = None
-        self.__vars = {}
+        self.name = self.__class__.__name__.lower()
+        self.location = Location()
+        self.env = None
     #-def
 
-    def set_name(self, name):
+    def isfunc(self):
         """
         """
 
-        self.__name = name
-    #-def
-
-    def get_name(self):
-        """
-        """
-
-        return self.__name
+        return False
     #-def
 
     def set_location(self, file = None, line = -1, column = -1):
         """
         """
 
-        self.__location = Location(file, line, column)
-    #-def
-
-    def get_location(self):
-        """
-        """
-
-        return self.__location
+        self.location = Location(file, line, column)
     #-def
 
     def __str__(self):
         """
         """
 
-        return "\"%s\" %s" % (self.__name, self.__location)
-    #-def
-
-    def setvar(self, name, value):
-        """
-        """
-
-        self.__vars[name] = value
-    #-def
-
-    def getvar(self, name, top = None):
-        """
-        """
-
-        if top is None:
-            top = self
-        if name in self.__vars:
-            return self.__vars[name]
-        if self.__outer:
-            return self.__outer.getvar(name, top)
-        raise CmdProcNameError(top, "Undefined symbol '%s'" % name)
-    #-def
-
-    def setenv(self, env):
-        """
-        """
-
-        self.__vars = env
-    #-def
-
-    def getenv(self):
-        """
-        """
-
-        return self.__vars
-    #-def
-
-    def atstart(self, *inits):
-        """
-        """
-
-        self.__initializers.extend(inits)
-    #-def
-
-    def atexit(self, *finits):
-        """
-        """
-
-        self.__finalizers.extend(finits)
-    #-def
-
-    def bind(self, outer):
-        """
-        """
-
-        self.__outer = outer
-    #-def
-
-    def outer(self):
-        """
-        """
-
-        return self.__outer
+        return "\"%s\" %s" % (self.name, self.location)
     #-def
 
     def help(self, processor):
@@ -214,125 +149,98 @@ class Command(object):
         pass
     #-def
 
-    def run(self, processor):
+    def enter(self, processor):
         """
         """
 
-        return self.result()
+        pass
     #-def
 
-    def run_initializers(self, processor):
+    def expand(self, processor):
         """
         """
 
-        for i in self.__initializers:
-            i(processor)
+        pass
     #-def
 
-    def run_finalizers(self, processor):
+    def leave(self, processor):
         """
         """
 
-        for f in self.__finalizers:
-            f(processor)
-    #-def
-#-class
-
-class Eval(Command):
-    """
-    """
-    CODE = 0
-    __slots__ = []
-
-    def __init__(self, code, env = {}):
-        """
-        """
-
-        Command.__init__(self)
-        self.setenv(env)
-        self.bind(None)
-        self.setvar(self.__class__.CODE, code)
+        pass
     #-def
 
-    def run(self, processor):
+    def pushacc(self, processor):
         """
         """
 
-        processor.push(self.getvar(self.__class__.CODE))
+        processor.pushacc()
+    #-def
+
+    def find_exception_handler(self, e):
+        """
+        """
+
+        return None
     #-def
 #-class
 
-class If(Command):
+class Trackable(Command):
     """
     """
     __slots__ = []
-
-    def __init__(self, *args):
-        """
-        """
-
-        Command.__init__(self)
-        self.setvar(self.__class__.ARGS, args)
-    #-def
-
-    def run(self, processor):
-        """
-        """
-
-        processor.pushcode(
-            self.getvar(self.__class__.IF),
-            self.__if
-        )
-    #-def
-
-    def __if(self, processor):
-        """
-        """
-
-        c = processor.popval()
-        if c:
-            processor.pushcode(self.getvar(self.__class__.THEN))
-        else:
-            processor.pushcode(self.getvar(self.__class__.ELSE))
-    #-def
-#-class
-
-class Value(Command):
-    """
-    """
-    __slots__ = [ '__value' ]
 
     def __init__(self):
         """
         """
 
         Command.__init__(self)
-        self.set_argspec()
-        self.set_args()
-        self.__value = None
     #-def
 
-    def setval(self, v):
+    def enter(self, processor):
         """
         """
 
-        self.__value = v
+        self.env = processor.getenv()
+        processor.pushcmd(self)
     #-def
 
-    def value(self):
+    def leave(self, processor):
         """
         """
 
-        return self.__value
+        processor.popcmd(self)
+        self.env = None
+    #-def
+#-class
+
+class Value(Trackable):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, v):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.value = v
     #-def
 
-    def clone(self):
+    def expand(self, processor):
         """
         """
 
-        new = self.__class__()
-        new.setval(self.__value)
-        return new
+        processor.insercode(
+            self.enter, self.self2acc, Finalizer(self)
+        )
+    #-def
+
+    def self2acc(self, processor):
+        """
+        """
+
+        processor.setacc(self)
     #-def
 #-class
 
@@ -345,131 +253,357 @@ class Null(Value):
         """
         """
 
-        Value.__init__(self)
+        Value.__init__(self, None)
     #-def
 #-class
 
-class Symbol(Value):
+class Int(Value):
     """
     """
     __slots__ = []
 
-    def __init__(self, v = "symbol"):
+    def __init__(self, v):
         """
         """
 
-        Value.__init__(self)
-        self.setval(v)
+        if isinstance(v, Value):
+            v = v.value
+        if not hasattr(v, '__int__'):
+            raise CmdTypeError("Int must be initialized with integer")
+        Value.__init__(self, int(v))
     #-def
 #-class
 
-class Integer(Value):
+class Str(Value):
     """
     """
     __slots__ = []
 
-    def __init__(self, v = 0):
+    def __init__(self, v):
         """
         """
 
-        Value.__init__(self)
-        self.setval(v)
+        if isinstance(v, Value):
+            v = v.value
+        if not hasattr(v, '__str__'):
+            raise CmdTypeError("Str must be initialized with string")
+        Value.__init__(self, v)
     #-def
 #-class
 
-class String(Value):
+class Sym(Value):
     """
     """
     __slots__ = []
 
-    def __init__(self, v = ""):
+    def __init__(self, v):
         """
         """
 
-        Value.__init__(self)
-        self.setval(v)
+        if isinstance(v, Value):
+            v = v.value
+        if not hasattr(v, '__str__'):
+            raise CmdTypeError("Sym must be initialized with string")
+        Value.__init__(self, v)
     #-def
 #-class
 
-class Statement(Command):
+class Iterable(Value):
     """
     """
     __slots__ = []
 
-    def __init__(self):
+    def __init__(self, v):
+        """
+        """
+
+        if not hasattr(v, '__iter__'):
+            raise CmdTypeError(
+                "Iterable must be initialized with iterable object"
+            )
+        Value.__init__(self, v)
+    #-def
+
+    def iterator(self):
+        """
+        """
+
+        return BaseIterator()
+    #-def
+#-class
+
+class List(Iterable):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, v):
+        """
+        """
+
+        if isinstance(v, Value):
+            v = v.value
+        Iterable.__init__(self, v)
+        self.value = list(self.value)
+    #-def
+
+    def iterator(self):
+        """
+        """
+
+        return FiniteIterator(self.value)
+    #-def
+#-class
+
+class Block(Trackable):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, *commands):
         """
         """
 
         Command.__init__(self)
-        self.set_argspec(())
-        self.set_args()
+        self.commands = commands
+    #-def
+
+    def enter(self, processor):
+        """
+        """
+
+        self.env = Environment(processor.getenv())
+        processor.pushcmd(self)
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        processor.insertcode(
+            self.enter, *self.commands, Finalizer(self)
+        )
     #-def
 #-class
 
-class Callable(Command):
+class If(Trackable):
     """
     """
     __slots__ = []
 
-    def __init__(self, argspec, *args):
+    def __init__(self, c, t, e):
         """
         """
 
         Command.__init__(self)
-        self.set_argspec(argspec)
-        self.set_args(args)
+        self.c = c
+        self.t = t
+        self.e = e
     #-def
 
-    def stackitem(self, prev):
+    def expand(self, processor):
         """
         """
 
-        return Frame(self, prev)
+        processor.insertcode(
+            self.c, self.pushacc, self.do_if, Finalizer(self)
+        )
+    #-def
+
+    def do_if(self, processor):
+        """
+        """
+
+        processor.insertcode(
+            *(self.t if processor.popval() else self.e)
+        )
     #-def
 #-class
 
-class Block(Statement):
+class Foreach(Trackable):
     """
     """
     __slots__ = []
 
-    def __init__(self, commands = []):
+    def __init__(self, var, itexp, body):
         """
         """
 
-        Statement.__init__(self, ())
-        self.__commands = commands
+        Trackable.__init__(self)
+        self.var = var
+        self.itexp = itexp
+        self.body = body
+        self.iterator = None
     #-def
 
-    def stackitem(self, prev):
+    def expand(self, processor):
         """
         """
 
-        return Scope(self, prev)
+        processor.insertcode(
+            self.enter, self.itexp, self.do_for, Finalizer(self)
+        )
     #-def
 
-    def run(self, processor):
+    def do_for(self, processor):
         """
         """
 
-        return processor.eval_commands(self.__commands)
+        if not isinstance(processor.acc(), Iterable):
+            raise CmdTypeError("Object must be iterable")
+        self.iterator = processor.acc().iterator()
+        self.iterator.reset()
+        processor.insertcode(self.do_loop)
+    #-def
+
+    def do_loop(self, processor):
+        """
+        """
+
+        x = self.iterator.next()
+        if x is self.iterator:
+            return
+        processor.pushval(x)
+        processor.insertcode(
+            self.do_setvar, *self.body, self.do_loop
+        )
+    #-def
+
+    def do_setvar(self, processor):
+        """
+        """
+
+        self.env.setvar(self.var, processor.popval())
+    #-def
+
+    def leave(self, processor):
+        """
+        """
+
+        self.iterator.reset()
+        self.iterator = None
+        Trackable.leave(self, processor)
     #-def
 #-class
 
-class ExceptionHandler(Block):
+class Closure(Trackable):
     """
     """
     __slots__ = []
 
-    def __init__(self, commands = []):
+    def __init__(self, name, bvars, args, body, outer):
         """
         """
 
-        Block.__init__(self, commands)
+        Trackable.__init__(self)
+        self.name = name
+        self.bvars = bvars
+        self.args = args
+        self.body = body
+        self.outer = outer
+    #-def
+
+    def isfunc(self):
+        """
+        """
+
+        return True
+    #-def
+
+    def enter(self, processor):
+        """
+        """
+
+        self.env = Environment(self.outer)
+        for bvar in self.bvars:
+            self.env.setvar(bvar, Null())
+        for argname in self.args:
+            self.env.setvar(argname, self.args[argname])
+        processor.pushcmd(self)
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        processor.insertcode(
+            self.enter, *self.body, Finalizer(self)
+        )
     #-def
 #-class
 
-class Print(Callable):
+class Call(Command):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, name, *args):
+        """
+        """
+
+        Command.__init__(self)
+        self.name = value(name)
+        self.args = args
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        proc = processor.getenv().getvar(self.name)
+        if not isinstance(proc, ProcedureTemplate):
+            procedure.insertcode(CmdTypeError(
+                "%s must be callable" % self.name
+            ))
+            return
+        _, params, _, _ = proc
+        nparams = len(params)
+        nargs = len(self.args)
+        if nargs != nparams:
+            processor.insertcode(CmdTypeError(
+                "%s takes %d argument%s but %d w%s given" \
+                % (
+                    self.name,
+                    nparams,
+                    "" if nparams == 1 else "s",
+                    nargs,
+                    "as" if nargs == 1 else "ere"
+                )
+            ))
+            return
+        processor.pushval(Value({}))
+        i = 0
+        for arg in self.args:
+            processor.insertcode(
+                arg, self.pushacc, Value(params[i]), self.pushacc, self.do_arg
+            )
+            i += 1
+        processor.insertcode(
+            Value((self.name, proc)), self.pushacc, self.do_call
+        )
+    #-def
+
+    def do_arg(self, processor):
+        """
+        """
+
+        name = processor.popval().value
+        value = processor.popval()
+        processor.topval().value[name] = value
+    #-def
+
+    def do_call(self, processor):
+        """
+        """
+
+        name, proc = processor.popval().value
+        args = processor.popval().value
+        bvars, _, body, outer = proc
+        processor.insertcode(Closure(name, bvars, args, body, outer))
+    #-def
+#-class
+
+class Print(Trackable):
     """
     """
     __slots__ = []
@@ -478,61 +612,43 @@ class Print(Callable):
         """
         """
 
-        Callable.__init__(self, ("...",), *args)
+        Trackable.__init__(self)
+        self.args = args
+        self.tty = None
     #-def
 
-    def run(self, processor):
+    def enter(self, processor):
         """
         """
 
-        env = processor.getenv()
-        for arg in processor.getlocal("args"):
-            env.wterm(processor.valueof(arg, String).value())
-        return Null()
-    #-def
-#-class
-
-class BreakEH(ExceptionHandler):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, outer):
-        """
-        """
-
-        ExceptionHandler.__init__(self)
-        self.__outer = outer
+        Trackable.enter(self, processor)
+        self.tty = self.env.getvar('$TTY')
+        if not isinstance(self.tty, Terminal):
+            CmdTypeError("$TTY variable must refer to terminal")
     #-def
 
-    def run(self, processor):
+    def expand(self, processor):
         """
         """
 
-        self.__outer.stop_iteration()
-        return processor.result()
-    #-def
-#-class
-
-class Foreach(Statement):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, var, iterable, commands):
-        """
-        """
-
-        Statement.__init__(self, commands)
-        self.__var = var
-        self.__iterable = iterable
-        self.atstart(self.__install_eh)
+        processor.insertcode(self.enter)
+        for arg in self.args:
+            processor.insertcode(arg, self.do_print_arg)
+        processor.insertcode(Finalizer(self))
     #-def
 
-    def __install_eh(self, processor):
+    def do_print_arg(self, processor):
         """
         """
 
-        top.add_exception_handler(BREAK, BreakExceptionHandler(self))
+        self.tty.write("%s" % processor.acc())
+    #-def
+
+    def leave(self, processor):
+        """
+        """
+
+        self.tty = None
+        Trackable.leave(self, processor)
     #-def
 #-class
