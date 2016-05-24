@@ -33,7 +33,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from doit.support.errors import DoItError, not_implemented
+from doit.support.errors import DoItError
 
 COMMAND_ERROR_PREFIX = "Cmd"
 COMMAND_ERROR_PREFIX_SIZE = len(COMMAND_ERROR_PREFIX)
@@ -107,7 +107,35 @@ class CommandError(DoItError):
 #-class
 
 @command_error
+class CmdExceptionError(CommandError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, detail):
+        """
+        """
+
+        CommandError.__init__(self, detail)
+    #-def
+#-class
+
+@command_error
 class CmdNameError(CommandError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, detail):
+        """
+        """
+
+        CommandError.__init__(self, detail)
+    #-def
+#-class
+
+@command_error
+class CmdTypeError(CommandError):
     """
     """
     __slots__ = []

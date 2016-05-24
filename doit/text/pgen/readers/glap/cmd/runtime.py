@@ -34,7 +34,8 @@ IN THE SOFTWARE.\
 """
 
 from doit.text.pgen.readers.glap.cmd.errors import \
-    CmdExceptionError
+    CmdExceptionError, \
+    CmdTypeError
 
 class BaseIterator(object):
     """
@@ -66,7 +67,7 @@ class BaseIterator(object):
 class FiniteIterator(BaseIterator):
     """
     """
-    __self__ = []
+    __slots__ = [ '__items', '__nitems', '__idx' ]
 
     def __init__(self, items):
         """

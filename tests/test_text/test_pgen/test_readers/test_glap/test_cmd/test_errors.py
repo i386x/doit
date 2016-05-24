@@ -36,77 +36,40 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from doit.support.errors import DoItError, DoItNotImplementedError
+from doit.support.errors import DoItError
 
 from doit.text.pgen.readers.glap.cmd.errors import \
-    COMMAND_PROCESSOR_ERROR_BASE, \
-    ERROR_CMDPROC_RUNTIME, \
-    ERROR_CMDPROC_ARGUMENTS, \
-    ERROR_CMDPROC_EVAL, \
-    ERROR_CMDPROC_NAME, \
-    ERROR_CMDPROC_TYPE, \
-    ERROR_CMDPROC_CAST, \
-    ERROR_CMDPROC_CONTAINER, \
+    ERROR_COMMAND_PROCESSOR, \
+    ERROR_COMMAND, \
     CommandProcessorError, \
-    CmdProcRuntimeError, \
-    CmdProcArgumentsError, \
-    CmdProcEvalError, \
-    CmdProcNameError, \
-    CmdProcTypeError, \
-    CmdProcCastError, \
-    CmdProcContainerError
+    CommandError, \
+    CmdExceptionError, \
+    CmdNameError, \
+    CmdTypeError
 
-class AuxTraceback(object):
-    __slots__ = [ '__content' ]
+class AuxTraceback(list):
+    __slots__ = []
 
     def __init__(self, content):
-        self.__content = content
+        list.__init__(self, content)
     #-def
 
     def __str__(self):
-        return ".".join(self.__content)
-    #-def
-#-class
-
-class AuxTracebackProvider(object):
-    __slots__ = [ '__content' ]
-
-    def __init__(self, *content):
-        self.__content = list(content)
-    #-def
-
-    def traceback(self):
-        return AuxTraceback(self.__content)
-    #-def
-#-class
-
-class NoTracebackProvider(object):
-    __slots__ = []
-
-    def __init__(self):
-        pass
-    #-def
-
-    def traceback(self):
-        return None
+        return ".".join(self)
     #-def
 #-class
 
 class TestCommandProcessorErrorCase(unittest.TestCase):
 
     def test_CommandProcessorError(self):
-        error_code = COMMAND_PROCESSOR_ERROR_BASE
+        error_code = ERROR_COMMAND_PROCESSOR
         error_message = "Dummy error message"
-        traceback_provider = AuxTracebackProvider("f1", "f2", "g3")
-        no_traceback_provider = NoTracebackProvider()
+        traceback = AuxTraceback(["f1", "f2", "g3"])
+        empty_traceback = AuxTraceback([])
 
         with self.assertRaises(CommandProcessorError) as eh:
-            raise CommandProcessorError(
-                traceback_provider, error_code, error_message
-            )
+            raise CommandProcessorError(traceback, error_message)
 
-        with self.assertRaises(DoItNotImplementedError):
-            eh.exception.internal_name()
         self.assertEqual(
             str(eh.exception),
             "f1.f2.g3 %s" % (
@@ -119,9 +82,7 @@ class TestCommandProcessorErrorCase(unittest.TestCase):
         )
 
         with self.assertRaises(CommandProcessorError) as eh:
-            raise CommandProcessorError(
-                no_traceback_provider, error_code, error_message
-            )
+            raise CommandProcessorError(empty_traceback, error_message)
 
         self.assertEqual(
             str(eh.exception),
@@ -132,263 +93,83 @@ class TestCommandProcessorErrorCase(unittest.TestCase):
             )
         )
     #-def
+#-class
 
-    def test_CmdProcRuntimeError(self):
-        error_message = "Dummy runtime error"
-        traceback_provider = AuxTracebackProvider("f1", "g2", "h3")
-        no_traceback_provider = NoTracebackProvider()
+class TestCommandErrorCase(unittest.TestCase):
 
-        with self.assertRaises(CmdProcRuntimeError) as eh:
-            raise CmdProcRuntimeError(
-                traceback_provider, error_message
-            )
+    def test_CommandError(self):
+        detail = "Some error detail"
 
-        self.assertEqual(eh.exception.internal_name(), 'RuntimeError')
-        self.assertEqual(
-            str(eh.exception),
-            "f1.g2.h3 %s" % (
-                DoItError.ERRMSGFMT % (
-                    CmdProcRuntimeError.__name__,
-                    ERROR_CMDPROC_RUNTIME,
-                    error_message
-                )
-            )
-        )
+        self.assertEqual(CommandError.SID, 'CommandError')
 
-        with self.assertRaises(CmdProcRuntimeError) as eh:
-            raise CmdProcRuntimeError(
-                no_traceback_provider, error_message
-            )
+        with self.assertRaises(CommandError) as eh:
+            raise CommandError(detail)
 
         self.assertEqual(
             str(eh.exception),
             DoItError.ERRMSGFMT % (
-                CmdProcRuntimeError.__name__,
-                ERROR_CMDPROC_RUNTIME,
-                error_message
+                "CommandError <CommandError>", ERROR_COMMAND, detail
             )
+        )
+        self.assertEqual(
+            repr(eh.exception), "CommandError(\"%s\")" % detail
         )
     #-def
 
-    def test_CmdProcArgumentsError(self):
-        error_message = "Dummy arguments error"
-        traceback_provider = AuxTracebackProvider("f4", "g5", "h6")
-        no_traceback_provider = NoTracebackProvider()
+    def test_CmdExceptionError(self):
+        detail = "Some error detail"
 
-        with self.assertRaises(CmdProcArgumentsError) as eh:
-            raise CmdProcArgumentsError(
-                traceback_provider, error_message
-            )
+        self.assertEqual(CmdExceptionError.SID, 'ExceptionError')
 
-        self.assertEqual(eh.exception.internal_name(), 'ArgumentsError')
-        self.assertEqual(
-            str(eh.exception),
-            "f4.g5.h6 %s" % (
-                DoItError.ERRMSGFMT % (
-                    CmdProcArgumentsError.__name__,
-                    ERROR_CMDPROC_ARGUMENTS,
-                    error_message
-                )
-            )
-        )
-
-        with self.assertRaises(CmdProcArgumentsError) as eh:
-            raise CmdProcArgumentsError(
-                no_traceback_provider, error_message
-            )
+        with self.assertRaises(CmdExceptionError) as eh:
+            raise CmdExceptionError(detail)
 
         self.assertEqual(
             str(eh.exception),
             DoItError.ERRMSGFMT % (
-                CmdProcArgumentsError.__name__,
-                ERROR_CMDPROC_ARGUMENTS,
-                error_message
+                "CommandError <ExceptionError>", ERROR_COMMAND, detail
             )
+        )
+        self.assertEqual(
+            repr(eh.exception), "ExceptionError(\"%s\")" % detail
         )
     #-def
 
-    def test_CmdProcEvalError(self):
-        error_message = "Command evaluation error"
-        traceback_provider = AuxTracebackProvider("aa", "bb", "cc")
-        no_traceback_provider = NoTracebackProvider()
+    def test_CmdNameError(self):
+        detail = "Some error detail"
 
-        with self.assertRaises(CmdProcEvalError) as eh:
-            raise CmdProcEvalError(
-                traceback_provider, error_message
-            )
+        self.assertEqual(CmdNameError.SID, 'NameError')
 
-        self.assertEqual(eh.exception.internal_name(), 'EvalError')
-        self.assertEqual(
-            str(eh.exception),
-            "aa.bb.cc %s" % (
-                DoItError.ERRMSGFMT % (
-                    CmdProcEvalError.__name__,
-                    ERROR_CMDPROC_EVAL,
-                    error_message
-                )
-            )
-        )
-
-        with self.assertRaises(CmdProcEvalError) as eh:
-            raise CmdProcEvalError(
-                no_traceback_provider, error_message
-            )
+        with self.assertRaises(CmdNameError) as eh:
+            raise CmdNameError(detail)
 
         self.assertEqual(
             str(eh.exception),
             DoItError.ERRMSGFMT % (
-                CmdProcEvalError.__name__,
-                ERROR_CMDPROC_EVAL,
-                error_message
+                "CommandError <NameError>", ERROR_COMMAND, detail
             )
+        )
+        self.assertEqual(
+            repr(eh.exception), "NameError(\"%s\")" % detail
         )
     #-def
 
-    def test_CmdProcNameError(self):
-        error_message = "Name 'name' is not defined"
-        traceback_provider = AuxTracebackProvider("f_1", "g_2", "h_3")
-        no_traceback_provider = NoTracebackProvider()
+    def test_CmdTypeError(self):
+        detail = "Some error detail"
 
-        with self.assertRaises(CmdProcNameError) as eh:
-            raise CmdProcNameError(
-                traceback_provider, error_message
-            )
+        self.assertEqual(CmdTypeError.SID, 'TypeError')
 
-        self.assertEqual(eh.exception.internal_name(), 'NameError')
-        self.assertEqual(
-            str(eh.exception),
-            "f_1.g_2.h_3 %s" % (
-                DoItError.ERRMSGFMT % (
-                    CmdProcNameError.__name__,
-                    ERROR_CMDPROC_NAME,
-                    error_message
-                )
-            )
-        )
-
-        with self.assertRaises(CmdProcNameError) as eh:
-            raise CmdProcNameError(
-                no_traceback_provider, error_message
-            )
+        with self.assertRaises(CmdTypeError) as eh:
+            raise CmdTypeError(detail)
 
         self.assertEqual(
             str(eh.exception),
             DoItError.ERRMSGFMT % (
-                CmdProcNameError.__name__,
-                ERROR_CMDPROC_NAME,
-                error_message
+                "CommandError <TypeError>", ERROR_COMMAND, detail
             )
         )
-    #-def
-
-    def test_CmdProcTypeError(self):
-        error_message = "Dummy type error"
-        traceback_provider = AuxTracebackProvider("f_", "g_", "h_")
-        no_traceback_provider = NoTracebackProvider()
-
-        with self.assertRaises(CmdProcTypeError) as eh:
-            raise CmdProcTypeError(
-                traceback_provider, error_message
-            )
-
-        self.assertEqual(eh.exception.internal_name(), 'TypeError')
         self.assertEqual(
-            str(eh.exception),
-            "f_.g_.h_ %s" % (
-                DoItError.ERRMSGFMT % (
-                    CmdProcTypeError.__name__,
-                    ERROR_CMDPROC_TYPE,
-                    error_message
-                )
-            )
-        )
-
-        with self.assertRaises(CmdProcTypeError) as eh:
-            raise CmdProcTypeError(
-                no_traceback_provider, error_message
-            )
-
-        self.assertEqual(
-            str(eh.exception),
-            DoItError.ERRMSGFMT % (
-                CmdProcTypeError.__name__,
-                ERROR_CMDPROC_TYPE,
-                error_message
-            )
-        )
-    #-def
-
-    def test_CmdProcCastError(self):
-        error_message = "Dummy cast error"
-        traceback_provider = AuxTracebackProvider("fx", "gx", "hx")
-        no_traceback_provider = NoTracebackProvider()
-
-        with self.assertRaises(CmdProcCastError) as eh:
-            raise CmdProcCastError(
-                traceback_provider, error_message
-            )
-
-        self.assertEqual(eh.exception.internal_name(), 'CastError')
-        self.assertEqual(
-            str(eh.exception),
-            "fx.gx.hx %s" % (
-                DoItError.ERRMSGFMT % (
-                    CmdProcCastError.__name__,
-                    ERROR_CMDPROC_CAST,
-                    error_message
-                )
-            )
-        )
-
-        with self.assertRaises(CmdProcCastError) as eh:
-            raise CmdProcCastError(
-                no_traceback_provider, error_message
-            )
-
-        self.assertEqual(
-            str(eh.exception),
-            DoItError.ERRMSGFMT % (
-                CmdProcCastError.__name__,
-                ERROR_CMDPROC_CAST,
-                error_message
-            )
-        )
-    #-def
-
-    def test_CmdProcContainerError(self):
-        error_message = "Dummy container error"
-        traceback_provider = AuxTracebackProvider("a1", "a2", "a3")
-        no_traceback_provider = NoTracebackProvider()
-
-        with self.assertRaises(CmdProcContainerError) as eh:
-            raise CmdProcContainerError(
-                traceback_provider, error_message
-            )
-
-        self.assertEqual(eh.exception.internal_name(), 'ContainerError')
-        self.assertEqual(
-            str(eh.exception),
-            "a1.a2.a3 %s" % (
-                DoItError.ERRMSGFMT % (
-                    CmdProcContainerError.__name__,
-                    ERROR_CMDPROC_CONTAINER,
-                    error_message
-                )
-            )
-        )
-
-        with self.assertRaises(CmdProcContainerError) as eh:
-            raise CmdProcContainerError(
-                no_traceback_provider, error_message
-            )
-
-        self.assertEqual(
-            str(eh.exception),
-            DoItError.ERRMSGFMT % (
-                CmdProcContainerError.__name__,
-                ERROR_CMDPROC_CONTAINER,
-                error_message
-            )
+            repr(eh.exception), "TypeError(\"%s\")" % detail
         )
     #-def
 #-class
@@ -396,5 +177,6 @@ class TestCommandProcessorErrorCase(unittest.TestCase):
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestCommandProcessorErrorCase))
+    suite.addTest(unittest.makeSuite(TestCommandErrorCase))
     return suite
 #-def

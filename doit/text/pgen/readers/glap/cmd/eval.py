@@ -37,15 +37,20 @@ import types
 
 from doit.text.pgen.readers.glap.cmd.errors import \
     CommandProcessorError, \
-    CommandError
+    CommandError, \
+    CmdNameError
+
+from doit.text.pgen.readers.glap.cmd.runtime import \
+    Traceback
 
 from doit.text.pgen.readers.glap.cmd.commands import \
+    Finalizer, \
     Command
 
 class Environment(object):
     """
     """
-    __slots__ = [ '__vars' ]
+    __slots__ = [ '__outer', '__vars' ]
 
     def __init__(self, outer = None):
         """
@@ -85,7 +90,7 @@ class Environment(object):
 class CommandProcessor(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__env', '__cmdstack', '__valstack', '__codebuff', '__acc' ]
 
     def __init__(self, env = None):
         """
@@ -217,7 +222,7 @@ class CommandProcessor(object):
                     raise CommandProcessorError(tb,
                         "handle_exception: Command stack is corrupted"
                     )
-                eh = stack[-1].find_exception_handler(e)
+                eh = stack[-1].find_exception_handler(self, e)
                 if eh is not None:
                     cb[:0] = eh
                     handled = True

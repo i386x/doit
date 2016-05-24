@@ -33,9 +33,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from doit.text.pgen.readers.glap.cmd.errors import \
-    CmdProcArgumentsError
-
 class Location(tuple):
     """
     """
@@ -381,7 +378,7 @@ class Block(Trackable):
         """
 
         processor.insertcode(
-            self.enter, *self.commands, Finalizer(self)
+            *((self.enter,) + self.commands + (Finalizer(self),))
         )
     #-def
 #-class
@@ -465,7 +462,7 @@ class Foreach(Trackable):
             return
         processor.pushval(x)
         processor.insertcode(
-            self.do_setvar, *self.body, self.do_loop
+            *((self.do_setvar,) + self.body + (self.do_loop,))
         )
     #-def
 
@@ -527,7 +524,7 @@ class Closure(Trackable):
         """
 
         processor.insertcode(
-            self.enter, *self.body, Finalizer(self)
+            *((self.enter,) + self.body + (Finalizer(self),))
         )
     #-def
 #-class
