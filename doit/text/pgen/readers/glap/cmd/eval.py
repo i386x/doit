@@ -47,32 +47,32 @@ from doit.text.pgen.readers.glap.cmd.commands import \
     Finalizer, \
     Command
 
-class Environment(object):
+class Environment(dict):
     """
     """
-    __slots__ = [ '__outer', '__vars' ]
+    __slots__ = [ '__outer' ]
 
     def __init__(self, outer = None):
         """
         """
 
+        dict.__init__(self)
         self.__outer = outer
-        self.__vars = {}
     #-def
 
     def setvar(self, name, value):
         """
         """
 
-        self.__vars[name] = value
+        self[name] = value
     #-def
 
     def getvar(self, name):
         """
         """
 
-        if name in self.__vars:
-            return self.__vars[name]
+        if name in self:
+            return self[name]
         if self.__outer:
             return self.__outer.getvar(name)
         raise CmdNameError("Undefined variable '%s'" % name)
@@ -82,8 +82,8 @@ class Environment(object):
         """
         """
 
-        if name in self.__vars:
-            del self.__vars[name]
+        if name in self:
+            del self[name]
     #-def
 #-class
 
@@ -101,6 +101,9 @@ class CommandProcessor(object):
         self.__valstack = []
         self.__codebuff = []
         self.__acc = None
+        ebase = BaseExceptionClass()
+        if not ebase.name() in self.__env:
+            self.__env[ebase.name()] = ebase
     #-def
 
     def getenv(self):
@@ -229,5 +232,16 @@ class CommandProcessor(object):
                 x(self)
         if not handled:
             raise CommandProcessorError(tb, "Uncaught exception %r" % e)
+    #-def
+
+    def define_exception(self, name, basename):
+        """
+        """
+
+        env = self.getenv()
+        base = env.getvar(basename)
+        if not isinstance(base, ExceptionClass):
+            raise CmdTypeError("Base class must be exception")
+        env[name] = ExceptionClass(env, name, base)
     #-def
 #-class

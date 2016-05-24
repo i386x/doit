@@ -181,10 +181,11 @@ class TTryCatch(Command):
         self.env = None
     #-def
 
-    def find_exception_handler(self, processor, e):
-        ecls = processor.find_exception(e.SID)
-        if not ecls:
-            
+    def find_exception_handler(self, e):
+        try:
+            ecls = self.env.getvar(e.SID)
+            if not isinstance(ecls, ExceptionClass):
+                raise CmdTypeError("%s is not an exception" % e.SID)
     #-def
 #-class
 
