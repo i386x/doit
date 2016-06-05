@@ -34,8 +34,20 @@ IN THE SOFTWARE.\
 """
 
 from doit.text.pgen.readers.glap.cmd.errors import \
-    CmdExceptionError, \
-    CmdTypeError
+    CommandError
+
+def isderived(exc, base):
+    """
+    """
+
+    if not isinstance(exc, ExceptionClass):
+        return False
+    while exc:
+        if exc is base:
+            return True
+        exc = exc.base()
+    return False
+#-def
 
 class BaseIterator(object):
     """
@@ -73,10 +85,6 @@ class FiniteIterator(BaseIterator):
         """
         """
 
-        if not (hasattr(items, '__len__') and hasattr(items, '__getitem__')):
-            raise CmdTypeError(
-                "Iterator is initialized with non-iterable object"
-            )
         BaseIterator.__init__(self)
         self.__items = items
         self.__nitems = len(items)
@@ -102,21 +110,132 @@ class FiniteIterator(BaseIterator):
     #-def
 #-class
 
+class Iterable(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        pass
+    #-def
+
+    def iterator(self):
+        """
+        """
+
+        return BaseIterator()
+    #-def
+#-class
+
+class Pair(tuple, Iterable):
+    """
+    """
+    __slots__ = []
+
+    def __new__(cls, a, b):
+        """
+        """
+
+        return super(Pair, cls).__new__(cls, (a, b))
+    #-def
+
+    def __init__(self, a, b):
+        """
+        """
+
+        tuple.__init__(self)
+        Iterable.__init__(self)
+    #-def
+
+    def iterator(self):
+        """
+        """
+
+        return FiniteIterator(self)
+    #-def
+#-class
+
+class List(list, Iterable):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, data):
+        """
+        """
+
+        list.__init__(self, data)
+        Iterable.__init__(self)
+    #-def
+
+    def iterator(self):
+        """
+        """
+
+        return FiniteIterator(self)
+    #-def
+
+    @staticmethod
+    def unique(l):
+        """
+        """
+
+        r = List([])
+        for x in l:
+            if x not in r:
+                r.append(x)
+        return r
+    #-def
+#-class
+
+class HashMap(dict, Iterable):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, data):
+        """
+        """
+
+        dict.__init__(self, data)
+        Iterable.__init__(self)
+    #-def
+
+    def iterator(self):
+        """
+        """
+
+        return FiniteIterator(list(self.keys()))
+    #-def
+
+    @staticmethod
+    def merge(d1, d2):
+        """
+        """
+
+        r = HashMap(d1)
+        r.update(d2)
+        return r
+    #-def
+#-class
+
 class ExceptionClass(object):
     """
     """
-    __slots__ = [ '__container', '__name', '__base' ]
+    __slots__ = [ '__name', '__base' ]
 
-    def __init__(self, container, name, base):
+    def __init__(self, name, base):
         """
         """
 
-        self.__container = container
         self.__name = name
         self.__base = base
     #-def
 
-    def name(self):
+    def __str__(self):
         """
         """
 
@@ -128,70 +247,6 @@ class ExceptionClass(object):
         """
 
         return self.__base
-    #-def
-
-    def is_superclass_of(self, cls):
-        """
-        """
-
-        if not isinstance(cls, ExceptionClass):
-            return False
-        if cls.name() not in self.__container:
-            return False
-        if self.__container[cls.name()] is not cls:
-            return False
-        if self is cls:
-            return True
-        return self.is_superclass_of(cls.base())
-    #-def
-#-class
-
-class BaseExceptionClass(ExceptionClass):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, container):
-        """
-        """
-
-        ExceptionClass.__init__(self, container, 'BaseException', None)
-    #-def
-#-class
-
-class Exceptions(dict):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self):
-        """
-        """
-
-        dict.__init__(self)
-        base = BaseExceptionClass(self)
-        self[base.name()] = base
-    #-def
-
-    def register_exception(self, name, basename):
-        """
-        """
-
-        if name in self:
-            raise CmdExceptionError(
-                "Exception %s is already registered" % name
-            )
-        if basename not in self:
-            raise CmdExceptionError("Unknown exception base %s" % basename)
-        self[name] = ExceptionClass(self, name, self[basename])
-    #-def
-
-    def register_exceptions(self, *specs):
-        """
-        """
-
-        for name, basename in specs:
-            self.register_exception(name, basename)
     #-def
 #-class
 

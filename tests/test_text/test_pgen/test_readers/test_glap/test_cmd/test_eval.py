@@ -38,15 +38,43 @@ import unittest
 
 from doit.text.pgen.readers.glap.cmd.errors import \
     CommandProcessorError, \
-    CmdNameError
+    CommandError
+
+from doit.text.pgen.readers.glap.cmd.runtime import \
+    isderived, \
+    Pair, \
+    List, \
+    HashMap, \
+    ExceptionClass
+
+from doit.text.pgen.readers.glap.cmd.eval import \
+    Environment, \
+    CommandProcessor
 
 from doit.text.pgen.readers.glap.cmd.commands import \
     Finalizer, \
     Command
 
-from doit.text.pgen.readers.glap.cmd.eval import \
-    Environment, \
-    CommandProcessor
+class LoggingEnv(Environment):
+    __slots__ = []
+
+    def __init__(self, processor = None, outer = None):
+        Environment.__init__(self, processor, outer)
+    #-def
+
+    def wlog(self, processor, msg):
+        processor.log.append(msg)
+    #-def
+#-class
+
+class LoggingProcessor(CommandProcessor):
+    __slots__ = [ 'log' ]
+
+    def __init__(self, env = None):
+        CommandProcessor.__init__(self, env)
+        self.log = []
+    #-def
+#-class
 
 class TLoad(Command):
     __slots__ = [ 'varname' ]
@@ -75,6 +103,33 @@ class TLoad(Command):
     #-def
 #-class
 
+class TStore(Command):
+    __slots__ = [ 'varname' ]
+
+    def __init__(self, varname):
+        Command.__init__(self)
+        self.varname = varname
+    #-def
+
+    def enter(self, processor):
+        self.env = processor.getenv()
+        processor.pushcmd(self)
+    #-def
+
+    def expand(self, processor):
+        processor.insertcode(self.enter, self.do_store, Finalizer(self))
+    #-def
+
+    def do_store(self, processor):
+        self.env.setvar(self.varname, processor.acc())
+    #-def
+
+    def leave(self, processor):
+        processor.popcmd(self)
+        self.env = None
+    #-def
+#-class
+
 class TBlock(Command):
     __slots__ = [ 'cmds' ]
 
@@ -84,7 +139,7 @@ class TBlock(Command):
     #-def
 
     def enter(self, processor):
-        self.env = Environment(processor.getenv())
+        self.env = processor.envclass()(processor, processor.getenv())
         processor.pushcmd(self)
     #-def
 
@@ -96,6 +151,27 @@ class TBlock(Command):
 
     def leave(self, processor):
         processor.popcmd(self)
+        self.env = None
+    #-def
+#-class
+
+class TLogBlock(TBlock):
+    __slots__ = [ 'i' ]
+
+    def __init__(self, i, cmds):
+        TBlock.__init__(self, cmds)
+        self.i = i
+    #-def
+
+    def enter(self, processor):
+        self.env = processor.envclass()(processor, processor.getenv())
+        processor.pushcmd(self)
+        self.env.wlog(processor, "<%d>" % self.i)
+    #-def
+
+    def leave(self, processor):
+        processor.popcmd(self)
+        self.env.wlog(processor, "</%d>" % self.i)
         self.env = None
     #-def
 #-class
@@ -156,13 +232,36 @@ class TLoadEnv(Command):
     #-def
 #-class
 
+class TThrow(Command):
+    __slots__ = [ 'ename', 'emsg' ]
+
+    def __init__(self, ename, emsg):
+        Command.__init__(self)
+        self.ename = ename
+        self.emsg = emsg
+    #-def
+
+    def expand(self, processor):
+        processor.insertcode(self.do_throw)
+    #-def
+
+    def do_throw(self, processor):
+        ecls = processor.getenv().getvar(self.ename)
+        if not isinstance(ecls, ExceptionClass):
+            raise CommandError(processor.TypeError,
+                "Only exception objects can be throwed"
+            )
+        processor.insertcode(CommandError(ecls, self.emsg))
+    #-def
+#-class
+
 class TTryCatch(Command):
     __slots__ = [ 'cmds', 'handlers' ]
 
     def __init__(self, cmds, handlers):
         Command.__init__(self)
         self.cmds = tuple(cmds)
-        self.handlers = tuple(handlers)
+        self.handlers = handlers
     #-def
 
     def enter(self, processor):
@@ -183,164 +282,215 @@ class TTryCatch(Command):
 
     def find_exception_handler(self, e):
         try:
-            ecls = self.env.getvar(e.SID)
-            if not isinstance(ecls, ExceptionClass):
-                raise CmdTypeError("%s is not an exception" % e.SID)
+            if not (
+                isinstance(e, CommandError)
+                and isinstance(e.ecls, ExceptionClass)
+            ):
+                return None
+            for name, handler in self.handlers:
+                ec = self.env.getvar(name)
+                if isderived(e.ecls, ec):
+                    return handler
+            return None
+        except CommandError as ce:
+            return [ce]
+    #-def
+#-class
+
+class TDefError(Command):
+    __slots__ = [ 'ename', 'ebasename' ]
+
+    def __init__(self, name, basename):
+        Command.__init__(self)
+        self.ename = name
+        self.ebasename = basename
+    #-def
+
+    def expand(self, processor):
+        processor.insertcode(self.do_deferror)
+    #-def
+
+    def do_deferror(self, processor):
+        processor.define_exception(self.ename, self.ebasename)
     #-def
 #-class
 
 class TestEnvironmentCase(unittest.TestCase):
 
     def test_vars(self):
-        e1 = Environment()
+        p = CommandProcessor()
+        e1 = Environment(p)
         e1.setvar('x', 42)
-        e2 = Environment(e1)
+        e2 = Environment(outer = e1)
+        e2.setprocessor(p)
         e2.setvar('x', 43)
-        e2.setvar('y', 44)
+        e2['y'] = 44
 
         self.assertEqual(e1.getvar('x'), 42)
         self.assertEqual(e2.getvar('x'), 43)
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
         self.assertEqual(e2.getvar('y'), 44)
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('z')
 
         e2.unsetvar('x')
         self.assertEqual(e1.getvar('x'), 42)
         self.assertEqual(e2.getvar('x'), 42)
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
         self.assertEqual(e2.getvar('y'), 44)
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('z')
 
         e2.unsetvar('x')
         self.assertEqual(e1.getvar('x'), 42)
         self.assertEqual(e2.getvar('x'), 42)
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
         self.assertEqual(e2.getvar('y'), 44)
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('z')
 
         e1.unsetvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
         self.assertEqual(e2.getvar('y'), 44)
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('z')
 
         e1.unsetvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
         self.assertEqual(e2.getvar('y'), 44)
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('z')
 
         e1.unsetvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
         self.assertEqual(e2.getvar('y'), 44)
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('z')
 
         e2.unsetvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('z')
 
         e2.unsetvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('z')
 
         e2.unsetvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('z')
 
         e1.unsetvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('z')
 
         e2.setvar('z', 7)
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('x')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e2.getvar('y')
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e1.getvar('z')
         self.assertEqual(e2.getvar('z'), 7)
     #-def
 #-class
 
 class TestCommandProcessorCase(unittest.TestCase):
+
+    def test_constants(self):
+        p = CommandProcessor()
+
+        self.assertIs(p.Null, p)
+        self.assertIsNone(p.BaseException.base())
+        self.assertEqual(str(p.BaseException), 'BaseException')
+        self.assertIs(p.Exception.base(), p.BaseException)
+        self.assertEqual(str(p.Exception), 'Exception')
+        self.assertIs(p.NameError.base(), p.Exception)
+        self.assertEqual(str(p.NameError), 'NameError')
+        self.assertIs(p.TypeError.base(), p.Exception)
+        self.assertEqual(str(p.TypeError), 'TypeError')
+        self.assertIs(p.ValueError.base(), p.Exception)
+        self.assertEqual(str(p.ValueError), 'ValueError')
+        self.assertIs(p.IndexError.base(), p.Exception)
+        self.assertEqual(str(p.IndexError), 'IndexError')
+        self.assertIs(p.KeyError.base(), p.Exception)
+        self.assertEqual(str(p.KeyError), 'KeyError')
+        with self.assertRaises(CommandProcessorError):
+            p.Uvw
+    #-def
 
     def test_given_env(self):
         e = Environment()
@@ -368,7 +518,7 @@ class TestCommandProcessorCase(unittest.TestCase):
         self.assertIsNot(p.acc(), e)
         self.assertEqual(p.acc().getvar('x'), "<1>")
         self.assertEqual(p.acc().getvar('y'), "<2>")
-        with self.assertRaises(CmdNameError):
+        with self.assertRaises(CommandError):
             e.getvar('y')
     #-def
 
@@ -416,6 +566,255 @@ class TestCommandProcessorCase(unittest.TestCase):
         self.assertIsNone(p.acc())
         p.setacc("ax")
         self.assertEqual(p.acc(), "ax")
+    #-def
+
+    def test_run(self):
+        p = CommandProcessor()
+
+        p.run([True])
+        self.assertIs(p.acc(), True)
+        p.run([False])
+        self.assertIs(p.acc(), False)
+        p.run([1])
+        self.assertEqual(p.acc(), 1)
+        p.run([1.25])
+        self.assertEqual(p.acc(), 1.25)
+        p.run(["abc"])
+        self.assertEqual(p.acc(), "abc")
+        p.run([Pair(3, 7)])
+        self.assertIsInstance(p.acc(), Pair)
+        self.assertEqual(p.acc(), (3, 7))
+        p.run([List("xyz")])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [ 'x', 'y', 'z' ])
+        p.run([HashMap({'a': 0.5, 1: 'x'})])
+        self.assertIsInstance(p.acc(), HashMap)
+        self.assertEqual(p.acc(), {'a': 0.5, 1: 'x'})
+        p.run([(2, 5)])
+        self.assertIsInstance(p.acc(), Pair)
+        self.assertEqual(p.acc(), (2, 5))
+        with self.assertRaises(CommandProcessorError):
+            p.run([()])
+        with self.assertRaises(CommandProcessorError):
+            p.run([(1,)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([(1, 3, -1)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([(1, 3, -1, 0.25)])
+        p.run([[1, 2, 3]])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [1, 2, 3])
+        p.run([{0.5: "cc", -4: (1,), ('a', 3): 0.25}])
+        self.assertIsInstance(p.acc(), HashMap)
+        self.assertEqual(p.acc(), {0.5: "cc", -4: (1,), ('a', 3): 0.25})
+        p.run([None])
+        self.assertIs(p.acc(), p.Null)
+        p.run([p.Null])
+        self.assertIs(p.acc(), p.Null)
+        with self.assertRaises(CommandProcessorError):
+            p.run([CommandProcessor()])
+    #-def
+
+    def test_exception_handling(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([TLoad('?'), TSet('x', -1)])
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([TLoad('?'), Command(), Command(), Command()])
+
+        p.run([
+            TTryCatch([
+                TLoad('?')
+            ], [
+                ('TypeError', [TSet('et', 1)]),
+                ('NameError', [TSet('et', 2)])
+            ])
+        ])
+        self.assertEqual(p.getenv().getvar('et'), 2)
+
+        p.run([
+            TTryCatch([
+                TLoad('?')
+            ], [
+                ('BaseException', [TSet('et', 0)]),
+                ('TypeError', [TSet('et', 1)]),
+                ('NameError', [TSet('et', 2)])
+            ])
+        ])
+        self.assertEqual(p.getenv().getvar('et'), 0)
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                TTryCatch([
+                    TLoad('?')
+                ], [
+                    ('_TypeError', [TSet('et', 1)]),
+                    ('NameError', [TSet('et', 2)])
+                ])
+            ])
+
+        p.run([
+            TTryCatch([
+                TLoad('?')
+            ], [
+                ('NameError', [TSet('et', 3)]),
+                ('_NameError', [TSet('et', 4)])
+            ])
+        ])
+        self.assertEqual(p.getenv().getvar('et'), 3)
+
+        p.run([
+            TTryCatch([
+                TTryCatch([
+                    TLoad('?')
+                ], [
+                    ('TypeError', [TSet('et', 5)]),
+                    ('_Error', [TSet('et', 6)])
+                ])
+            ], [
+                ('NameError', [TSet('et', 7)])
+            ])
+        ])
+        self.assertEqual(p.getenv().getvar('et'), 7)
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                TTryCatch([
+                    TTryCatch([
+                        TLoad('?')
+                    ], [
+                        ('TypeError', [TSet('et', 5)]),
+                        ('_Error', [TSet('et', 6)])
+                    ])
+                ], [
+                    ('TypeError', [TSet('et', 7)])
+                ])
+            ])
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                TTryCatch([
+                    TLoad('?'), Finalizer(Command())
+                ], [
+                    ('NameError', [])
+                ])
+            ])
+    #-def
+
+    def test_cleanup(self):
+        le = LoggingEnv()
+        p = LoggingProcessor(le)
+
+        try:
+            p.pushval(0)
+            p.pushval(7)
+            p.setacc('z')
+            p.run([
+                TLogBlock(1, [
+                    TLogBlock(2, [
+                        CommandProcessor(),
+                        TSet('x', 'y'),
+                        CommandProcessor(),
+                        TSet('x', 'y')
+                    ]),
+                    TSet('x', 'y')
+                ]),
+                TSet('x', 'y')
+            ])
+        except CommandProcessorError:
+            pass
+        self.assertEqual(p.log, [ "<1>", "<2>" ])
+        self.assertEqual(p.popval(), 7)
+        self.assertEqual(p.popval(), 0)
+        with self.assertRaises(CommandProcessorError):
+            p.popval()
+        self.assertEqual(p.acc(), 'z')
+
+        le = LoggingEnv()
+        p = LoggingProcessor(le)
+
+        try:
+            p.pushval(0)
+            p.pushval(7)
+            p.setacc('z')
+            p.run([
+                TLogBlock(1, [
+                    TLogBlock(2, [
+                        CommandProcessor(),
+                        TSet('x', 'y'),
+                        CommandProcessor(),
+                        TSet('x', 'y')
+                    ]),
+                    TSet('x', 'y')
+                ]),
+                TSet('x', 'y')
+            ])
+        except CommandProcessorError:
+            p.cleanup()
+        self.assertEqual(p.log, [ "<1>", "<2>", "</2>", "</1>" ])
+        with self.assertRaises(CommandProcessorError):
+            p.popval()
+        self.assertIsNone(p.acc())
+    #-def
+
+    def test_define_exception(self):
+        m = "Oook!"
+        p = CommandProcessor()
+        env = p.getenv()
+
+        p.run([
+            TDefError('MyError', 'Exception'),
+            TTryCatch([
+                TThrow('MyError', m)
+            ], [
+                ('MyError', [TStore('x')])
+            ])
+        ])
+        self.assertIs(env.getvar('x').ecls, env.getvar('MyError'))
+        self.assertEqual(env.getvar('x').emsg, m)
+
+        p.run([
+            TTryCatch([
+                TDefError('MySecondError', 'u')
+            ], [
+                ('NameError', [TSet('x', 42)])
+            ])
+        ])
+        self.assertEqual(env.getvar('x'), 42)
+
+        p.run([
+            TTryCatch([
+                TDefError('MySecondError', 'x')
+            ], [
+                ('TypeError', [TSet('x', 43)])
+            ])
+        ])
+        self.assertEqual(env.getvar('x'), 43)
+
+        p.run([
+            TDefError('E', 'Exception'),
+            TBlock([
+                TDefError('E', 'Exception'),
+                TLoad('E')
+            ]),
+            TStore('X'),
+            TTryCatch([
+                TThrow('E', "1")
+            ], [
+                ('X', [TSet('a', 11)]),
+                ('E', [TSet('a', 12)])
+            ]),
+            TTryCatch([
+                TThrow('X', "2")
+            ], [
+                ('E', [TSet('b', 13)]),
+                ('X', [TSet('b', 14)])
+            ])
+        ])
+        self.assertEqual(env.getvar('a'), 12)
+        self.assertEqual(env.getvar('b'), 14)
     #-def
 #-class
 

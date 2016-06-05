@@ -36,16 +36,15 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from doit.text.pgen.readers.glap.cmd.errors import \
-    CmdExceptionError, \
-    CmdTypeError
-
 from doit.text.pgen.readers.glap.cmd.runtime import \
+    isderived, \
     BaseIterator, \
     FiniteIterator, \
+    Iterable, \
+    Pair, \
+    List, \
+    HashMap, \
     ExceptionClass, \
-    BaseExceptionClass, \
-    Exceptions, \
     Traceback, \
     ProcedureTemplate
 
@@ -83,9 +82,6 @@ class TestIteratorCase(unittest.TestCase):
         fi0 = FiniteIterator(())
         fi1 = FiniteIterator("abc")
 
-        with self.assertRaises(CmdTypeError):
-            FiniteIterator(None)
-
         fi0.reset()
         self.assertEqual(fi0.next(), fi0)
         self.assertEqual(fi0.next(), fi0)
@@ -107,237 +103,119 @@ class TestIteratorCase(unittest.TestCase):
     #-def
 #-class
 
-class TestExceptionsCase(unittest.TestCase):
+class TestIterableCase(unittest.TestCase):
+
+    def test_Iterable(self):
+        self.assertIsInstance(Iterable().iterator(), BaseIterator)
+    #-def
+
+    def test_Pair(self):
+        p = Pair(1, 2)
+        q = Pair(*p)
+        i = q.iterator()
+
+        self.assertEqual(p, (1, 2))
+        self.assertEqual(q, (1, 2))
+        self.assertEqual(i.next(), 1)
+        self.assertEqual(i.next(), 2)
+        self.assertIs(i.next(), i)
+    #-def
+
+    def test_List(self):
+        l = List((1, 2, 3))
+        m = List(l)
+        i = m.iterator()
+
+        self.assertEqual(l, [1, 2, 3])
+        self.assertEqual(m, [1, 2, 3])
+        self.assertEqual(i.next(), 1)
+        self.assertEqual(i.next(), 2)
+        self.assertEqual(i.next(), 3)
+        self.assertIs(i.next(), i)
+    #-def
+
+    def test_HashMap(self):
+        d = {'a': '1', 1: 'b', "xy": 0.25}
+        c = (lambda x: {1: 0, 'a': 1, "xy": 2}.get(x, -1))
+        h = HashMap(d)
+        hh = HashMap(h)
+        i = hh.iterator()
+        k = list(hh.keys())
+        k.sort(key=c)
+        l = []
+
+        self.assertEqual(h, d)
+        self.assertEqual(hh, d)
+        x = i.next()
+        self.assertTrue(x in k and x not in l)
+        l.append(x)
+        x = i.next()
+        self.assertTrue(x in k and x not in l)
+        l.append(x)
+        x = i.next()
+        self.assertTrue(x in k and x not in l)
+        l.append(x)
+        self.assertIs(i.next(), i)
+        l.sort(key=c)
+        self.assertEqual(l, k)
+        self.assertEqual(l, [1, 'a', "xy"])
+    #-def
+#-class
+
+class TestExceptionClassCase(unittest.TestCase):
 
     def setUp(self):
-        self.exceptions = Exceptions()
-        self.exceptions.register_exceptions(
-            ('Exception', 'BaseException'),
-            ('SystemExit', 'BaseException'),
-            ('SystemPause', 'BaseException'),
-            ('SystemResume', 'BaseException'),
-            ('TypeError', 'Exception'),
-            ('ValueError', 'Exception'),
-            ('RuntimeError', 'Exception'),
-            ('IOError', 'Exception'),
-            ('UserException', 'Exception'),
-            ('ArgumentsError', 'UserException'),
-            ('AccessError', 'UserException')
-        )
+        self.e0 = ExceptionClass('BaseException', None)
+        self.e01 = ExceptionClass('Exception', self.e0)
+        self.e02 = ExceptionClass('SystemError', self.e0)
+        self.e011 = ExceptionClass('NameError', self.e01)
+        self.e012 = ExceptionClass('TypeError', self.e01)
     #-def
 
     def test_getters(self):
-        cls = self.exceptions['Exception']
-
-        self.assertTrue(isinstance(cls, ExceptionClass))
-        self.assertEqual(cls.name(), 'Exception')
-        self.assertTrue(isinstance(cls.base(), BaseExceptionClass))
-        self.assertIs(cls.base(), self.exceptions['BaseException'])
-        self.assertEqual(cls.base().name(), 'BaseException')
+        self.assertIsNone(self.e0.base())
+        self.assertIsInstance(self.e01.base(), ExceptionClass)
+        self.assertEqual(str(self.e01), 'Exception')
+        self.assertIs(self.e011.base(), self.e01)
     #-def
 
-    def test_is_superclass_of(self):
-        exceptions = Exceptions()
-        exceptions.register_exception('Exception', 'BaseException')
+    def test_isderived(self):
+        self.assertTrue(isderived(self.e0, self.e0))
+        self.assertTrue(isderived(self.e01, self.e0))
+        self.assertTrue(isderived(self.e02, self.e0))
+        self.assertTrue(isderived(self.e011, self.e0))
+        self.assertTrue(isderived(self.e012, self.e0))
 
-        self.assertFalse(self.exceptions['Exception'].is_superclass_of(0))
-        self.assertFalse(
-            exceptions['Exception'].is_superclass_of(
-                self.exceptions['AccessError']
-            )
-        )
-        self.assertFalse(
-            exceptions['BaseException'].is_superclass_of(
-                self.exceptions['Exception']
-            )
-        )
-        self.assertFalse(
-            exceptions['Exception'].is_superclass_of(
-                self.exceptions['BaseException']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['BaseException']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['Exception']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['TypeError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['ValueError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['RuntimeError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['IOError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['UserException']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['Exception'].is_superclass_of(
-                self.exceptions['Exception']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['Exception'].is_superclass_of(
-                self.exceptions['TypeError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['Exception'].is_superclass_of(
-                self.exceptions['ValueError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['Exception'].is_superclass_of(
-                self.exceptions['RuntimeError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['Exception'].is_superclass_of(
-                self.exceptions['IOError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['Exception'].is_superclass_of(
-                self.exceptions['UserException']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['UserException'].is_superclass_of(
-                self.exceptions['UserException']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['UserException'].is_superclass_of(
-                self.exceptions['ArgumentsError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['UserException'].is_superclass_of(
-                self.exceptions['AccessError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['Exception'].is_superclass_of(
-                self.exceptions['ArgumentsError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['Exception'].is_superclass_of(
-                self.exceptions['AccessError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['ArgumentsError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['AccessError']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['SystemExit']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['SystemPause']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['BaseException'].is_superclass_of(
-                self.exceptions['SystemResume']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['SystemPause'].is_superclass_of(
-                self.exceptions['SystemPause']
-            )
-        )
-        self.assertTrue(
-            self.exceptions['AccessError'].is_superclass_of(
-                self.exceptions['AccessError']
-            )
-        )
-        self.assertFalse(
-            self.exceptions['Exception'].is_superclass_of(
-                self.exceptions['SystemPause']
-            )
-        )
-        self.assertFalse(
-            self.exceptions['SystemPause'].is_superclass_of(
-                self.exceptions['Exception']
-            )
-        )
-        self.assertFalse(
-            self.exceptions['AccessError'].is_superclass_of(
-                self.exceptions['RuntimeError']
-            )
-        )
-        self.assertFalse(
-            self.exceptions['RuntimeError'].is_superclass_of(
-                self.exceptions['AccessError']
-            )
-        )
-        self.assertFalse(
-            self.exceptions['ArgumentsError'].is_superclass_of(
-                self.exceptions['SystemExit']
-            )
-        )
-        self.assertFalse(
-            self.exceptions['SystemExit'].is_superclass_of(
-                self.exceptions['ArgumentsError']
-            )
-        )
-        self.assertFalse(
-            self.exceptions['UserException'].is_superclass_of(
-                self.exceptions['SystemPause']
-            )
-        )
-        self.assertFalse(
-            self.exceptions['SystemPause'].is_superclass_of(
-                self.exceptions['UserException']
-            )
-        )
-        self.assertFalse(
-            self.exceptions['IOError'].is_superclass_of(
-                self.exceptions['SystemPause']
-            )
-        )
-        self.assertFalse(
-            self.exceptions['SystemPause'].is_superclass_of(
-                self.exceptions['IOError']
-            )
-        )
-    #-def
+        self.assertTrue(isderived(self.e01, self.e01))
+        self.assertTrue(isderived(self.e011, self.e01))
+        self.assertTrue(isderived(self.e012, self.e01))
 
-    def test_register_exception(self):
-        with self.assertRaises(CmdExceptionError):
-            self.exceptions.register_exception('Exception', 'BaseException')
-        with self.assertRaises(CmdExceptionError):
-            self.exceptions.register_exception('MyError', '_UserException')
+        self.assertTrue(isderived(self.e011, self.e011))
+        self.assertTrue(isderived(self.e012, self.e012))
+
+        self.assertTrue(isderived(self.e02, self.e02))
+
+        self.assertFalse(isderived(self.e0, self.e01))
+        self.assertFalse(isderived(self.e0, self.e02))
+        self.assertFalse(isderived(self.e0, self.e011))
+        self.assertFalse(isderived(self.e0, self.e012))
+
+        self.assertFalse(isderived(self.e01, self.e011))
+        self.assertFalse(isderived(self.e01, self.e012))
+
+        self.assertFalse(isderived(self.e01, self.e02))
+        self.assertFalse(isderived(self.e02, self.e01))
+
+        self.assertFalse(isderived(self.e02, self.e011))
+        self.assertFalse(isderived(self.e02, self.e012))
+        self.assertFalse(isderived(self.e011, self.e02))
+        self.assertFalse(isderived(self.e012, self.e02))
+
+        self.assertFalse(isderived(self.e011, self.e012))
+        self.assertFalse(isderived(self.e012, self.e011))
+
+        self.assertFalse(isderived(self.e011, 2))
+        self.assertFalse(isderived((), self.e012))
     #-def
 #-class
 
@@ -405,7 +283,8 @@ class TestProcedureTemplateCase(unittest.TestCase):
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestIteratorCase))
-    suite.addTest(unittest.makeSuite(TestExceptionsCase))
+    suite.addTest(unittest.makeSuite(TestIterableCase))
+    suite.addTest(unittest.makeSuite(TestExceptionClassCase))
     suite.addTest(unittest.makeSuite(TestTracebackCase))
     suite.addTest(unittest.makeSuite(TestProcedureTemplateCase))
     return suite

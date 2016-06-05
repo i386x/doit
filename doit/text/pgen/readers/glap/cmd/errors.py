@@ -35,22 +35,8 @@ IN THE SOFTWARE.\
 
 from doit.support.errors import DoItError
 
-COMMAND_ERROR_PREFIX = "Cmd"
-COMMAND_ERROR_PREFIX_SIZE = len(COMMAND_ERROR_PREFIX)
-
 ERROR_COMMAND_PROCESSOR = DoItError.alloc_codes(1)
 ERROR_COMMAND = DoItError.alloc_codes(1)
-
-def command_error(cls):
-    """
-    """
-
-    name = cls.__name__
-    if name.startswith(COMMAND_ERROR_PREFIX):
-        name = name[COMMAND_ERROR_PREFIX_SIZE:]
-    cls.SID = name
-    return cls
-#-def
 
 class CommandProcessorError(DoItError):
     """
@@ -75,75 +61,24 @@ class CommandProcessorError(DoItError):
     #-def
 #-class
 
-@command_error
 class CommandError(DoItError):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'ecls', 'emsg' ]
 
-    def __init__(self, detail):
+    def __init__(self, ecls, emsg):
         """
         """
 
-        DoItError.__init__(self, ERROR_COMMAND, detail)
-    #-def
-
-    def __str__(self):
-        """
-        """
-
-        return DoItError.ERRMSGFMT % (
-            "%s <%s>" % (CommandError.__name__, self.__class__.SID),
-            self.errcode, self.detail
-        )
+        DoItError.__init__(self, ERROR_COMMAND, "%s: %s" % (ecls, emsg))
+        self.ecls = ecls
+        self.emsg = emsg
     #-def
 
     def __repr__(self):
         """
         """
 
-        return "%s(\"%s\")" % (self.__class__.SID, self.detail)
-    #-def
-#-class
-
-@command_error
-class CmdExceptionError(CommandError):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, detail):
-        """
-        """
-
-        CommandError.__init__(self, detail)
-    #-def
-#-class
-
-@command_error
-class CmdNameError(CommandError):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, detail):
-        """
-        """
-
-        CommandError.__init__(self, detail)
-    #-def
-#-class
-
-@command_error
-class CmdTypeError(CommandError):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, detail):
-        """
-        """
-
-        CommandError.__init__(self, detail)
+        return "%s(\"%s\")" % (self.ecls, self.emsg)
     #-def
 #-class

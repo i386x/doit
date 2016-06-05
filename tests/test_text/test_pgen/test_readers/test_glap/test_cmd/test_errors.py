@@ -42,10 +42,19 @@ from doit.text.pgen.readers.glap.cmd.errors import \
     ERROR_COMMAND_PROCESSOR, \
     ERROR_COMMAND, \
     CommandProcessorError, \
-    CommandError, \
-    CmdExceptionError, \
-    CmdNameError, \
-    CmdTypeError
+    CommandError
+
+class AuxExceptionClass(object):
+    __slots__ = [ 'name' ]
+
+    def __init__(self, name):
+        self.name = name
+    #-def
+
+    def __str__(self):
+        return self.name
+    #-def
+#-class
 
 class AuxTraceback(list):
     __slots__ = []
@@ -98,78 +107,21 @@ class TestCommandProcessorErrorCase(unittest.TestCase):
 class TestCommandErrorCase(unittest.TestCase):
 
     def test_CommandError(self):
+        eclsname = "SomeError"
         detail = "Some error detail"
-
-        self.assertEqual(CommandError.SID, 'CommandError')
 
         with self.assertRaises(CommandError) as eh:
-            raise CommandError(detail)
+            raise CommandError(AuxExceptionClass(eclsname), detail)
 
         self.assertEqual(
             str(eh.exception),
             DoItError.ERRMSGFMT % (
-                "CommandError <CommandError>", ERROR_COMMAND, detail
+                CommandError.__name__, ERROR_COMMAND,
+                "%s: %s" % (eclsname, detail)
             )
         )
         self.assertEqual(
-            repr(eh.exception), "CommandError(\"%s\")" % detail
-        )
-    #-def
-
-    def test_CmdExceptionError(self):
-        detail = "Some error detail"
-
-        self.assertEqual(CmdExceptionError.SID, 'ExceptionError')
-
-        with self.assertRaises(CmdExceptionError) as eh:
-            raise CmdExceptionError(detail)
-
-        self.assertEqual(
-            str(eh.exception),
-            DoItError.ERRMSGFMT % (
-                "CommandError <ExceptionError>", ERROR_COMMAND, detail
-            )
-        )
-        self.assertEqual(
-            repr(eh.exception), "ExceptionError(\"%s\")" % detail
-        )
-    #-def
-
-    def test_CmdNameError(self):
-        detail = "Some error detail"
-
-        self.assertEqual(CmdNameError.SID, 'NameError')
-
-        with self.assertRaises(CmdNameError) as eh:
-            raise CmdNameError(detail)
-
-        self.assertEqual(
-            str(eh.exception),
-            DoItError.ERRMSGFMT % (
-                "CommandError <NameError>", ERROR_COMMAND, detail
-            )
-        )
-        self.assertEqual(
-            repr(eh.exception), "NameError(\"%s\")" % detail
-        )
-    #-def
-
-    def test_CmdTypeError(self):
-        detail = "Some error detail"
-
-        self.assertEqual(CmdTypeError.SID, 'TypeError')
-
-        with self.assertRaises(CmdTypeError) as eh:
-            raise CmdTypeError(detail)
-
-        self.assertEqual(
-            str(eh.exception),
-            DoItError.ERRMSGFMT % (
-                "CommandError <TypeError>", ERROR_COMMAND, detail
-            )
-        )
-        self.assertEqual(
-            repr(eh.exception), "TypeError(\"%s\")" % detail
+            repr(eh.exception), "%s(\"%s\")" % (eclsname, detail)
         )
     #-def
 #-class

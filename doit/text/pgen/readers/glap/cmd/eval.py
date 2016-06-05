@@ -33,14 +33,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-import types
-
 from doit.text.pgen.readers.glap.cmd.errors import \
     CommandProcessorError, \
-    CommandError, \
-    CmdNameError
+    CommandError
 
 from doit.text.pgen.readers.glap.cmd.runtime import \
+    Iterable, \
+    Pair, \
+    List, \
+    HashMap, \
+    ExceptionClass, \
     Traceback
 
 from doit.text.pgen.readers.glap.cmd.commands import \
@@ -50,14 +52,22 @@ from doit.text.pgen.readers.glap.cmd.commands import \
 class Environment(dict):
     """
     """
-    __slots__ = [ '__outer' ]
+    __slots__ = [ '__processor', '__outer' ]
 
-    def __init__(self, outer = None):
+    def __init__(self, processor = None, outer = None):
         """
         """
 
         dict.__init__(self)
+        self.__processor = processor
         self.__outer = outer
+    #-def
+
+    def setprocessor(self, processor):
+        """
+        """
+
+        self.__processor = processor
     #-def
 
     def setvar(self, name, value):
@@ -75,7 +85,9 @@ class Environment(dict):
             return self[name]
         if self.__outer:
             return self.__outer.getvar(name)
-        raise CmdNameError("Undefined variable '%s'" % name)
+        raise CommandError(self.__processor.NameError,
+            "Undefined variable '%s'" % name
+        )
     #-def
 
     def unsetvar(self, name):
@@ -90,27 +102,45 @@ class Environment(dict):
 class CommandProcessor(object):
     """
     """
-    __slots__ = [ '__env', '__cmdstack', '__valstack', '__codebuff', '__acc' ]
+    __slots__ = [
+        '__env', '__cmdstack', '__valstack', '__codebuff', '__acc', '__consts'
+    ]
 
     def __init__(self, env = None):
         """
         """
 
-        self.__env = env or Environment()
+        self.__env = env if env is not None else Environment()
+        self.__env.setprocessor(self)
         self.__cmdstack = []
         self.__valstack = []
         self.__codebuff = []
         self.__acc = None
-        ebase = BaseExceptionClass()
-        if not ebase.name() in self.__env:
-            self.__env[ebase.name()] = ebase
+        self.__initialize_constants()
+        self.__copy_exceptions_to_env()
+    #-def
+
+    def envclass(self):
+        """
+        """
+
+        return self.__env.__class__
+    #-def
+
+    def newenv(self):
+        """
+        """
+
+        return self.__env.__class__(self, self.getenv())
     #-def
 
     def getenv(self):
         """
         """
 
-        return (self.__cmdstack and self.__cmdstack[-1].env) or self.__env
+        if self.__cmdstack and self.__cmdstack[-1].env is not None:
+            return self.__cmdstack[-1].env
+        return self.__env
     #-def
 
     def pushcmd(self, cmd):
@@ -202,20 +232,34 @@ class CommandProcessor(object):
             x = cb.pop(0)
             if isinstance(x, Command):
                 x.expand(self)
-            elif isinstance(x, (types.MethodType, Finalizer)):
+            elif hasattr(x, '__call__'):
                 try:
                     x(self)
                 except CommandError as e:
                     cb[:0] = [e]
+            elif isinstance(x, (bool, int, float, str, Iterable)):
+                self.__acc = x
+            elif isinstance(x, tuple) and len(x) == 2:
+                self.__acc = Pair(*x)
+            elif isinstance(x, list):
+                self.__acc = List(x)
+            elif isinstance(x, dict):
+                self.__acc = HashMap(x)
+            elif x is None or x is self.Null:
+                self.__acc = self.Null
             elif isinstance(x, CommandError):
                 self.handle_exception(x)
+            else:
+                raise CommandProcessorError(Traceback(self.__cmdstack),
+                    "run: Unexpected object in code buffer appeared"
+                )
     #-def
 
     def handle_exception(self, e):
         """
         """
 
-        cb, stack = self.__codebuff, self.__stack
+        cb, stack = self.__codebuff, self.__cmdstack
         tb = Traceback(stack)
         handled = False
         while not handled and cb and stack:
@@ -225,13 +269,29 @@ class CommandProcessor(object):
                     raise CommandProcessorError(tb,
                         "handle_exception: Command stack is corrupted"
                     )
-                eh = stack[-1].find_exception_handler(self, e)
+                eh = stack[-1].find_exception_handler(e)
                 if eh is not None:
                     cb[:0] = eh
+                    self.__acc = e
                     handled = True
                 x(self)
         if not handled:
             raise CommandProcessorError(tb, "Uncaught exception %r" % e)
+    #-def
+
+    def cleanup(self):
+        """
+        """
+
+        while self.__codebuff:
+            f = self.__codebuff.pop(0)
+            if isinstance(f, Finalizer):
+                f(self)
+        while self.__cmdstack:
+            self.__cmdstack.pop()
+        while self.__valstack:
+            self.__valstack.pop()
+        self.__acc = None
     #-def
 
     def define_exception(self, name, basename):
@@ -241,7 +301,59 @@ class CommandProcessor(object):
         env = self.getenv()
         base = env.getvar(basename)
         if not isinstance(base, ExceptionClass):
-            raise CmdTypeError("Base class must be exception")
-        env[name] = ExceptionClass(env, name, base)
+            raise CommandError(self.TypeError, "Base class must be exception")
+        env[name] = ExceptionClass(name, base)
+    #-def
+
+    def __getattr__(self, attr):
+        """
+        """
+
+        if attr[0].isupper():
+            if attr not in self.__consts:
+                raise CommandProcessorError(Traceback(self.__cmdstack),
+                    "There is no '%s' constant defined" % attr
+                )
+            return self.__consts[attr]
+        return object.__getattribute__(self, attr)
+    #-def
+
+    def __initialize_constants(self):
+        """
+        """
+
+        self.__consts = { 'Null': self }
+        self.__consts['BaseException'] = ExceptionClass('BaseException', None)
+        self.__consts['Exception'] = ExceptionClass(
+            'Exception', self.BaseException
+        )
+        self.__consts['NameError'] = ExceptionClass(
+            'NameError', self.Exception
+        )
+        self.__consts['TypeError'] = ExceptionClass(
+            'TypeError', self.Exception
+        )
+        self.__consts['ValueError'] = ExceptionClass(
+            'ValueError', self.Exception
+        )
+        self.__consts['IndexError'] = ExceptionClass(
+            'IndexError', self.Exception
+        )
+        self.__consts['KeyError'] = ExceptionClass(
+            'KeyError', self.Exception
+        )
+    #-def
+
+    def __copy_exceptions_to_env(self):
+        """
+        """
+
+        for x in (
+            self.BaseException, self.Exception, \
+            self.NameError, self.TypeError, self.ValueError, \
+            self.IndexError, self.KeyError
+        ):
+            if str(x) not in self.__env:
+                self.__env[str(x)] = x
     #-def
 #-class
