@@ -36,6 +36,9 @@ IN THE SOFTWARE.\
 
 import unittest
 
+from doit.text.pgen.readers.glap.cmd.errors import \
+    CommandError
+
 from doit.text.pgen.readers.glap.cmd.runtime import \
     isderived, \
     BaseIterator, \
@@ -44,9 +47,13 @@ from doit.text.pgen.readers.glap.cmd.runtime import \
     Pair, \
     List, \
     HashMap, \
+    UserType, \
     ExceptionClass, \
     Traceback, \
-    ProcedureTemplate
+    Procedure
+
+from doit.text.pgen.readers.glap.cmd.eval import \
+    CommandProcessor
 
 from doit.text.pgen.readers.glap.cmd.commands import \
     Location
@@ -66,6 +73,14 @@ class PseudoCommand(object):
 
     def isfunc(self):
         return self.__isfunc
+    #-def
+#-class
+
+class PseudoContext(object):
+    __slots__ = [ 'cmd' ]
+
+    def __init__(self, name, location, isfunc = True):
+        self.cmd = PseudoCommand(name, location, isfunc)
     #-def
 #-class
 
@@ -159,6 +174,27 @@ class TestIterableCase(unittest.TestCase):
         l.sort(key=c)
         self.assertEqual(l, k)
         self.assertEqual(l, [1, 'a', "xy"])
+    #-def
+#-class
+
+class TestUserTypeCase(unittest.TestCase):
+
+    def test_UserType(self):
+        p = CommandProcessor()
+
+        self.assertTrue(UserType().to_bool(p))
+        with self.assertRaises(CommandError):
+            UserType().to_int(p)
+        with self.assertRaises(CommandError):
+            UserType().to_float(p)
+        with self.assertRaises(CommandError):
+            UserType().to_str(p)
+        with self.assertRaises(CommandError):
+            UserType().to_pair(p)
+        with self.assertRaises(CommandError):
+            UserType().to_list(p)
+        with self.assertRaises(CommandError):
+            UserType().to_hash(p)
     #-def
 #-class
 
@@ -259,8 +295,8 @@ class TestTracebackCase(unittest.TestCase):
         for i, l, r in testdata:
             stack = []
             for cn in i:
-                stack.append(PseudoCommand(cn, Location()))
-            stack.append(PseudoCommand("<cmd>", l, False))
+                stack.append(PseudoContext(cn, Location()))
+            stack.append(PseudoContext("<cmd>", l, False))
             tb = Traceback(stack)
             self.assertEqual(str(tb), r)
     #-def
@@ -268,13 +304,16 @@ class TestTracebackCase(unittest.TestCase):
 
 class TestProcedureTemplateCase(unittest.TestCase):
 
-    def test_ProcedureTemplate(self):
-        bvars, params, body, outer = ['x'], ['y', 'z'], [], [[]]
-        proct = ProcedureTemplate(bvars, params, body, outer)
+    def test_Procedure(self):
+        name, bvars, params, vararg, body, outer = \
+            "proc", ['x'], ['y', 'z'], True, [], [[]]
+        proc = Procedure(name, bvars, params, vararg, body, outer)
 
-        _bvars, _params, _body, _outer = proct
+        _name, _bvars, _params, _vararg, _body, _outer = proc
+        self.assertEqual(_name, name)
         self.assertEqual(_bvars, bvars)
         self.assertEqual(_params, params)
+        self.assertEqual(_vararg, vararg)
         self.assertEqual(_body, body)
         self.assertEqual(_outer, outer)
     #-def
@@ -284,6 +323,7 @@ def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestIteratorCase))
     suite.addTest(unittest.makeSuite(TestIterableCase))
+    suite.addTest(unittest.makeSuite(TestUserTypeCase))
     suite.addTest(unittest.makeSuite(TestExceptionClassCase))
     suite.addTest(unittest.makeSuite(TestTracebackCase))
     suite.addTest(unittest.makeSuite(TestProcedureTemplateCase))

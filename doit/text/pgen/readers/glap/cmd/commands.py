@@ -39,7 +39,9 @@ from doit.text.pgen.readers.glap.cmd.errors import \
 from doit.text.pgen.readers.glap.cmd.runtime import \
     Pair, \
     List, \
-    HashMap
+    HashMap, \
+    UserType, \
+    Procedure
 
 NumericTypes = (int, float)
 SequenceTypes = (str, Pair, list)
@@ -98,30 +100,65 @@ class Location(tuple):
     #-def
 #-class
 
-class Finalizer(object):
+class CommandContext(object):
     """
     """
-    __slots__ = [ 'cmd' ]
+    __slots__ = [ 'cmd', 'env', 'nvals' ]
 
     def __init__(self, cmd):
         """
         """
 
         self.cmd = cmd
+        self.env = None
+        self.nvals = 0
+    #-def
+#-class
+
+class Initializer(object):
+    """
+    """
+    __slots__ = [ 'ctx' ]
+
+    def __init__(self, ctx):
+        """
+        """
+
+        self.ctx = ctx
     #-def
 
     def __call__(self, processor):
         """
         """
 
-        self.cmd.leave(processor)
+        self.ctx.cmd.enter(processor, self.ctx)
+    #-def
+#-class
+
+class Finalizer(object):
+    """
+    """
+    __slots__ = [ 'ctx' ]
+
+    def __init__(self, ctx):
+        """
+        """
+
+        self.ctx = ctx
+    #-def
+
+    def __call__(self, processor):
+        """
+        """
+
+        self.ctx.cmd.leave(processor, self.ctx)
     #-def
 #-class
 
 class Command(object):
     """
     """
-    __slots__ = [ 'name', 'location', 'env' ]
+    __slots__ = [ 'name', 'location' ]
 
     def __init__(self):
         """
@@ -129,7 +166,6 @@ class Command(object):
 
         self.name = self.__class__.__name__.lower()
         self.location = Location()
-        self.env = None
     #-def
 
     def isfunc(self):
@@ -160,7 +196,7 @@ class Command(object):
         pass
     #-def
 
-    def enter(self, processor):
+    def enter(self, processor, ctx):
         """
         """
 
@@ -174,7 +210,7 @@ class Command(object):
         pass
     #-def
 
-    def leave(self, processor):
+    def leave(self, processor, ctx):
         """
         """
 
@@ -188,7 +224,7 @@ class Command(object):
         processor.pushacc()
     #-def
 
-    def find_exception_handler(self, e):
+    def find_exception_handler(self, ctx, e):
         """
         """
 
@@ -208,43 +244,47 @@ class Trackable(Command):
         Command.__init__(self)
     #-def
 
-    def enter(self, processor):
+    def enter(self, processor, ctx):
         """
         """
 
-        self.env = processor.getenv()
-        processor.pushcmd(self)
+        ctx.env = processor.getenv()
+        ctx.nvals = processor.nvals()
+        processor.pushctx(ctx)
     #-def
 
-    def leave(self, processor):
+    def leave(self, processor, ctx):
         """
         """
 
-        processor.popcmd(self)
-        self.env = None
+        while processor.nvals() > ctx.nvals:
+            processor.popval()
+        processor.popctx(ctx)
     #-def
 #-class
 
 class SetLocal(Trackable):
     """
     """
-    __slots__ = [ 'varname', 'value' ]
+    __slots__ = [ 'varname', 'value', 'depth' ]
 
-    def __init__(self, name, value):
+    def __init__(self, name, value, depth = 0):
         """
         """
 
         Trackable.__init__(self)
         self.varname = name
         self.value = value
+        self.depth = depth
     #-def
 
     def expand(self, processor):
         """
         """
 
+        ctx = CommandContext(self)
         processor.insertcode(
-            self.enter, self.value, self.do_setlocal, Finalizer(self)
+            Initializer(ctx), self.value, self.do_setlocal, Finalizer(ctx)
         )
     #-def
 
@@ -252,7 +292,12 @@ class SetLocal(Trackable):
         """
         """
 
-        self.env.setvar(self.varname, processor.acc())
+        ctx = processor.cmdctx(self)
+        env, d = ctx.env, self.depth
+        while d > 0:
+            env = env.outer()
+            d -= 1
+        env.setvar(self.varname, processor.acc())
     #-def
 #-class
 
@@ -273,8 +318,9 @@ class GetLocal(Trackable):
         """
         """
 
+        ctx = CommandContext(self)
         processor.insertcode(
-            self.enter, self.do_getlocal, Finalizer(self)
+            Initializer(ctx), self.do_getlocal, Finalizer(ctx)
         )
     #-def
 
@@ -282,7 +328,49 @@ class GetLocal(Trackable):
         """
         """
 
-        processor.setacc(self.env.getvar(self.varname))
+        ctx = processor.cmdctx(self)
+        processor.setacc(ctx.env.getvar(self.varname))
+    #-def
+#-class
+
+class Define(Trackable):
+    """
+    """
+    __slots__ = [ 'name', 'bvars', 'params', 'vararg', 'body' ]
+
+    def __init__(self, name, bvars, params, vararg, body):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.name = name
+        self.bvars = bvars
+        self.params = params
+        self.vararg = vararg
+        self.body = body
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx), self.do_define, Finalizer(ctx)
+        )
+    #-def
+
+    def do_define(self, processor):
+        """
+        """
+
+        ctx = processor.cmdctx(self)
+        ctx.env.setvar(
+            self.name,
+            Procedure(self.name,
+                self.bvars, self.params, self.vararg, self.body, ctx.env
+            )
+        )
     #-def
 #-class
 
@@ -413,6 +501,10 @@ class Operation(Trackable):
         ),
         # Collection operations:
         # - constructive:
+        'newpair': dict(
+            types = [(object, object)],
+            operation = (lambda a, b: Pair(a, b))
+        ),
         'copy': dict(
             types = [(CollectionTypes,)],
             operation = (lambda a: \
@@ -609,10 +701,11 @@ class Operation(Trackable):
         """
         """
 
-        code = [self.enter]
+        ctx = CommandContext(self)
+        code = [Initializer(ctx)]
         for o in self.operands:
             code.extend([o, self.pushacc])
-        code.extend([self.do_op, Finalizer(self)])
+        code.extend([self.do_op, Finalizer(ctx)])
         processor.insertcode(*code)
     #-def
 
@@ -980,6 +1073,19 @@ class Not(Operation):
         """
 
         Operation.__init__(self, a)
+    #-def
+#-class
+
+class NewPair(Operation):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a, b):
+        """
+        """
+
+        Operation.__init__(self, a, b)
     #-def
 #-class
 
@@ -1452,42 +1558,544 @@ class Split(Operation):
 #-class
 
 class ToBool(Operation):
-    pass
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a):
+        """
+        """
+
+        Operation.__init__(self, a)
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        arg = processor.popval()
+        if isinstance(arg, bool):
+            processor.setacc(arg)
+        elif isinstance(arg, NumericTypes):
+            processor.setacc(arg != 0)
+        elif isinstance(arg, CollectionTypes):
+            processor.setacc(len(arg) > 0)
+        elif isinstance(arg, UserType):
+            processor.setacc(arg.to_bool(processor))
+        elif isinstance(arg, Procedure):
+            processor.setacc(True)
+        elif arg is processor.Null:
+            processor.setacc(False)
+        else:
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 1st operand" % self.name
+            )
+    #-def
+#-class
 
 class ToInt(Operation):
-    pass
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a):
+        """
+        """
+
+        Operation.__init__(self, a)
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        arg = processor.popval()
+        if isinstance(arg, bool):
+            processor.setacc(1 if arg else 0)
+        elif isinstance(arg, NumericTypes):
+            processor.setacc(int(arg))
+        elif isinstance(arg, str):
+            try:
+                processor.setacc(int(arg))
+            except ValueError:
+                try:
+                    processor.setacc(int(float(arg)))
+                except ValueError:
+                    raise CommandError(processor.ValueError,
+                        "%s: String to integer conversion failed" % self.name
+                    )
+        elif isinstance(arg, UserType):
+            processor.setacc(arg.to_int(processor))
+        else:
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 1st operand" % self.name
+            )
+    #-def
+#-class
 
 class ToFlt(Operation):
-    pass
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a):
+        """
+        """
+
+        Operation.__init__(self, a)
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        arg = processor.popval()
+        if isinstance(arg, bool):
+            processor.setacc(1.0 if arg else 0.0)
+        elif isinstance(arg, NumericTypes):
+            processor.setacc(float(arg))
+        elif isinstance(arg, str):
+            try:
+                processor.setacc(float(arg))
+            except ValueError:
+                raise CommandError(processor.ValueError,
+                    "%s: String to float conversion failed" % self.name
+                )
+        elif isinstance(arg, UserType):
+            processor.setacc(arg.to_float(processor))
+        else:
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 1st operand" % self.name
+            )
+    #-def
+#-class
 
 class ToStr(Operation):
-    pass
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a, b = {}):
+        """
+        """
+
+        Operation.__init__(self, a, b)
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        convspec = processor.popval()
+        if not isinstance(convspec, dict):
+            raise CommandError(processor.TypeError,
+                "%s: Conversion specifications must be stored in hashmap" \
+                % self.name
+            )
+        arg = processor.popval()
+        if isinstance(arg, bool):
+            sTrue = convspec.get('strue', "true")
+            sFalse = convspec.get('sfalse', "false")
+            if not isinstance(sTrue, str) or not isinstance(sFalse, str):
+                raise CommandError(processor.TypeError,
+                    "%s: The names of booleans constants must be strings" \
+                    % self.name
+                )
+            processor.setacc(sTrue if arg is True else sFalse)
+        elif isinstance(arg, int):
+            processor.setacc(self.makefmt(
+                processor, convspec, ("i", ("d", "o", "x", "X"))
+            ) % arg)
+        elif isinstance(arg, float):
+            processor.setacc(self.makefmt(
+                processor, convspec, ("f", ("f", "e", "E"))
+            ) % arg)
+        elif isinstance(arg, str):
+            processor.setacc(arg)
+        elif isinstance(arg, UserType):
+            processor.setacc(arg.to_str(processor))
+        elif isinstance(arg, Procedure):
+            processor.setacc(arg[0])
+        elif arg is processor.Null:
+            sNull = convspec.get('snull', "null")
+            if not isinstance(sNull, str):
+                raise CommandError(processor.TypeError,
+                    "%s: The name of null constant must be string" % self.name
+                )
+            processor.setacc(sNull)
+        else:
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 1st operand" % self.name
+            )
+    #-def
+
+    def makefmt(self, processor, spec, tspec):
+        """
+        """
+
+        p, types = tspec
+        flags = spec.get('%sflags' % p, spec.get('flags', ""))
+        if not isinstance(flags, str) or len(set(flags) - set("-+ 0")) > 0:
+            raise CommandError(processor.TypeError,
+                "%s: Bad flag specifier ('-', '+', ' ', '0')" % self.name
+            )
+        size = spec.get('%ssize' % p, spec.get('size', 0))
+        if not isinstance(size, int):
+            raise CommandError(processor.TypeError,
+                "%s: Size specifier must be integer" % self.name
+            )
+        size = "" if size < 1 else "%d" % size
+        prec = spec.get('%sprec' % p, spec.get('prec', -1))
+        if not isinstance(prec, int):
+            raise CommandError(processor.TypeError,
+                "%s: Precision specifier must be integer" % self.name
+            )
+        prec = "" if prec < 0 else ".%d" % prec
+        type = spec.get('%stype' % p, types[0])
+        if type not in types:
+            raise CommandError(processor.TypeError,
+                "%s: Bad display type %r" % (self.name, types)
+            )
+        return "%%%s%s%s%s" % (flags, size, prec, type)
+    #-def
+#-class
 
 class ToPair(Operation):
-    pass
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a):
+        """
+        """
+
+        Operation.__init__(self, a)
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        arg = processor.popval()
+        if isinstance(arg, SequenceTypes):
+            if len(arg) != 2:
+                raise CommandError(processor.ValueError,
+                    "%s: A pair can be made only from a sequence of length 2" \
+                    % self.name
+                )
+            processor.setacc(Pair(arg[0], arg[1]))
+        elif isinstance(arg, UserType):
+            processor.setacc(arg.to_pair(processor))
+        else:
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 1st operand" % self.name
+            )
+    #-def
+#-class
 
 class ToList(Operation):
-    pass
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a):
+        """
+        """
+
+        Operation.__init__(self, a)
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        arg = processor.popval()
+        if isinstance(arg, SequenceTypes):
+            processor.setacc(List(arg))
+        elif isinstance(arg, dict):
+            l = List()
+            for k in arg:
+                l.append(Pair(k, arg[k]))
+            processor.setacc(l)
+        elif isinstance(arg, UserType):
+            processor.setacc(arg.to_list(processor))
+        else:
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 1st operand" % self.name
+            )
+    #-def
+#-class
 
 class ToHash(Operation):
-    pass
+    """
+    """
+    __slots__ = []
 
-class All(Operation):
-    pass
+    def __init__(self, a):
+        """
+        """
 
-class Any(Operation):
-    pass
+        Operation.__init__(self, a)
+    #-def
 
-class Map(Operation):
-    pass
+    def do_op(self, processor):
+        """
+        """
 
-class Filter(Operation):
-    pass
+        arg = processor.popval()
+        if isinstance(arg, Pair):
+            arg = [arg]
+        if isinstance(arg, list):
+            for x in arg:
+                if not isinstance(x, tuple) or len(x) != 2:
+                    raise CommandError(processor.ValueError,
+                        "%s: A pair was expected inside list" % self.name
+                    )
+        if isinstance(arg, (list, dict)):
+            processor.setacc(HashMap(arg))
+        elif isinstance(arg, UserType):
+            processor.setacc(arg.to_hash(processor))
+        else:
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 1st operand" % self.name
+            )
+    #-def
+#-class
+
+class Quantifier(Operation):
+    """
+    """
+    __slots__ = [ 'iv', 'cf' ]
+
+    def __init__(self, a, b, iv, cf):
+        """
+        """
+
+        Operation.__init__(self, a, b)
+        self.iv = iv
+        self.cf = cf
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        state = {}
+        proc = processor.popval()
+        if not isinstance(proc, Procedure):
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 2nd operand" % self.name
+            )
+        state[0] = proc
+        it = processor.popval()
+        if isinstance(it, str):
+            it = List(it)
+        if not isinstance(it, CollectionTypes):
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 1st operand" % self.name
+            )
+        state[1] = it.iterator()
+        state[1].reset()
+        state[2] = self.iv
+        processor.insertcode(state, self.pushacc, self.do_next)
+    #-def
+
+    def do_next(self, processor):
+        """
+        """
+
+        state = processor.topval()
+        x = state[1].next()
+        if x is state[1]:
+            processor.setacc(state[2])
+            processor.popval()
+            return
+        processor.insertcode(
+            Call(state[0], x), self.do_contribute, self.do_next
+        )
+    #-def
+
+    def do_contribute(self, processor):
+        """
+        """
+
+        state = processor.topval()
+        r = processor.acc()
+        if not isinstance(r, bool):
+            raise CommandError(processor.TypeError,
+                "%s: Function %s should return boolean value" \
+                % (self.name, state[0][0])
+            )
+        state[2] = self.cf(state[2], r)
+    #-def
+#-class
+
+class All(Quantifier):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a, b):
+        """
+        """
+
+        Quantifier.__init__(self, a, b, True, (lambda a, b: a and b))
+    #-def
+#-class
+
+class Any(Quantifier):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a, b):
+        """
+        """
+
+        Quantifier.__init__(self, a, b, False, (lambda a, b: a or b))
+    #-def
+#-class
+
+class SeqOp(Operation):
+    """
+    """
+    __slots__ = [ 'opf' ]
+
+    def __init__(self, a, b, opf):
+        """
+        """
+
+        Operation.__init__(self, a, b)
+        self.opf = opf
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        state = {}
+        proc = processor.popval()
+        if not isinstance(proc, Procedure):
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 2nd operand" % self.name
+            )
+        state[0] = proc
+        it = processor.popval()
+        if not isinstance(it, SequenceTypes):
+            raise CommandError(processor.TypeError,
+                "%s: Bad type of 1st operand" % self.name
+            )
+        if isinstance(it, str):
+            it = List(it)
+        state[1] = it.iterator()
+        state[1].reset()
+        state[2] = List()
+        processor.insertcode(state, self.pushacc, self.do_next)
+    #-def
+
+    def do_next(self, processor):
+        """
+        """
+
+        state = processor.topval()
+        x = state[1].next()
+        if x is state[1]:
+            processor.setacc(state[2])
+            processor.popval()
+            return
+        processor.insertcode(
+            Call(self.opf, state[0], x), self.do_contribute, self.do_next
+        )
+    #-def
+
+    def do_contribute(self, processor):
+        """
+        """
+
+        state = processor.topval()
+        r = processor.acc()
+        if not isinstance(r, Pair):
+            raise CommandError(processor.TypeError,
+                "%s: Function %s should return a pair" \
+                % (self.name, state[0][0])
+            )
+        result, keep_result = r
+        if not isinstance(keep_result, bool):
+            raise CommandError(processor.TypeError,
+                "%s: Function %s should return a pair (any, boolean)" \
+                % (self.name, state[0][0])
+            )
+        if keep_result:
+            state[2].append(result)
+    #-def
+#-class
+
+class Map(SeqOp):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a, b):
+        """
+        """
+
+        SeqOp.__init__(self, a, b, Lambda(["f", "x"], False, [
+            Return(NewPair(Call(GetLocal("f"), GetLocal("x")), True))
+        ], []))
+    #-def
+#-class
+
+class Filter(SeqOp):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a, b):
+        """
+        """
+
+        SeqOp.__init__(self, a, b, Lambda(["p", "x"], False, [
+            Return(NewPair(GetLocal("x"), Call(GetLocal("p"), GetLocal("x"))))
+        ], []))
+    #-def
+#-class
+
+class Lambda(Operation):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a, b, c, d):
+        """
+        """
+
+        Operation.__init__(self, a, b, c, d)
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(Initializer(ctx), self.do_op, Finalizer(ctx))
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        ctx = processor.cmdctx(self)
+        params, vararg, body, bvars = self.operands
+        processor.setacc(Procedure(
+            "<lambda>", bvars, params, vararg, body, ctx.env
+        ))
+    #-def
+#-class
 
 class Block(Trackable):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'commands' ]
 
     def __init__(self, *commands):
         """
@@ -1497,20 +2105,22 @@ class Block(Trackable):
         self.commands = commands
     #-def
 
-    def enter(self, processor):
+    def enter(self, processor, ctx):
         """
         """
 
-        self.env = processor.newenv()
-        processor.pushcmd(self)
+        ctx.env = processor.newenv()
+        ctx.nvals = processor.nvals()
+        processor.pushctx(ctx)
     #-def
 
     def expand(self, processor):
         """
         """
 
+        ctx = CommandContext(self)
         processor.insertcode(
-            *((self.enter,) + self.commands + (Finalizer(self),))
+            *((Initializer(ctx),) + self.commands + (Finalizer(ctx),))
         )
     #-def
 #-class
@@ -1534,8 +2144,9 @@ class If(Trackable):
         """
         """
 
+        ctx = CommandContext(self)
         processor.insertcode(
-            self.enter, self.c, self.pushacc, self.do_if, Finalizer(self)
+            Initializer(ctx), self.c, self.do_if, Finalizer(ctx)
         )
     #-def
 
@@ -1544,7 +2155,7 @@ class If(Trackable):
         """
 
         processor.insertcode(
-            *(self.t if processor.popval() else self.e)
+            *(self.t if processor.acc() else self.e)
         )
     #-def
 #-class
@@ -1552,7 +2163,7 @@ class If(Trackable):
 class Foreach(Trackable):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'var', 'itexp', 'body' ]
 
     def __init__(self, var, itexp, body):
         """
@@ -1561,16 +2172,16 @@ class Foreach(Trackable):
         Trackable.__init__(self)
         self.var = var
         self.itexp = itexp
-        self.body = body
-        self.iterator = None
+        self.body = tuple(body)
     #-def
 
     def expand(self, processor):
         """
         """
 
+        ctx = CommandContext(self)
         processor.insertcode(
-            self.enter, self.itexp, self.do_for, Finalizer(self)
+            Initializer(ctx), self.itexp, self.do_for, Finalizer(ctx)
         )
     #-def
 
@@ -1578,23 +2189,30 @@ class Foreach(Trackable):
         """
         """
 
-        if not isinstance(processor.acc(), Iterable):
-            raise CmdTypeError("Object must be iterable")
-        self.iterator = processor.acc().iterator()
-        self.iterator.reset()
-        processor.insertcode(self.do_loop)
+        state = {}
+        it = processor.acc()
+        if not isinstance(it, CollectionTypes):
+            raise CommandError(processor.TypeError,
+                "%s: Object must be iterable" % self.name
+            )
+        if isinstance(it, str):
+            it = List(it)
+        state[0] = it.iterator()
+        state[0].reset()
+        processor.insertcode(state, self.pushacc, self.do_loop)
     #-def
 
     def do_loop(self, processor):
         """
         """
 
-        x = self.iterator.next()
-        if x is self.iterator:
+        state = processor.topval()
+        x = state[0].next()
+        if x is state[0]:
+            processor.popval()
             return
-        processor.pushval(x)
         processor.insertcode(
-            *((self.do_setvar,) + self.body + (self.do_loop,))
+            *((x, self.do_setvar) + self.body + (self.do_loop,))
         )
     #-def
 
@@ -1602,23 +2220,15 @@ class Foreach(Trackable):
         """
         """
 
-        self.env.setvar(self.var, processor.popval())
-    #-def
-
-    def leave(self, processor):
-        """
-        """
-
-        self.iterator.reset()
-        self.iterator = None
-        Trackable.leave(self, processor)
+        ctx = processor.cmdctx(self)
+        ctx.env.setvar(self.var, processor.acc())
     #-def
 #-class
 
 class Closure(Trackable):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'name', 'bvars', 'args', 'body', 'outer' ]
 
     def __init__(self, name, bvars, args, body, outer):
         """
@@ -1628,7 +2238,7 @@ class Closure(Trackable):
         self.name = name
         self.bvars = bvars
         self.args = args
-        self.body = body
+        self.body = tuple(body)
         self.outer = outer
     #-def
 
@@ -1639,39 +2249,64 @@ class Closure(Trackable):
         return True
     #-def
 
-    def enter(self, processor):
+    def enter(self, processor, ctx):
         """
         """
 
-        self.env = Environment(self.outer)
+        ctx.env = processor.newenv(self.outer)
         for bvar in self.bvars:
-            self.env.setvar(bvar, Null())
+            ctx.env.setvar(bvar, processor.Null)
         for argname in self.args:
-            self.env.setvar(argname, self.args[argname])
-        processor.pushcmd(self)
+            ctx.env.setvar(argname, self.args[argname])
+        ctx.nvals = processor.nvals()
+        processor.pushctx(ctx)
     #-def
 
     def expand(self, processor):
         """
         """
 
+        ctx = CommandContext(self)
         processor.insertcode(
-            *((self.enter,) + self.body + (Finalizer(self),))
+            *((Initializer(ctx),) + self.body + (Finalizer(ctx),))
         )
     #-def
 #-class
 
-class Call(Command):
+class ICall(Command):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'proc' ]
 
-    def __init__(self, name, *args):
+    def __init__(self, proc):
         """
         """
 
         Command.__init__(self)
-        self.name = value(name)
+        self.proc = proc
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        args = processor.popval()
+        name, bvars, _, _, body, outer = self.proc
+        processor.insertcode(Closure(name, bvars, args, body, outer))
+    #-def
+#-class
+
+class Call(Trackable):
+    """
+    """
+    __slots__ = [ 'proc', 'args', 'evargs', 'valist' ]
+
+    def __init__(self, proc, *args):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.proc = proc
         self.args = args
     #-def
 
@@ -1679,56 +2314,97 @@ class Call(Command):
         """
         """
 
-        proc = processor.getenv().getvar(self.name)
-        if not isinstance(proc, ProcedureTemplate):
-            procedure.insertcode(CmdTypeError(
-                "%s must be callable" % self.name
-            ))
-            return
-        _, params, _, _ = proc
-        nparams = len(params)
-        nargs = len(self.args)
-        if nargs != nparams:
-            processor.insertcode(CmdTypeError(
-                "%s takes %d argument%s but %d w%s given" \
-                % (
-                    self.name,
-                    nparams,
-                    "" if nparams == 1 else "s",
-                    nargs,
-                    "as" if nargs == 1 else "ere"
-                )
-            ))
-            return
-        processor.pushval(Value({}))
-        i = 0
-        for arg in self.args:
-            processor.insertcode(
-                arg, self.pushacc, Value(params[i]), self.pushacc, self.do_arg
-            )
-            i += 1
+        ctx = CommandContext(self)
         processor.insertcode(
-            Value((self.name, proc)), self.pushacc, self.do_call
+            Initializer(ctx), self.proc, self.do_call, Finalizer(ctx)
         )
-    #-def
-
-    def do_arg(self, processor):
-        """
-        """
-
-        name = processor.popval().value
-        value = processor.popval()
-        processor.topval().value[name] = value
     #-def
 
     def do_call(self, processor):
         """
         """
 
-        name, proc = processor.popval().value
-        args = processor.popval().value
-        bvars, _, body, outer = proc
-        processor.insertcode(Closure(name, bvars, args, body, outer))
+        proc = processor.acc()
+        if not isinstance(proc, Procedure):
+            raise CommandError(processor.TypeError,
+                "%s: Procedure expected" % self.name
+            )
+        _, _, params, vararg, _, _ = proc
+        nargs, nparams = len(self.args), len(params)
+        argsokf = (lambda na, np: np > 0 and na >= np - 1) if vararg \
+            else (lambda na, np: na == np)
+        if not argsokf(nargs, nparams):
+            raise CommandError(processor.TypeError,
+                "%s %s: Bad count of arguments" % (self.name, proc[0])
+            )
+        code = [{}, self.pushacc]
+        nreqargs = nparams - 1 if vararg else nparams
+        i = 0
+        while i < nreqargs:
+            code.extend([self.args[i], self.pushacc, params[i], self.do_arg])
+            i += 1
+        if vararg:
+            code.extend([[], self.pushacc])
+        while i < nargs:
+            code.extend([self.args[i], self.do_vararg])
+            i += 1
+        if vararg:
+            code.extend([params[-1], self.finish_varargs])
+        code.append(ICall(proc))
+        processor.insertcode(*code)
+    #-def
+
+    def do_arg(self, processor):
+        """
+        """
+
+        name = processor.acc()
+        value = processor.popval()
+        processor.topval()[name] = value
+    #-def
+
+    def do_vararg(self, processor):
+        """
+        """
+
+        processor.topval().append(processor.acc())
+    #-def
+
+    def finish_varargs(self, processor):
+        """
+        """
+
+        name = processor.acc()
+        valist = processor.popval()
+        processor.topval()[name] = valist
+    #-def
+#-class
+
+class Return(Command):
+    """
+    """
+    __slots__ = [ 'expr' ]
+
+    def __init__(self, expr = None):
+        """
+        """
+
+        Command.__init__(self)
+        self.expr = expr
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        processor.insertcode(self.expr, self.do_return)
+    #-def
+
+    def do_return(self, processor):
+        """
+        """
+
+        processor.handle_return()
     #-def
 #-class
 

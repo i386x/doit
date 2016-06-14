@@ -44,18 +44,23 @@ from doit.text.pgen.readers.glap.cmd.runtime import \
     Pair, \
     List, \
     HashMap, \
-    ExceptionClass
+    UserType, \
+    ExceptionClass, \
+    Procedure
 
 from doit.text.pgen.readers.glap.cmd.commands import \
     Location, \
+    CommandContext, \
     Command, \
     SetLocal, \
     GetLocal, \
+    Define, \
     Operation, \
     Add, Sub, Mul, Div, Mod, Neg, \
     BitAnd, BitOr, BitXor, ShiftL, ShiftR, Inv, \
     Lt, Gt, Le, Ge, Eq, Ne, Is, \
     And, Or, Not, \
+    NewPair, \
     Copy, Slice, Concat, Join, Merge, \
     Strlen, Size, Empty, Contains, Count, \
     IsDigit, IsUpper, IsLower, IsAlpha, IsLetter, IsAlnum, IsWord, \
@@ -65,11 +70,51 @@ from doit.text.pgen.readers.glap.cmd.commands import \
     LStrip, RStrip, Strip, ToUpper, ToLower, Subst, Trans, \
     Sort, Reverse, Unique, \
     Split, \
-    If
+    ToBool, ToInt, ToFlt, ToStr, ToPair, ToList, ToHash, \
+    All, Any, SeqOp, Map, Filter, \
+    Lambda, \
+    Block, If, Foreach, \
+    Call, Return
 
 from doit.text.pgen.readers.glap.cmd.eval import \
     Environment, \
     CommandProcessor
+
+class UT_000(UserType):
+    __slots__ = []
+
+    def __init__(self):
+        UserType.__init__(self)
+    #-def
+
+    def to_bool(self, processor):
+        return False
+    #-def
+
+    def to_int(self, processor):
+        return 8
+    #-def
+
+    def to_float(self, processor):
+        return 1.8
+    #-def
+
+    def to_str(self, processor):
+        return "what"
+    #-def
+
+    def to_pair(self, processor):
+        return Pair('x', 9)
+    #-def
+
+    def to_list(self, processor):
+        return List(['a', 4, 'z'])
+    #-def
+
+    def to_hash(self, processor):
+        return HashMap({1.25: "gosh!"})
+    #-def
+#-class
 
 class TestLocationCase(unittest.TestCase):
 
@@ -100,22 +145,22 @@ class TestCommandCase(unittest.TestCase):
     def test_command_methods(self):
         p = CommandProcessor()
         c = Command()
+        ctx = CommandContext(c)
 
         self.assertEqual(c.name, 'command')
         self.assertEqual(c.location, Location())
-        self.assertIsNone(c.env)
         self.assertFalse(c.isfunc())
         c.set_location("X.f", 5, 8)
         self.assertEqual(str(c), '"command" at ["X.f":5:8]')
         c.help(p)
-        c.enter(p)
+        c.enter(p, ctx)
         c.expand(p)
-        c.leave(p)
+        c.leave(p, ctx)
         p.setacc(56)
         c.pushacc(p)
         self.assertEqual(p.popval(), 56)
         self.assertIsNone(
-            c.find_exception_handler(CommandError(p.TypeError, ""))
+            c.find_exception_handler(ctx, CommandError(p.TypeError, ""))
         )
     #-def
 #-class
@@ -149,6 +194,23 @@ class TestOperationsCase(unittest.TestCase):
 
         with self.assertRaises(CommandProcessorError):
             p.run([Operation()])
+    #-def
+
+    def test_arity(self):
+        p = CommandProcessor()
+        add1 = Operation(1, 2, 3)
+        add1.name = 'add'
+        add2 = Operation(1)
+        add2.name = 'add'
+        add3 = Operation()
+        add3.name = 'add'
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([add1])
+        with self.assertRaises(CommandProcessorError):
+            p.run([add2])
+        with self.assertRaises(CommandProcessorError):
+            p.run([add3])
     #-def
 
     def test_Add(self):
@@ -418,6 +480,17 @@ class TestOperationsCase(unittest.TestCase):
         self.assertTrue(p.acc())
         p.run([Not(True)])
         self.assertFalse(p.acc())
+    #-def
+
+    def test_NewPair(self):
+        p = CommandProcessor()
+
+        p.run([
+            SetLocal('a', 1),
+            SetLocal('v', "***"),
+            NewPair(GetLocal('a'), GetLocal('v'))
+        ])
+        self.assertEqual(p.acc(), (1, "***"))
     #-def
 
     def test_Copy(self):
@@ -880,6 +953,510 @@ class TestOperationsCase(unittest.TestCase):
         self.assertEqual(p.acc(), ["a", "b", "c. ", ""])
         self.assertIsInstance(p.acc(), List)
     #-def
+
+    def test_ToBool(self):
+        p = CommandProcessor()
+
+        p.run([ToBool(True)])
+        self.assertIs(p.acc(), True)
+        p.run([ToBool(False)])
+        self.assertIs(p.acc(), False)
+        p.run([ToBool(0)])
+        self.assertIs(p.acc(), False)
+        p.run([ToBool(0.0)])
+        self.assertIs(p.acc(), False)
+        p.run([ToBool(12)])
+        self.assertIs(p.acc(), True)
+        p.run([ToBool(1.2)])
+        self.assertIs(p.acc(), True)
+        p.run([ToBool("")])
+        self.assertIs(p.acc(), False)
+        p.run([ToBool("asd")])
+        self.assertIs(p.acc(), True)
+        p.run([ToBool((1, 2))])
+        self.assertIs(p.acc(), True)
+        p.run([ToBool([])])
+        self.assertIs(p.acc(), False)
+        p.run([ToBool([[]])])
+        self.assertIs(p.acc(), True)
+        p.run([ToBool({})])
+        self.assertIs(p.acc(), False)
+        p.run([ToBool({1: 2, 'a': 4})])
+        self.assertIs(p.acc(), True)
+        p.run([ToBool(UserType())])
+        self.assertIs(p.acc(), True)
+        p.run([ToBool(UT_000())])
+        self.assertIs(p.acc(), False)
+        p.run([ToBool(Procedure(1, 2, 3, 4, 5, 6))])
+        self.assertIs(p.acc(), True)
+        p.run([ToBool(p.Null)])
+        self.assertIs(p.acc(), False)
+    #-def
+
+    def test_ToInt(self):
+        p = CommandProcessor()
+
+        p.run([ToInt(False)])
+        self.assertIsInstance(p.acc(), int)
+        self.assertEqual(p.acc(), 0)
+        p.run([ToInt(True)])
+        self.assertIsInstance(p.acc(), int)
+        self.assertEqual(p.acc(), 1)
+        p.run([ToInt(2)])
+        self.assertIsInstance(p.acc(), int)
+        self.assertEqual(p.acc(), 2)
+        p.run([ToInt(-1.5)])
+        self.assertIsInstance(p.acc(), int)
+        self.assertEqual(p.acc(), -1)
+        p.run([ToInt("2")])
+        self.assertIsInstance(p.acc(), int)
+        self.assertEqual(p.acc(), 2)
+        p.run([ToInt("-1.5")])
+        self.assertIsInstance(p.acc(), int)
+        self.assertEqual(p.acc(), -1)
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToInt("-1.5x")])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToInt(UserType())])
+        p.run([ToInt(UT_000())])
+        self.assertIsInstance(p.acc(), int)
+        self.assertEqual(p.acc(), 8)
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToInt({})])
+    #-def
+
+    def test_ToFlt(self):
+        p = CommandProcessor()
+
+        p.run([ToFlt(False)])
+        self.assertIsInstance(p.acc(), float)
+        self.assertEqual(p.acc(), 0.0)
+        p.run([ToFlt(True)])
+        self.assertIsInstance(p.acc(), float)
+        self.assertEqual(p.acc(), 1.0)
+        p.run([ToFlt(1)])
+        self.assertIsInstance(p.acc(), float)
+        self.assertEqual(p.acc(), 1.0)
+        p.run([ToFlt(1.2)])
+        self.assertIsInstance(p.acc(), float)
+        self.assertEqual(p.acc(), 1.2)
+        p.run([ToFlt("1.2")])
+        self.assertIsInstance(p.acc(), float)
+        self.assertEqual(p.acc(), 1.2)
+        p.run([ToFlt("1")])
+        self.assertIsInstance(p.acc(), float)
+        self.assertEqual(p.acc(), 1.0)
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToFlt("1.5x")])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToFlt(UserType())])
+        p.run([ToFlt(UT_000())])
+        self.assertIsInstance(p.acc(), float)
+        self.assertEqual(p.acc(), 1.8)
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToFlt({})])
+    #-def
+
+    def test_ToStr(self):
+        p = CommandProcessor()
+
+        # invalid specs:
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(1, 2)])
+        # bool:
+        # - defaults:
+        p.run([ToStr(True)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "true")
+        p.run([ToStr(False)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "false")
+        # - custom:
+        s = dict(strue = "X", sfalse = "Y")
+        p.run([ToStr(True, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "X")
+        p.run([ToStr(False, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "Y")
+        # - invalid:
+        s = dict(sfalse = 1)
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(True, s)])
+        # int:
+        # - defaults:
+        p.run([ToStr(14)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "14")
+        # - common flags:
+        s = dict(flags = "+")
+        p.run([ToStr(14, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "+14")
+        # - specific flags:
+        s = dict(iflags = " ", flags = "+")
+        p.run([ToStr(14, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), " 14")
+        # - invalid flags:
+        s = dict(iflags = 0)
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(0, s)])
+        s = dict(iflags = " -+0*")
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(0, s)])
+        # - common size:
+        s = dict(size = 4)
+        p.run([ToStr(14, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "  14")
+        # - specific size:
+        s = dict(size = 4, isize = 6)
+        p.run([ToStr(14, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "    14")
+        # - invalid size:
+        s = dict(isize = "0")
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(0, s)])
+        # - common precision:
+        s = dict(prec = 3)
+        p.run([ToStr(14, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "014")
+        # - specific precision:
+        s = dict(prec = 3, iprec = 4)
+        p.run([ToStr(14, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "0014")
+        # - invalid precision:
+        s = dict(iprec = "0")
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(0, s)])
+        # - display types:
+        s = dict(itype = "o")
+        p.run([ToStr(14, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "16")
+        s = dict(itype = "x")
+        p.run([ToStr(14, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "e")
+        s = dict(itype = "X")
+        p.run([ToStr(14, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "E")
+        # - invalid display type:
+        s = dict(itype = "?")
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(14, s)])
+        # - all specs together:
+        s = dict(flags = " -+0", size = 8, prec = 4, itype = "X")
+        p.run([ToStr(1408, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "+0580   ")
+        # float:
+        # - defaults:
+        p.run([ToStr(1.25)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "1.250000")
+        # - common flags:
+        s = dict(flags = "+")
+        p.run([ToStr(1.25, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "+1.250000")
+        # - specific flags:
+        s = dict(fflags = " ", flags = "+")
+        p.run([ToStr(1.25, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), " 1.250000")
+        # - invalid flags:
+        s = dict(fflags = 0)
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(1.5, s)])
+        s = dict(fflags = " -+0*")
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(1.5, s)])
+        # - common size:
+        s = dict(size = 6, prec = 2)
+        p.run([ToStr(1.25, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "  1.25")
+        # - specific size:
+        s = dict(size = 6, fsize = 8, prec = 3)
+        p.run([ToStr(1.125, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "   1.125")
+        # - invalid size:
+        s = dict(fsize = "0")
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(0.1, s)])
+        # - common precision:
+        s = dict(prec = 3)
+        p.run([ToStr(1.5, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "1.500")
+        # - specific precision:
+        s = dict(prec = 3, fprec = 4)
+        p.run([ToStr(1.5, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "1.5000")
+        # - invalid precision:
+        s = dict(fprec = "0")
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(0.1, s)])
+        # - display types:
+        s = dict(ftype = "e")
+        p.run([ToStr(0.0625, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "6.250000e-02")
+        s = dict(ftype = "E")
+        p.run([ToStr(0.0625, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "6.250000E-02")
+        # - invalid display type:
+        s = dict(ftype = "g")
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(0.1, s)])
+        # - all specs together:
+        s = dict(flags = "+0", size = 15, prec = 7, ftype = "E")
+        p.run([ToStr(1.0/128, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "+07.8125000E-03")
+        # str:
+        p.run([ToStr("abc")])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "abc")
+        # user type:
+        p.run([ToStr(UT_000())])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "what")
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(UserType())])
+        # procedure:
+        p.run([ToStr(Procedure("f1", 0, 0, 0, 0, 0))])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "f1")
+        # null:
+        # - defaults:
+        p.run([ToStr(p.Null)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "null")
+        # - custom:
+        s = dict(snull = "nope")
+        p.run([ToStr(p.Null, s)])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "nope")
+        # - invalid:
+        s = dict(snull = 1)
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr(p.Null, s)])
+        # unconvertible:
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToStr({})])
+    #-def
+
+    def test_ToPair(self):
+        p = CommandProcessor()
+
+        p.run([ToPair("ab")])
+        self.assertIsInstance(p.acc(), Pair)
+        self.assertEqual(p.acc(), ('a', 'b'))
+        p.run([ToPair((1, "xyx"))])
+        self.assertIsInstance(p.acc(), Pair)
+        self.assertEqual(p.acc(), (1, "xyx"))
+        p.run([ToPair([2, "uxv"])])
+        self.assertIsInstance(p.acc(), Pair)
+        self.assertEqual(p.acc(), (2, "uxv"))
+        p.run([ToPair(UT_000())])
+        self.assertIsInstance(p.acc(), Pair)
+        self.assertEqual(p.acc(), ('x', 9))
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToPair(UserType())])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToPair([1, 2, 3])])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToPair(0)])
+    #-def
+
+    def test_ToList(self):
+        p = CommandProcessor()
+
+        p.run([ToList("abcd")])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), ['a', 'b', 'c', 'd'])
+        p.run([ToList((2, 7))])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [2, 7])
+        p.run([ToList([1, 'a', 0.5])])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [1, 'a', 0.5])
+        p.run([ToList({0.25: "uv"})])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [(0.25, "uv")])
+        p.run([ToList(UT_000())])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), ['a', 4, 'z'])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToList(UserType())])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToList(0)])
+    #-def
+
+    def test_ToHash(self):
+        p = CommandProcessor()
+
+        p.run([ToHash(('a', 0.5))])
+        self.assertIsInstance(p.acc(), HashMap)
+        self.assertEqual(p.acc(), {'a': 0.5})
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToHash([(1, 2), "a"])])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToHash([(1, 2), (1, 2, 3)])])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToHash([(1, 2), Procedure(1, 2, 3, 4, 5, 6)])])
+        p.run([ToHash([])])
+        self.assertIsInstance(p.acc(), HashMap)
+        self.assertEqual(p.acc(), {})
+        p.run([ToHash([('a', 0.5), (1, "uv")])])
+        self.assertIsInstance(p.acc(), HashMap)
+        self.assertEqual(p.acc(), {1: "uv", 'a': 0.5})
+        p.run([ToHash({1: 2, 3: 4})])
+        self.assertIsInstance(p.acc(), HashMap)
+        self.assertEqual(p.acc(), {3: 4, 1: 2})
+        p.run([ToHash(UT_000())])
+        self.assertIsInstance(p.acc(), HashMap)
+        self.assertEqual(p.acc(), {1.25: "gosh!"})
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToHash(UserType())])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ToHash(0)])
+    #-def
+
+    def test_Quantifier(self):
+        p = CommandProcessor()
+        prog = [
+            Define("even", [], ["x"], False, [
+                Return(Eq(Mod(GetLocal("x"), 2), 0))
+            ]),
+            Define("islower", [], ["c"], False, [
+                Return(IsLower(GetLocal("c")))
+            ]),
+            Define("p", [], ["x"], False, [
+                If(Ne(GetLocal("x"), 0), [
+                    Return(True)
+                ], [
+                    Return({})
+                ])
+            ])
+        ]
+
+        p.run(prog)
+        p.run([All([], GetLocal("even"))])
+        self.assertTrue(p.acc())
+        p.run([All([0], GetLocal("even"))])
+        self.assertTrue(p.acc())
+        p.run([All([0, 2, 4, 6], GetLocal("even"))])
+        self.assertTrue(p.acc())
+        p.run([All([0, 2, 4, 6, 11, 8, 12], GetLocal("even"))])
+        self.assertFalse(p.acc())
+        p.run([All([0, 2, 4, 6, 11, 8, 12, 1], GetLocal("even"))])
+        self.assertFalse(p.acc())
+        p.run([All("", GetLocal("islower"))])
+        self.assertTrue(p.acc())
+        p.run([All("abcdefgh", GetLocal("islower"))])
+        self.assertTrue(p.acc())
+        p.run([All("abcdefGh", GetLocal("islower"))])
+        self.assertFalse(p.acc())
+        with self.assertRaises(CommandProcessorError):
+            p.run([All("", 0)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([All(0, GetLocal("even"))])
+        with self.assertRaises(CommandProcessorError):
+            p.run([All([0, 2, 4, 6, 11, 8, 12, 1, "av"], GetLocal("even"))])
+        p.run([All([], GetLocal("p"))])
+        self.assertTrue(p.acc())
+        with self.assertRaises(CommandProcessorError):
+            p.run([All(['a', "uv", 0.25, 0], GetLocal("p"))])
+        p.run([Any([], GetLocal("even"))])
+        self.assertFalse(p.acc())
+        p.run([Any([3, 1, 5, 7, 11], GetLocal("even"))])
+        self.assertFalse(p.acc())
+        p.run([Any([3, 1, 5, 7, 11, 2, 99, 101], GetLocal("even"))])
+        self.assertTrue(p.acc())
+        p.run([Any([3, 1, 5, 7, 11, 2, 99, 101, 4, 1], GetLocal("even"))])
+        self.assertTrue(p.acc())
+    #-def
+
+    def test_SeqOp(self):
+        p = CommandProcessor()
+        prog = [
+            Define("even", [], ["x"], False, [
+                Return(Eq(Mod(GetLocal("x"), 2), 0))
+            ]),
+            Define("incr", [], ["x"], False, [
+                Return(Add(GetLocal("x"), 1))
+            ]),
+            Define("upper", [], ["x"], False, [
+                Return(ToUpper(GetLocal("x")))
+            ])
+        ]
+
+        p.run(prog)
+        with self.assertRaises(CommandProcessorError):
+            p.run([Map([], 0)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Map(0, GetLocal("incr"))])
+        p.run([Map("abc", GetLocal("upper"))])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), ['A', 'B', 'C'])
+        p.run([Map("", GetLocal("incr"))])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [])
+        with self.assertRaises(CommandProcessorError):
+            p.run([SeqOp((1, 2), GetLocal("incr"), Lambda(["x", "y"], False, [
+                Return(0)
+            ], []))])
+        with self.assertRaises(CommandProcessorError):
+            p.run([SeqOp((1, 2), GetLocal("incr"), Lambda(["x", "y"], False, [
+                Return(NewPair(0, 1))
+            ], []))])
+        p.run([Map((3, 4), GetLocal("incr"))])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [4, 5])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Filter((3, 4), GetLocal("incr"))])
+        p.run([Filter((3, 4), GetLocal("even"))])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [4])
+        p.run([Filter([1, 3, 5], GetLocal("even"))])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [])
+        p.run([Filter([], GetLocal("even"))])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [])
+        p.run([Filter([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], GetLocal("even"))])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [0, 2, 4, 6, 8])
+    #-def
+#-class
+
+class TestBlockCase(unittest.TestCase):
+
+    def test_Block(self):
+        p = CommandProcessor()
+
+        p.run([
+            SetLocal("x", "abc"),
+            Block(
+                SetLocal("x", "def"),
+                SetLocal("y", 1)
+            )
+        ])
+        self.assertEqual(p.getenv().getvar("x"), "abc")
+        with self.assertRaises(CommandError):
+            p.getenv().getvar("y")
+    #-def
 #-class
 
 class TestIfCase(unittest.TestCase):
@@ -898,6 +1475,252 @@ class TestIfCase(unittest.TestCase):
     #-def
 #-class
 
+class TestForeachCase(unittest.TestCase):
+
+    def test_Foreach(self):
+        p = CommandProcessor()
+
+        p.run([
+            SetLocal("x", 0),
+            Foreach("i", [], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("i")))
+            ])
+        ])
+        self.assertEqual(p.getenv()["x"], 0)
+        with self.assertRaises(CommandError):
+            p.getenv().getvar("i")
+        p.run([
+            SetLocal("x", 0),
+            Foreach("i", [1], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("i")))
+            ])
+        ])
+        self.assertEqual(p.getenv()["x"], 1)
+        self.assertEqual(p.getenv()["i"], 1)
+        p.run([
+            SetLocal("x", 2),
+            Foreach("j", [1, 8, 5], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("j")))
+            ])
+        ])
+        self.assertEqual(p.getenv()["x"], 16)
+        self.assertEqual(p.getenv()["i"], 1)
+        self.assertEqual(p.getenv()["j"], 5)
+        p.run([
+            SetLocal("x", 2),
+            Foreach("k", "", [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("k")))
+            ])
+        ])
+        self.assertEqual(p.getenv()["x"], 2)
+        self.assertEqual(p.getenv()["i"], 1)
+        self.assertEqual(p.getenv()["j"], 5)
+        with self.assertRaises(CommandError):
+            p.getenv().getvar("k")
+        p.run([
+            SetLocal("x", 2),
+            Foreach("k", "uiv", [
+                SetLocal("x", Add(GetLocal("x"), 1))
+            ])
+        ])
+        self.assertEqual(p.getenv()["x"], 5)
+        self.assertEqual(p.getenv()["i"], 1)
+        self.assertEqual(p.getenv()["j"], 5)
+        self.assertEqual(p.getenv()["k"], "v")
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                SetLocal("x", 2),
+                Foreach("l", 0, [
+                    SetLocal("x", Add(GetLocal("x"), 1))
+                ])
+            ])
+        self.assertEqual(p.getenv()["x"], 2)
+        self.assertEqual(p.getenv()["i"], 1)
+        self.assertEqual(p.getenv()["j"], 5)
+        self.assertEqual(p.getenv()["k"], "v")
+    #-def
+#-class
+
+class TestCallCase(unittest.TestCase):
+
+    def test_Call(self):
+        p = CommandProcessor()
+
+        # no proc
+        program = [
+            SetLocal("my_proc", 0),
+            Call(GetLocal("my_proc"))
+        ]
+        with self.assertRaises(CommandProcessorError):
+            p.run(program)
+        # args (no vararg)
+        program = [
+            Define("sum", [], ["a", "b"], False, [
+                Return(Add(GetLocal("a"), GetLocal("b")))
+            ])
+        ]
+        p.run(program)
+        with self.assertRaises(CommandProcessorError):
+            p.run([Call(GetLocal("sum"))])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Call(GetLocal("sum"), 1)])
+        p.run([Call(GetLocal("sum"), 1, 2)])
+        self.assertEqual(p.acc(), 3)
+        with self.assertRaises(CommandProcessorError):
+            p.run([Call(GetLocal("sum"), 1, 2, 3)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Call(GetLocal("sum"), 1, 2, 3, 4)])
+        # args (vararg)
+        program = [
+            Define("reflect", [], ["args"], True, [
+                Return(GetLocal("args"))
+            ]),
+            Define("reflect_as_pair", [], ["x", "args"], True, [
+                Return(NewPair(GetLocal("x"), GetLocal("args")))
+            ])
+        ]
+        p.run(program)
+        p.run([Call(GetLocal("reflect"))])
+        self.assertEqual(p.acc(), [])
+        p.run([Call(GetLocal("reflect"), 1, 'a', 0.25, {'p': 1.5})])
+        self.assertEqual(p.acc(), [1, 'a', 0.25, {'p': 1.5}])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Call(GetLocal("reflect_as_pair"))])
+        p.run([Call(GetLocal("reflect_as_pair"), 'z')])
+        self.assertEqual(p.acc(), ('z', []))
+        p.run([Call(GetLocal("reflect_as_pair"), 'z', 4)])
+        self.assertEqual(p.acc(), ('z', [4]))
+        p.run([Call(GetLocal("reflect_as_pair"), 'z', 4, "uv")])
+        self.assertEqual(p.acc(), ('z', [4, "uv"]))
+        # bounds: 0, params: 0, varargs: 0, return: 0
+        program = [
+            Define("get_leaf", [], [], False, [
+                0x1e4f
+            ]),
+            Call(GetLocal("get_leaf"))
+        ]
+        p.run(program)
+        self.assertEqual(p.acc(), 0x1e4f)
+        # bounds: 0, params: 0, varargs: 0, return: 1
+        program = [
+            Define("get_result", [], [], False, [
+                Return(Concat(ToStr(Mul(2, 6)), " apes"))
+            ]),
+            Call(GetLocal("get_result"))
+        ]
+        p.run(program)
+        self.assertEqual(p.acc(), "12 apes")
+        # bounds: 1, params: 1, varargs: 0, return: 1
+        program = [
+            SetLocal("t", "<t>"),
+            SetLocal("x", "<x>"),
+            SetLocal("y", "<y>"),
+            Define("f", ["t"], ["x", "y"], False, [
+                If(Lt(GetLocal("x"), GetLocal("y")), [
+                    Return(GetLocal("t"))
+                ], [
+                    SetLocal("t", Sub(GetLocal("x"), GetLocal("y"))),
+                    Return(GetLocal("t"))
+                ])
+            ]),
+            SetLocal("be_null", Call(GetLocal("f"), 0, 1)),
+            SetLocal("be_seven", Call(GetLocal("f"), 21, 14))
+        ]
+        p.run(program)
+        self.assertEqual(p.getenv()["t"], "<t>")
+        self.assertEqual(p.getenv()["x"], "<x>")
+        self.assertEqual(p.getenv()["y"], "<y>")
+        self.assertIs(p.getenv()["be_null"], p.Null)
+        self.assertEqual(p.getenv()["be_seven"], 7)
+        # function as argument
+        program = [
+            Define("times", [], ["x", "y"], False, [
+                Return(Mul(GetLocal("x"), GetLocal("y")))
+            ]),
+            Define("summ", [], ["x", "y"], False, [
+                Return(Add(GetLocal("x"), GetLocal("y")))
+            ]),
+            Define("binop", [], ["f", "x", "y"], False, [
+                Return(Call(GetLocal("f"), GetLocal("x"), GetLocal("y")))
+            ])
+        ]
+        p.run(program)
+        p.run([Call(GetLocal("binop"), GetLocal("times"), 3, 4)])
+        self.assertEqual(p.acc(), 12)
+        p.run([Call(GetLocal("binop"), GetLocal("summ"), 3, 4)])
+        self.assertEqual(p.acc(), 7)
+        # recursion
+        program = [
+            Define("fibo", [], ["n"], False, [
+                If(Le(GetLocal("n"), 1), [
+                    Return(GetLocal("n"))
+                ], [
+                    Return(Add(
+                        Call(GetLocal("fibo"), Sub(GetLocal("n"), 2)),
+                        Call(GetLocal("fibo"), Sub(GetLocal("n"), 1))
+                    ))
+                ])
+            ])
+        ]
+        p.run(program)
+        p.run([Call(GetLocal("fibo"), 10)])
+        self.assertEqual(p.acc(), 55)
+        # high order functions + outer bound
+        program = [
+            Define("new_counter", [], ["x"], False, [
+                Return(Lambda([], False, [
+                    SetLocal("x", Add(GetLocal("x"), 1), 1),
+                    Return(GetLocal("x"))
+                ], []))
+            ])
+        ]
+        p.run(program)
+        p.run([
+            SetLocal("x", "!!!"),
+            SetLocal("cf", Call(GetLocal("new_counter"), 0)),
+            SetLocal("cg", Call(GetLocal("new_counter"), 5)),
+            SetLocal("be_1", Call(GetLocal("cf"))),
+            SetLocal("be_6", Call(GetLocal("cg"))),
+            SetLocal("be_2", Call(GetLocal("cf"))),
+            SetLocal("be_3", Call(GetLocal("cf"))),
+            SetLocal("be_7", Call(GetLocal("cg"))),
+            SetLocal("be_8", Call(GetLocal("cg")))
+        ])
+        self.assertEqual(p.getenv()["x"], "!!!")
+        self.assertEqual(p.getenv()["be_1"], 1)
+        self.assertEqual(p.getenv()["be_2"], 2)
+        self.assertEqual(p.getenv()["be_3"], 3)
+        self.assertEqual(p.getenv()["be_6"], 6)
+        self.assertEqual(p.getenv()["be_7"], 7)
+        self.assertEqual(p.getenv()["be_8"], 8)
+        program = [
+            SetLocal("__x", 3),
+            SetLocal("__y", 2),
+            SetLocal("__c", 1),
+            SetLocal("__z", 0),
+            Define("__g", [], ["__x"], False, [
+                If(Gt(GetLocal("__x"), 0), [Block(
+                    SetLocal("__y", Add(GetLocal("__x"), 1)),
+                    SetLocal("__c", Call(GetLocal("__g"), Mod(
+                        Mul(GetLocal("__y"), 2), 7
+                    ))),
+                    Return(GetLocal("__c"))
+                )], [Block(
+                    SetLocal("__z", GetLocal("__y")),
+                    Return(GetLocal("__z"))
+                )])
+            ])
+        ]
+        p.run(program)
+        p.run([Call(GetLocal("__g"), 9)])
+        self.assertEqual(p.acc(), 2)
+        self.assertEqual(p.getenv()["__x"], 3)
+        self.assertEqual(p.getenv()["__y"], 2)
+        self.assertEqual(p.getenv()["__c"], 1)
+        self.assertEqual(p.getenv()["__z"], 0)
+    #-def
+#-class
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestLocationCase))
@@ -905,6 +1728,9 @@ def suite():
     suite.addTest(unittest.makeSuite(TestSetLocalCase))
     suite.addTest(unittest.makeSuite(TestGetLocalCase))
     suite.addTest(unittest.makeSuite(TestOperationsCase))
+    suite.addTest(unittest.makeSuite(TestBlockCase))
     suite.addTest(unittest.makeSuite(TestIfCase))
+    suite.addTest(unittest.makeSuite(TestForeachCase))
+    suite.addTest(unittest.makeSuite(TestCallCase))
     return suite
 #-def

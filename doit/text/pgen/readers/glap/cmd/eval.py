@@ -42,8 +42,10 @@ from doit.text.pgen.readers.glap.cmd.runtime import \
     Pair, \
     List, \
     HashMap, \
+    UserType, \
     ExceptionClass, \
-    Traceback
+    Traceback, \
+    Procedure
 
 from doit.text.pgen.readers.glap.cmd.commands import \
     Finalizer, \
@@ -97,13 +99,20 @@ class Environment(dict):
         if name in self:
             del self[name]
     #-def
+
+    def outer(self):
+        """
+        """
+
+        return self.__outer
+    #-def
 #-class
 
 class CommandProcessor(object):
     """
     """
     __slots__ = [
-        '__env', '__cmdstack', '__valstack', '__codebuff', '__acc', '__consts'
+        '__env', '__ctxstack', '__valstack', '__codebuff', '__acc', '__consts'
     ]
 
     def __init__(self, env = None):
@@ -112,7 +121,7 @@ class CommandProcessor(object):
 
         self.__env = env if env is not None else Environment()
         self.__env.setprocessor(self)
-        self.__cmdstack = []
+        self.__ctxstack = []
         self.__valstack = []
         self.__codebuff = []
         self.__acc = None
@@ -127,42 +136,66 @@ class CommandProcessor(object):
         return self.__env.__class__
     #-def
 
-    def newenv(self):
+    def newenv(self, outer = None):
         """
         """
 
-        return self.__env.__class__(self, self.getenv())
+        return self.__env.__class__(
+            self, self.getenv() if outer is None else outer
+        )
     #-def
 
     def getenv(self):
         """
         """
 
-        if self.__cmdstack and self.__cmdstack[-1].env is not None:
-            return self.__cmdstack[-1].env
+        if self.__ctxstack and self.__ctxstack[-1].env is not None:
+            return self.__ctxstack[-1].env
         return self.__env
     #-def
 
-    def pushcmd(self, cmd):
+    def pushctx(self, ctx):
         """
         """
 
-        self.__cmdstack.append(cmd)
+        self.__ctxstack.append(ctx)
     #-def
 
-    def popcmd(self, cmd):
+    def cmdctx(self, cmd):
         """
         """
 
-        if not self.__cmdstack:
+        if not self.__ctxstack:
             raise CommandProcessorError(Traceback([]),
-                "popcmd: Command stack is empty"
+                "cmdctx: Command context stack is empty"
             )
-        if self.__cmdstack[-1] is not cmd:
-            raise CommandProcessorError(Traceback(self.__cmdstack),
-                "popcmd: Command stack is corrupted"
+        ctx = self.__ctxstack[-1]
+        fnlz, i = None, 0
+        while i < len(self.__codebuff):
+            if isinstance(self.__codebuff[i], Finalizer):
+                fnlz = self.__codebuff[i]
+                break
+            i += 1
+        if not fnlz or fnlz.ctx is not ctx or ctx.cmd is not cmd:
+            raise CommandProcessorError(Traceback(self.__ctxstack),
+                "cmdctx: Inconsistent state"
             )
-        self.__cmdstack.pop()
+        return ctx
+    #-def
+
+    def popctx(self, ctx):
+        """
+        """
+
+        if not self.__ctxstack:
+            raise CommandProcessorError(Traceback([]),
+                "popctx: Command context stack is empty"
+            )
+        if self.__ctxstack[-1] is not ctx:
+            raise CommandProcessorError(Traceback(self.__ctxstack),
+                "popctx: Command context stack is corrupted"
+            )
+        self.__ctxstack.pop()
     #-def
 
     def pushval(self, val):
@@ -184,7 +217,7 @@ class CommandProcessor(object):
         """
 
         if not self.__valstack:
-            raise CommandProcessorError(Traceback(self.__cmdstack),
+            raise CommandProcessorError(Traceback(self.__ctxstack),
                 "topval: Value stack is empty"
             )
         return self.__valstack[-1]
@@ -195,10 +228,17 @@ class CommandProcessor(object):
         """
 
         if not self.__valstack:
-            raise CommandProcessorError(Traceback(self.__cmdstack),
+            raise CommandProcessorError(Traceback(self.__ctxstack),
                 "popval: Value stack is empty"
             )
         return self.__valstack.pop()
+    #-def
+
+    def nvals(self):
+        """
+        """
+
+        return len(self.__valstack)
     #-def
 
     def insertcode(self, *ops):
@@ -237,7 +277,9 @@ class CommandProcessor(object):
                     x(self)
                 except CommandError as e:
                     cb[:0] = [e]
-            elif isinstance(x, (bool, int, float, str, Iterable)):
+            elif isinstance(x, (
+                bool, int, float, str, Iterable, UserType, Procedure
+            )):
                 self.__acc = x
             elif isinstance(x, tuple) and len(x) == 2:
                 self.__acc = Pair(*x)
@@ -250,7 +292,7 @@ class CommandProcessor(object):
             elif isinstance(x, CommandError):
                 self.handle_exception(x)
             else:
-                raise CommandProcessorError(Traceback(self.__cmdstack),
+                raise CommandProcessorError(Traceback(self.__ctxstack),
                     "run: Unexpected object in code buffer appeared"
                 )
     #-def
@@ -259,17 +301,17 @@ class CommandProcessor(object):
         """
         """
 
-        cb, stack = self.__codebuff, self.__cmdstack
+        cb, stack = self.__codebuff, self.__ctxstack
         tb = Traceback(stack)
         handled = False
         while not handled and cb and stack:
             x = cb.pop(0)
             if isinstance(x, Finalizer):
-                if x.cmd is not stack[-1]:
+                if x.ctx is not stack[-1]:
                     raise CommandProcessorError(tb,
                         "handle_exception: Command stack is corrupted"
                     )
-                eh = stack[-1].find_exception_handler(e)
+                eh = stack[-1].cmd.find_exception_handler(x.ctx, e)
                 if eh is not None:
                     cb[:0] = eh
                     self.__acc = e
@@ -277,6 +319,30 @@ class CommandProcessor(object):
                 x(self)
         if not handled:
             raise CommandProcessorError(tb, "Uncaught exception %r" % e)
+    #-def
+
+    def handle_return(self):
+        """
+        """
+
+        cb, stack = self.__codebuff, self.__ctxstack
+        tb = Traceback(stack)
+        while cb:
+            x = cb.pop(0)
+            if isinstance(x, Finalizer):
+                if not stack or x.ctx is not stack[-1]:
+                    raise CommandProcessorError(tb,
+                        "handle_return: Command stack is corrupted"
+                    )
+                if not x.ctx.cmd.isfunc():
+                    x(self)
+                    continue
+                cb.insert(0, x)
+                break
+        if not cb:
+            raise CommandProcessorError(tb,
+                "return used outside function scope"
+            )
     #-def
 
     def cleanup(self):
@@ -287,8 +353,8 @@ class CommandProcessor(object):
             f = self.__codebuff.pop(0)
             if isinstance(f, Finalizer):
                 f(self)
-        while self.__cmdstack:
-            self.__cmdstack.pop()
+        while self.__ctxstack:
+            self.__ctxstack.pop()
         while self.__valstack:
             self.__valstack.pop()
         self.__acc = None
@@ -311,7 +377,7 @@ class CommandProcessor(object):
 
         if attr[0].isupper():
             if attr not in self.__consts:
-                raise CommandProcessorError(Traceback(self.__cmdstack),
+                raise CommandProcessorError(Traceback(self.__ctxstack),
                     "There is no '%s' constant defined" % attr
                 )
             return self.__consts[attr]

@@ -45,15 +45,21 @@ from doit.text.pgen.readers.glap.cmd.runtime import \
     Pair, \
     List, \
     HashMap, \
-    ExceptionClass
+    UserType, \
+    ExceptionClass, \
+    Procedure
 
 from doit.text.pgen.readers.glap.cmd.eval import \
     Environment, \
     CommandProcessor
 
 from doit.text.pgen.readers.glap.cmd.commands import \
+    CommandContext, \
+    Initializer, \
     Finalizer, \
-    Command
+    Command, \
+    Lambda, \
+    Call, Return
 
 class LoggingEnv(Environment):
     __slots__ = []
@@ -84,22 +90,26 @@ class TLoad(Command):
         self.varname = varname
     #-def
 
-    def enter(self, processor):
-        self.env = processor.getenv()
-        processor.pushcmd(self)
+    def enter(self, processor, ctx):
+        ctx.env = processor.getenv()
+        ctx.nvals = processor.nvals()
+        processor.pushctx(ctx)
     #-def
 
     def expand(self, processor):
-        processor.insertcode(self.enter, self.do_load, Finalizer(self))
+        ctx = CommandContext(self)
+        processor.insertcode(Initializer(ctx), self.do_load, Finalizer(ctx))
     #-def
 
     def do_load(self, processor):
-        processor.setacc(self.env.getvar(self.varname))
+        ctx = processor.cmdctx(self)
+        processor.setacc(ctx.env.getvar(self.varname))
     #-def
 
-    def leave(self, processor):
-        processor.popcmd(self)
-        self.env = None
+    def leave(self, processor, ctx):
+        while processor.nvals() > ctx.nvals:
+            processor.popval()
+        processor.popctx(ctx)
     #-def
 #-class
 
@@ -111,22 +121,26 @@ class TStore(Command):
         self.varname = varname
     #-def
 
-    def enter(self, processor):
-        self.env = processor.getenv()
-        processor.pushcmd(self)
+    def enter(self, processor, ctx):
+        ctx.env = processor.getenv()
+        ctx.nvals = processor.nvals()
+        processor.pushctx(ctx)
     #-def
 
     def expand(self, processor):
-        processor.insertcode(self.enter, self.do_store, Finalizer(self))
+        ctx = CommandContext(self)
+        processor.insertcode(Initializer(ctx), self.do_store, Finalizer(ctx))
     #-def
 
     def do_store(self, processor):
-        self.env.setvar(self.varname, processor.acc())
+        ctx = processor.cmdctx(self)
+        ctx.env.setvar(self.varname, processor.acc())
     #-def
 
-    def leave(self, processor):
-        processor.popcmd(self)
-        self.env = None
+    def leave(self, processor, ctx):
+        while processor.nvals() > ctx.nvals:
+            processor.popval()
+        processor.popctx(ctx)
     #-def
 #-class
 
@@ -138,20 +152,23 @@ class TBlock(Command):
         self.cmds = tuple(cmds)
     #-def
 
-    def enter(self, processor):
-        self.env = processor.envclass()(processor, processor.getenv())
-        processor.pushcmd(self)
+    def enter(self, processor, ctx):
+        ctx.env = processor.envclass()(processor, processor.getenv())
+        ctx.nvals = processor.nvals()
+        processor.pushctx(ctx)
     #-def
 
     def expand(self, processor):
+        ctx = CommandContext(self)
         processor.insertcode(
-            *((self.enter,) + self.cmds + (Finalizer(self),))
+            *((Initializer(ctx),) + self.cmds + (Finalizer(ctx),))
         )
     #-def
 
-    def leave(self, processor):
-        processor.popcmd(self)
-        self.env = None
+    def leave(self, processor, ctx):
+        while processor.nvals() > ctx.nvals:
+            processor.popval()
+        processor.popctx(ctx)
     #-def
 #-class
 
@@ -163,16 +180,14 @@ class TLogBlock(TBlock):
         self.i = i
     #-def
 
-    def enter(self, processor):
-        self.env = processor.envclass()(processor, processor.getenv())
-        processor.pushcmd(self)
-        self.env.wlog(processor, "<%d>" % self.i)
+    def enter(self, processor, ctx):
+        TBlock.enter(self, processor, ctx)
+        ctx.env.wlog(processor, "<%d>" % self.i)
     #-def
 
-    def leave(self, processor):
-        processor.popcmd(self)
-        self.env.wlog(processor, "</%d>" % self.i)
-        self.env = None
+    def leave(self, processor, ctx):
+        ctx.env.wlog(processor, "</%d>" % self.i)
+        TBlock.leave(self, processor, ctx)
     #-def
 #-class
 
@@ -185,22 +200,26 @@ class TSet(Command):
         self.value = value
     #-def
 
-    def enter(self, processor):
-        self.env = processor.getenv()
-        processor.pushcmd(self)
+    def enter(self, processor, ctx):
+        ctx.env = processor.getenv()
+        ctx.nvals = processor.nvals()
+        processor.pushctx(ctx)
     #-def
 
     def expand(self, processor):
-        processor.insertcode(self.enter, self.do_set, Finalizer(self))
+        ctx = CommandContext(self)
+        processor.insertcode(Initializer(ctx), self.do_set, Finalizer(ctx))
     #-def
 
     def do_set(self, processor):
-        self.env.setvar(self.varname, self.value)
+        ctx = processor.cmdctx(self)
+        ctx.env.setvar(self.varname, self.value)
     #-def
 
-    def leave(self, processor):
-        processor.popcmd(self)
-        self.env = None
+    def leave(self, processor, ctx):
+        while processor.nvals() > ctx.nvals:
+            processor.popval()
+        processor.popctx(ctx)
     #-def
 #-class
 
@@ -212,23 +231,25 @@ class TLoadEnv(Command):
         self.load_global = load_global
     #-def
 
-    def enter(self, processor):
-        if not self.load_global: 
-            self.env = processor.getenv()
-        processor.pushcmd(self)
+    def enter(self, processor, ctx):
+        ctx.env = processor.getenv() if not self.load_global else None
+        ctx.nvals = processor.nvals()
+        processor.pushctx(ctx)
     #-def
 
     def expand(self, processor):
-        processor.insertcode(self.enter, self.do_loadenv, Finalizer(self))
+        ctx = CommandContext(self)
+        processor.insertcode(Initializer(ctx), self.do_loadenv, Finalizer(ctx))
     #-def
 
     def do_loadenv(self, processor):
         processor.setacc(processor.getenv())
     #-def
 
-    def leave(self, processor):
-        processor.popcmd(self)
-        self.env = None
+    def leave(self, processor, ctx):
+        while processor.nvals() > ctx.nvals:
+            processor.popval()
+        processor.popctx(ctx)
     #-def
 #-class
 
@@ -264,23 +285,26 @@ class TTryCatch(Command):
         self.handlers = handlers
     #-def
 
-    def enter(self, processor):
-        self.env = processor.getenv()
-        processor.pushcmd(self)
+    def enter(self, processor, ctx):
+        ctx.env = processor.getenv()
+        ctx.nvals = processor.nvals()
+        processor.pushctx(ctx)
     #-def
 
     def expand(self, processor):
+        ctx = CommandContext(self)
         processor.insertcode(
-            *((self.enter,) + self.cmds + (Finalizer(self),))
+            *((Initializer(ctx),) + self.cmds + (Finalizer(ctx),))
         )
     #-def
 
-    def leave(self, processor):
-        processor.popcmd(self)
-        self.env = None
+    def leave(self, processor, ctx):
+        while processor.nvals() > ctx.nvals:
+            processor.popval()
+        processor.popctx(ctx)
     #-def
 
-    def find_exception_handler(self, e):
+    def find_exception_handler(self, ctx, e):
         try:
             if not (
                 isinstance(e, CommandError)
@@ -288,7 +312,7 @@ class TTryCatch(Command):
             ):
                 return None
             for name, handler in self.handlers:
-                ec = self.env.getvar(name)
+                ec = ctx.env.getvar(name)
                 if isderived(e.ecls, ec):
                     return handler
             return None
@@ -326,6 +350,7 @@ class TestEnvironmentCase(unittest.TestCase):
         e2.setvar('x', 43)
         e2['y'] = 44
 
+        self.assertIs(e2.outer(), e1)
         self.assertEqual(e1.getvar('x'), 42)
         self.assertEqual(e2.getvar('x'), 43)
         with self.assertRaises(CommandError):
@@ -522,42 +547,71 @@ class TestCommandProcessorCase(unittest.TestCase):
             e.getvar('y')
     #-def
 
-    def test_cmdstack(self):
+    def test_ctxstack(self):
         p = CommandProcessor()
         c1 = Command()
         c2 = Command()
+        ctx1 = CommandContext(c1)
+        ctx2 = CommandContext(c2)
 
         with self.assertRaises(CommandProcessorError):
-            p.popcmd(c1)
-        p.pushcmd(c1)
+            p.popctx(ctx1)
+        p.pushctx(ctx1)
         with self.assertRaises(CommandProcessorError):
-            p.popcmd(c2)
-        p.popcmd(c1)
+            p.popctx(ctx2)
+        p.popctx(ctx1)
         with self.assertRaises(CommandProcessorError):
-            p.popcmd(c1)
+            p.popctx(ctx1)
+        with self.assertRaises(CommandProcessorError):
+            p.cmdctx(c1)
+        p.pushctx(ctx1)
+        with self.assertRaises(CommandProcessorError):
+            p.cmdctx(c1)
+        p.insertcode(c1, Finalizer(ctx2), Finalizer(ctx1))
+        with self.assertRaises(CommandProcessorError):
+            p.cmdctx(c1)
+        p.insertcode(c2, Finalizer(ctx1))
+        with self.assertRaises(CommandProcessorError):
+            p.cmdctx(c2)
+        self.assertIs(p.cmdctx(c1), ctx1)
     #-def
 
     def test_valstack(self):
         p = CommandProcessor()
 
+        self.assertEqual(p.nvals(), 0)
         with self.assertRaises(CommandProcessorError):
             p.topval()
+        self.assertEqual(p.nvals(), 0)
         with self.assertRaises(CommandProcessorError):
             p.popval()
+        self.assertEqual(p.nvals(), 0)
         p.pushval(1)
+        self.assertEqual(p.nvals(), 1)
         p.pushval(2)
+        self.assertEqual(p.nvals(), 2)
         p.setacc(3)
+        self.assertEqual(p.nvals(), 2)
         p.pushacc()
+        self.assertEqual(p.nvals(), 3)
         self.assertEqual(p.topval(), 3)
+        self.assertEqual(p.nvals(), 3)
         self.assertEqual(p.popval(), 3)
+        self.assertEqual(p.nvals(), 2)
         self.assertEqual(p.topval(), 2)
+        self.assertEqual(p.nvals(), 2)
         self.assertEqual(p.popval(), 2)
+        self.assertEqual(p.nvals(), 1)
         self.assertEqual(p.topval(), 1)
+        self.assertEqual(p.nvals(), 1)
         self.assertEqual(p.popval(), 1)
+        self.assertEqual(p.nvals(), 0)
         with self.assertRaises(CommandProcessorError):
             p.topval()
+        self.assertEqual(p.nvals(), 0)
         with self.assertRaises(CommandProcessorError):
             p.popval()
+        self.assertEqual(p.nvals(), 0)
     #-def
 
     def test_acc(self):
@@ -590,6 +644,13 @@ class TestCommandProcessorCase(unittest.TestCase):
         p.run([HashMap({'a': 0.5, 1: 'x'})])
         self.assertIsInstance(p.acc(), HashMap)
         self.assertEqual(p.acc(), {'a': 0.5, 1: 'x'})
+        ut = UserType()
+        p.run([ut])
+        self.assertIsInstance(p.acc(), UserType)
+        self.assertIs(p.acc(), ut)
+        p.run([Procedure(1, 2, 3, 4, 5, 6)])
+        self.assertIsInstance(p.acc(), Procedure)
+        self.assertEqual(p.acc(), (1, 2, 3, 4, 5, 6))
         p.run([(2, 5)])
         self.assertIsInstance(p.acc(), Pair)
         self.assertEqual(p.acc(), (2, 5))
@@ -701,6 +762,37 @@ class TestCommandProcessorCase(unittest.TestCase):
                     ('NameError', [])
                 ])
             ])
+    #-def
+
+    def test_return_handling(self):
+        p = CommandProcessor()
+        c = Command()
+        _c = Command()
+        ctx = CommandContext(c)
+        _ctx = CommandContext(_c)
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([Return()])
+        with self.assertRaises(CommandProcessorError):
+            p.popctx(ctx)
+        with self.assertRaises(CommandProcessorError):
+            p.run([Return(), c, c, c])
+        p.pushctx(_ctx)
+        with self.assertRaises(CommandProcessorError):
+            p.run([Return(), c, c, c, Finalizer(ctx)])
+        p.popctx(_ctx)
+        with self.assertRaises(CommandProcessorError):
+            p.popctx(_ctx)
+        with self.assertRaises(CommandProcessorError):
+            p.run([Return(), c, c, c, Finalizer(_ctx)])
+        p.pushctx(_ctx)
+        with self.assertRaises(CommandProcessorError):
+            p.run([Return(), c, c, c, Finalizer(_ctx), c, c])
+        p.popctx(_ctx)
+        p.run([
+            Call(Lambda([], False, [Return()], []))
+        ])
+        self.assertIs(p.acc(), p.Null)
     #-def
 
     def test_cleanup(self):

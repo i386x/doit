@@ -163,7 +163,7 @@ class List(list, Iterable):
     """
     __slots__ = []
 
-    def __init__(self, data):
+    def __init__(self, data = []):
         """
         """
 
@@ -196,7 +196,7 @@ class HashMap(dict, Iterable):
     """
     __slots__ = []
 
-    def __init__(self, data):
+    def __init__(self, data = {}):
         """
         """
 
@@ -219,6 +219,80 @@ class HashMap(dict, Iterable):
         r = HashMap(d1)
         r.update(d2)
         return r
+    #-def
+#-class
+
+class UserType(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        pass
+    #-def
+
+    def to_bool(self, processor):
+        """
+        """
+
+        return True
+    #-def
+
+    def to_int(self, processor):
+        """
+        """
+
+        raise CommandError(processor.TypeError,
+            "%s is not convertible to integer" % self.__class__.__name__
+        )
+    #-def
+
+    def to_float(self, processor):
+        """
+        """
+
+        raise CommandError(processor.TypeError,
+            "%s is not convertible to float" % self.__class__.__name__
+        )
+    #-def
+
+    def to_str(self, processor):
+        """
+        """
+
+        raise CommandError(processor.TypeError,
+            "%s is not convertible to string" % self.__class__.__name__
+        )
+    #-def
+
+    def to_pair(self, processor):
+        """
+        """
+
+        raise CommandError(processor.TypeError,
+            "%s is not convertible to pair" % self.__class__.__name__
+        )
+    #-def
+
+    def to_list(self, processor):
+        """
+        """
+
+        raise CommandError(processor.TypeError,
+            "%s is not convertible to list" % self.__class__.__name__
+        )
+    #-def
+
+    def to_hash(self, processor):
+        """
+        """
+
+        raise CommandError(processor.TypeError,
+            "%s is not convertible to hash" % self.__class__.__name__
+        )
     #-def
 #-class
 
@@ -259,10 +333,10 @@ class Traceback(list):
         """
         """
 
-        list.__init__(self, [cmd for cmd in stack if cmd.isfunc()])
+        list.__init__(self, [ctx.cmd for ctx in stack if ctx.cmd.isfunc()])
         self.__punctator = ">"
         if stack:
-            f, l, c = stack[-1].location
+            f, l, c = stack[-1].cmd.location
             if f is not None and l >= 0 and c >= 0:
                 self.__punctator += " At [\"%s\":%d:%d]:" % (f, l, c)
     #-def
@@ -282,21 +356,21 @@ class Traceback(list):
     #-def
 #-class
 
-class ProcedureTemplate(tuple):
+class Procedure(tuple):
     """
     """
     __slots__ = []
 
-    def __new__(cls, bvars, params, body, outer):
+    def __new__(cls, name, bvars, params, vararg, body, outer):
         """
         """
 
-        return super(ProcedureTemplate, cls).__new__(
-            cls, (bvars, params, body, outer)
+        return super(Procedure, cls).__new__(
+            cls, (name, bvars, params, vararg, body, outer)
         )
     #-def
 
-    def __init__(self, bvars, params, body, outer):
+    def __init__(self, name, bvars, params, vararg, body, outer):
         """
         """
 
