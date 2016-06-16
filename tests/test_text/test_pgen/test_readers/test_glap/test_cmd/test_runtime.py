@@ -195,6 +195,8 @@ class TestUserTypeCase(unittest.TestCase):
             UserType().to_list(p)
         with self.assertRaises(CommandError):
             UserType().to_hash(p)
+        with self.assertRaises(CommandError):
+            UserType().visit(p, (lambda x: x), 0, 1)
     #-def
 #-class
 

@@ -294,6 +294,15 @@ class UserType(object):
             "%s is not convertible to hash" % self.__class__.__name__
         )
     #-def
+
+    def visit(self, processor, f, *args):
+        """
+        """
+
+        raise CommandError(processor.TypeError,
+            "%s is not visitable" % self.__class__.__name__
+        )
+    #-def
 #-class
 
 class ExceptionClass(object):

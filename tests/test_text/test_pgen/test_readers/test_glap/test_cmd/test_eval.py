@@ -908,6 +908,12 @@ class TestCommandProcessorCase(unittest.TestCase):
         self.assertEqual(env.getvar('a'), 12)
         self.assertEqual(env.getvar('b'), 14)
     #-def
+
+    def test_impls(self):
+        p = CommandProcessor()
+
+        p.print_impl("abc")
+    #-def
 #-class
 
 def suite():

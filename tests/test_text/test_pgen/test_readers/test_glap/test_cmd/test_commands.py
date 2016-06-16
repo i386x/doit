@@ -74,17 +74,22 @@ from doit.text.pgen.readers.glap.cmd.commands import \
     All, Any, SeqOp, Map, Filter, \
     Lambda, \
     Block, If, Foreach, \
-    Call, Return
+    Call, ECall, Return, \
+    SetItem, DelItem, Append, Insert, Remove, RemoveAll, \
+    Each, Visit, \
+    Print
 
 from doit.text.pgen.readers.glap.cmd.eval import \
     Environment, \
     CommandProcessor
 
 class UT_000(UserType):
-    __slots__ = []
+    __slots__ = [ 'left', 'right' ]
 
     def __init__(self):
         UserType.__init__(self)
+        self.left = UT_001(3)
+        self.right = UT_001(7)
     #-def
 
     def to_bool(self, processor):
@@ -113,6 +118,45 @@ class UT_000(UserType):
 
     def to_hash(self, processor):
         return HashMap({1.25: "gosh!"})
+    #-def
+
+    def visit(self, processor, f, *args):
+        processor.insertcode(
+            Call(f,
+                0,
+                ECall(self.left.visit, processor, f, *args),
+                ECall(self.right.visit, processor, f, *args),
+                *args
+            )
+        )
+    #-def
+#-class
+
+class UT_001(UserType):
+    __slots__ = [ 'v' ]
+
+    def __init__(self, v):
+        UserType.__init__(self)
+        self.v = v
+    #-def
+
+    def visit(self, processor, f, *args):
+        processor.insertcode(
+            Call(f, 1, self.v, *args)
+        )
+    #-def
+#-class
+
+class Printer(CommandProcessor):
+    __slots__ = [ 'output' ]
+
+    def __init__(self, env = None):
+        CommandProcessor.__init__(self, env)
+        self.output = ""
+    #-def
+
+    def print_impl(self, s):
+        self.output += s
     #-def
 #-class
 
@@ -1719,6 +1763,260 @@ class TestCallCase(unittest.TestCase):
         self.assertEqual(p.getenv()["__c"], 1)
         self.assertEqual(p.getenv()["__z"], 0)
     #-def
+
+    def test_ECall(self):
+        p = CommandProcessor()
+        def f_():
+            pass
+        def g_(a, b, c):
+            pass
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([ECall(0)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ECall((lambda a, b: a / b), "a", 2)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([ECall((lambda a, b: a / b), 1, 2, 3)])
+        p.run([ECall(f_)])
+        self.assertIs(p.acc(), p.Null)
+        p.run([ECall((lambda a, b: a / b), 1, 2)])
+        self.assertEqual(p.acc(), 0.5)
+        p.run([ECall(g_, 0, 1, {})])
+        self.assertIs(p.acc(), p.Null)
+    #-def
+#-class
+
+class TestSetItemCase(unittest.TestCase):
+
+    def test_SetItem(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                SetLocal('x', 0),
+                SetItem(GetLocal('x'), 1, "u")
+            ])
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                SetLocal('x', [1, 2, 3]),
+                SetItem(GetLocal('x'), 'a', "u")
+            ])
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                SetLocal('x', [1, 2, 3]),
+                SetItem(GetLocal('x'), -1, "u")
+            ])
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                SetLocal('x', [1, 2, 3]),
+                SetItem(GetLocal('x'), 3, "u")
+            ])
+        p.run([
+            SetLocal('x', [1, 2, 3]),
+            SetLocal('y', {}),
+            SetItem(GetLocal('x'), 1, "u"),
+            SetItem(GetLocal('y'), "abc", 1),
+            SetItem(GetLocal('y'), "abc", 2),
+            SetItem(GetLocal('y'), 3, "uv")
+        ])
+        self.assertEqual(p.getenv()['x'], [1, "u", 3])
+        self.assertEqual(p.getenv()['y'], {"abc": 2, 3: "uv"})
+    #-def
+#-class
+
+class TestDelItemCase(unittest.TestCase):
+
+    def test_DelItem(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([DelItem(0, "c")])
+        with self.assertRaises(CommandProcessorError):
+            p.run([DelItem([0], "v")])
+        with self.assertRaises(CommandProcessorError):
+            p.run([DelItem([0], -1)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([DelItem([0], 1)])
+        p.run([
+            SetLocal('x', [1, 2, 3]),
+            DelItem(GetLocal('x'), 1),
+            SetLocal('y', {1: 'a', "xy": 2, 0.25: "uv"}),
+            DelItem(GetLocal('y'), "zz"),
+            DelItem(GetLocal('y'), "xy"),
+            DelItem(GetLocal('y'), "xy")
+        ])
+        self.assertEqual(p.getenv()['x'], [1, 3])
+        self.assertEqual(p.getenv()['y'], {1: 'a', 0.25: "uv"})
+    #-def
+#-class
+
+class TestAppendCase(unittest.TestCase):
+
+    def test_Append(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([Append(0, 0)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Append({}, 0)])
+        p.run([
+            SetLocal('x', ["uy"]),
+            Append(GetLocal('x'), 42),
+            Append(GetLocal('x'), 1.5)
+        ])
+        self.assertEqual(p.getenv()['x'], ["uy", 42, 1.5])
+    #-def
+#-class
+
+class TestInsertCase(unittest.TestCase):
+
+    def test_Insert(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([Insert({}, 0, 1)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Insert([1, 2], 'a', 1)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Insert([1, 2], -1, 1)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Insert([1, 2], 3, 1)])
+        p.run([
+            SetLocal('x', ['a', 'b', 'c']),
+            Insert(GetLocal('x'), 0, '_'),
+            Insert(GetLocal('x'), 0, {1: 'i'}),
+            Insert(GetLocal('x'), 5, 12),
+            Insert(GetLocal('x'), 6, 13),
+            Insert(GetLocal('x'), 3, '|')
+        ])
+        self.assertEqual(
+            p.getenv()['x'], [{1: 'i'}, '_', 'a', '|', 'b', 'c', 12, 13]
+        )
+    #-def
+#-class
+
+class TestRemoveCase(unittest.TestCase):
+
+    def test_Remove(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([Remove({}, 0)])
+        p.run([
+            SetLocal('x', [1, 2, 3, 1]),
+            Remove(GetLocal('x'), 'a'),
+            Remove(GetLocal('x'), 1),
+            Remove(GetLocal('x'), 3),
+            Remove(GetLocal('x'), 1),
+            Remove(GetLocal('x'), 1)
+        ])
+        self.assertEqual(p.getenv()['x'], [2])
+    #-def
+#-class
+
+class TestRemoveAllCase(unittest.TestCase):
+
+    def test_RemoveAll(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([RemoveAll({}, 0)])
+        p.run([
+            SetLocal('x', [1, 2, 1, 1, 3, 1, 1, 2, 1]),
+            RemoveAll(GetLocal('x'), 'a'),
+            RemoveAll(GetLocal('x'), 1),
+            RemoveAll(GetLocal('x'), 3)
+        ])
+        self.assertEqual(p.getenv()['x'], [2, 2])
+    #-def
+#-class
+
+class TestEachCase(unittest.TestCase):
+
+    def test_Each(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([Each({}, Lambda([], False, [Return()], []), 0, 1)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Each([], 0, 0, 1)])
+        p.run([Each([], Lambda([], False, [Return()], []))])
+        p.run([Each([], Lambda([], False, [Return()], []), 0, 1)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Each([1], Lambda([], False, [Return()], []), 0, 1)])
+        p.run([
+            Each([1], Lambda(['x', 'y', 'z'], False, [Return()], []), 0, 1)
+        ])
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                Each([1], Lambda(
+                    ['x', 'y', 'z'], False, [Return()], []
+                ), 0, 1, 2)
+            ])
+        p.run([
+            SetLocal('x', []),
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 2, GetLocal('x'))
+        ])
+        self.assertEqual(p.getenv()['x'], [18, 50, 98])
+    #-def
+#-class
+
+class TestVisitCase(unittest.TestCase):
+
+    def test_Visit(self):
+        p = CommandProcessor()
+        u = UT_000()
+        f = Lambda(['n', 'args'], True, [
+            If(Eq(GetLocal('n'), 0), [
+                Return(
+                    Concat("(0: ",
+                    Concat(GetItem(GetLocal('args'), 0),
+                    Concat(" ",
+                    Concat(GetItem(GetLocal('args'), 1),
+                    Concat(" ",
+                    Concat(ToStr(GetItem(GetLocal('args'), 2)),
+                    Concat(" ",
+                    Concat(GetItem(GetLocal('args'), 3), ")"
+                    ))))))))
+                )
+            ], [If(Eq(GetLocal('n'), 1), [
+                Return(
+                    Concat("(1: ",
+                    Concat(ToStr(GetItem(GetLocal('args'), 0)),
+                    Concat(" ",
+                    Concat(ToStr(GetItem(GetLocal('args'), 1)),
+                    Concat(" ",
+                    Concat(GetItem(GetLocal('args'), 2), ")"
+                    ))))))
+                )
+            ], [
+                Return()
+            ])])
+        ], [])
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([Visit([], Lambda([], False, [Return()], []), "x", "y")])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Visit(u, 0)])
+        p.run([Visit(u, f, 0, "x", "y")])
+        self.assertEqual(p.acc(), "(0: (1: 3 0 x) (1: 7 0 x) 0 x)")
+    #-def
+#-class
+
+class TestPrintCase(unittest.TestCase):
+
+    def test_Print(self):
+        p = Printer()
+
+        p.run([SetLocal("x", 2), Print(
+            "(", 1, " + ", GetLocal("x"), " = ", Add(1, GetLocal("x")), ")"
+        )])
+        self.assertEqual(p.output, "(1 + 2 = 3)")
+    #-def
 #-class
 
 def suite():
@@ -1732,5 +2030,14 @@ def suite():
     suite.addTest(unittest.makeSuite(TestIfCase))
     suite.addTest(unittest.makeSuite(TestForeachCase))
     suite.addTest(unittest.makeSuite(TestCallCase))
+    suite.addTest(unittest.makeSuite(TestSetItemCase))
+    suite.addTest(unittest.makeSuite(TestDelItemCase))
+    suite.addTest(unittest.makeSuite(TestAppendCase))
+    suite.addTest(unittest.makeSuite(TestInsertCase))
+    suite.addTest(unittest.makeSuite(TestRemoveCase))
+    suite.addTest(unittest.makeSuite(TestRemoveAllCase))
+    suite.addTest(unittest.makeSuite(TestEachCase))
+    suite.addTest(unittest.makeSuite(TestVisitCase))
+    suite.addTest(unittest.makeSuite(TestPrintCase))
     return suite
 #-def

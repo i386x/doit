@@ -422,4 +422,11 @@ class CommandProcessor(object):
             if str(x) not in self.__env:
                 self.__env[str(x)] = x
     #-def
+
+    def print_impl(self, s):
+        """
+        """
+
+        pass
+    #-def
 #-class

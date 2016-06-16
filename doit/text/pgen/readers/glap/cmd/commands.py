@@ -754,27 +754,28 @@ class Operation(Trackable):
                 args[i] = conversions(processor, args[i])
 
         # 6) Check the types of operands:
-        type_error = False
+        type_error, bo = False, None
         i = 0
         for typespec in types:
-            type_error = False
+            type_error, bo = False, None
             for j in range(arity):
                 if not isinstance(args[j], typespec[j]):
-                    type_error = True
+                    type_error, bo = True, args[j]
                     i = j
                     break
             if not type_error:
                 break
         if type_error:
             raise CommandError(processor.TypeError,
-                "%s: Bad type of the %d%s operand" \
+                "%s: Bad type of the %d%s operand (%r)" \
                 % (
                     self.name,
                     i + 1,
                     "st" if (i % 10) == 0 and (i % 100) != 10 else \
                     "nd" if (i % 10) == 1 and (i % 100) != 11 else \
                     "rd" if (i % 10) == 2 and (i % 100) != 12 else \
-                    "th"
+                    "th",
+                    bo
                 )
             )
 
@@ -2380,6 +2381,71 @@ class Call(Trackable):
     #-def
 #-class
 
+class ECall(Trackable):
+    """
+    """
+    __slots__ = [ 'proc', 'args' ]
+
+    def __init__(self, proc, *args):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.proc = proc
+        self.args = args
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.do_args,
+            self.do_ecall,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_args(self, processor):
+        """
+        """
+
+        if not hasattr(self.proc, '__call__'):
+            raise CommandError(processor.TypeError,
+                "%s: External procedure must be callable" % self.name
+            )
+        code = [[], self.pushacc]
+        for x in self.args:
+            code.extend([x, self.do_arg])
+        processor.insertcode(*code)
+    #-def
+
+    def do_arg(self, processor):
+        """
+        """
+
+        processor.topval().append(processor.acc())
+    #-def
+
+    def do_ecall(self, processor):
+        """
+        """
+
+        try:
+            args = processor.popval()
+            r = self.proc(*args)
+            processor.insertcode(r)
+        except CommandError as e:
+            processor.insertcode(e)
+        except:
+            raise CommandError(processor.TypeError,
+                "%s: Calling the external procedure has failed" % self.name
+            )
+    #-def
+#-class
+
 class Return(Command):
     """
     """
@@ -2409,27 +2475,450 @@ class Return(Command):
 #-class
 
 class SetItem(Trackable):
-    pass
+    """
+    """
+    __slots__ = [ 'container', 'index', 'value' ]
+
+    def __init__(self, container, index, value):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.container = container
+        self.index = index
+        self.value = value
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.container, self.pushacc,
+            self.index, self.pushacc,
+            self.value,
+            self.do_setitem,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_setitem(self, processor):
+        """
+        """
+
+        value = processor.acc()
+        index = processor.popval()
+        container = processor.popval()
+
+        if not isinstance(container, (list, dict)):
+            raise CommandError(processor.TypeError,
+                "%s: Container must be list or hashmap" % self.name
+            )
+        if isinstance(container, list) and not (
+            isinstance(index, int) and 0 <= index and index < len(container)
+        ):
+            raise CommandError(processor.IndexError,
+                "%s: Invalid index" % self.name
+            )
+        container[index] = value
+    #-def
+#-class
 
 class DelItem(Trackable):
-    pass
+    """
+    """
+    __slots__ = [ 'container', 'index' ]
+
+    def __init__(self, container, index):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.container = container
+        self.index = index
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.container, self.pushacc,
+            self.index,
+            self.do_delitem,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_delitem(self, processor):
+        """
+        """
+
+        index = processor.acc()
+        container = processor.popval()
+
+        if not isinstance(container, (list, dict)):
+            raise CommandError(processor.TypeError,
+                "%s: Container must be list or hashmap" % self.name
+            )
+        if isinstance(container, list) and not (
+            isinstance(index, int) and 0 <= index and index < len(container)
+        ):
+            raise CommandError(processor.IndexError,
+                "%s: Invalid index" % self.name
+            )
+        if isinstance(container, dict) and index not in container:
+            return
+        del container[index]
+    #-def
+#-class
+
+class Append(Trackable):
+    """
+    """
+    __slots__ = [ 'l', 'v' ]
+
+    def __init__(self, l, v):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.l = l
+        self.v = v
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.l, self.pushacc,
+            self.v,
+            self.do_append,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_append(self, processor):
+        """
+        """
+
+        v = processor.acc()
+        l = processor.popval()
+
+        if not isinstance(l, list):
+            raise CommandError(processor.TypeError,
+                "%s: A list was expected" % self.name
+            )
+        l.append(v)
+    #-def
+#-class
+
+class Insert(Trackable):
+    """
+    """
+    __slots__ = [ 'l', 'i', 'v' ]
+
+    def __init__(self, l, i, v):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.l = l
+        self.i = i
+        self.v = v
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.l, self.pushacc,
+            self.i, self.pushacc,
+            self.v,
+            self.do_insert,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_insert(self, processor):
+        """
+        """
+
+        v = processor.acc()
+        i = processor.popval()
+        l = processor.popval()
+
+        if not isinstance(l, list):
+            raise CommandError(processor.TypeError,
+                "%s: A list was expected" % self.name
+            )
+        if not (isinstance(i, int) and 0 <= i and i <= len(l)):
+            raise CommandError(processor.IndexError,
+                "%s: Bad index" % self.name
+            )
+        l.insert(i, v)
+    #-def
+#-class
 
 class Remove(Trackable):
-    pass
+    """
+    """
+    __slots__ = [ 'l', 'x' ]
+
+    def __init__(self, l, x):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.l = l
+        self.x = x
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.l, self.pushacc,
+            self.x,
+            self.do_remove,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_remove(self, processor):
+        """
+        """
+
+        x = processor.acc()
+        l = processor.popval()
+
+        if not isinstance(l, list):
+            raise CommandError(processor.TypeError,
+                "%s: A list was expected" % self.name
+            )
+        if x in l:
+            l.remove(x)
+    #-def
+#-class
 
 class RemoveAll(Trackable):
-    pass
+    """
+    """
+    __slots__ = [ 'l', 'x' ]
+
+    def __init__(self, l, x):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.l = l
+        self.x = x
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.l, self.pushacc,
+            self.x,
+            self.do_removeall,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_removeall(self, processor):
+        """
+        """
+
+        x = processor.acc()
+        l = processor.popval()
+
+        if not isinstance(l, list):
+            raise CommandError(processor.TypeError,
+                "%s: A list was expected" % self.name
+            )
+        while x in l:
+            l.remove(x)
+    #-def
+#-class
 
 class Each(Trackable):
-    pass
+    """
+    """
+    __slots__ = [ 'l', 'f', 'args' ]
+
+    def __init__(self, l, f, *args):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.l = l
+        self.f = f
+        self.args = args
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.l, self.pushacc,
+            self.f,
+            self.do_each,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_each(self, processor):
+        """
+        """
+
+        f = processor.acc()
+        l = processor.popval()
+
+        if not isinstance(l, list):
+            raise CommandError(processor.TypeError,
+                "%s: A list was expected" % self.name
+            )
+        if not isinstance(f, Procedure):
+            raise CommandError(processor.TypeError,
+                "%s: A function was expected" % self.name
+            )
+        state = {0: l.iterator(), 1: f, 2: List()}
+        state[0].reset()
+        processor.insertcode(state, self.pushacc, self.do_args, self.do_next)
+    #-def
+
+    def do_args(self, processor):
+        """
+        """
+
+        code = []
+        for x in self.args:
+            code.extend([x, self.do_arg])
+        processor.insertcode(*code)
+    #-def
+
+    def do_arg(self, processor):
+        """
+        """
+
+        state = processor.topval()
+        state[2].append(processor.acc())
+    #-def
+
+    def do_next(self, processor):
+        """
+        """
+
+        state = processor.topval()
+        x = state[0].next()
+        if x is state[0]:
+            processor.popval()
+            return
+        processor.insertcode(
+            Call(state[1], x, *(state[2])), self.do_next
+        )
+    #-def
+#-class
 
 class Visit(Trackable):
-    pass
+    """
+    """
+    __slots__ = [ 'ut', 'f', 'args' ]
+
+    def __init__(self, ut, f, *args):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.ut = ut
+        self.f = f
+        self.args = args
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.ut, self.pushacc,
+            self.f,
+            self.do_visit,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_visit(self, processor):
+        """
+        """
+
+        f = processor.acc()
+        ut = processor.popval()
+
+        if not isinstance(ut, UserType):
+            raise CommandError(processor.TypeError,
+                "%s: A UserType object was expected" % self.name
+            )
+        if not isinstance(f, Procedure):
+            raise CommandError(processor.TypeError,
+                "%s: A function was expected" % self.name
+            )
+        state = {0: ut, 1: f, 2: List()}
+        processor.insertcode(state, self.pushacc, self.do_args, self.do_ivisit)
+    #-def
+
+    def do_args(self, processor):
+        """
+        """
+
+        code = []
+        for x in self.args:
+            code.extend([x, self.do_arg])
+        processor.insertcode(*code)
+    #-def
+
+    def do_arg(self, processor):
+        """
+        """
+
+        state = processor.topval()
+        state[2].append(processor.acc())
+    #-def
+
+    def do_ivisit(self, processor):
+        """
+        """
+
+        state = processor.popval()
+        state[0].visit(processor, state[1], *(state[2]))
+    #-def
+#-class
 
 class Print(Trackable):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'args' ]
 
     def __init__(self, *args):
         """
@@ -2443,18 +2932,18 @@ class Print(Trackable):
         """
         """
 
-        processor.insertcode(self.enter)
+        ctx = CommandContext(self)
+        code = [Initializer(ctx)]
         for arg in self.args:
-            processor.insertcode(arg, self.do_print_arg)
-        processor.insertcode(Finalizer(self))
+            code.extend([ToStr(arg), self.do_print_arg])
+        code.append(Finalizer(ctx))
+        processor.insertcode(*code)
     #-def
 
     def do_print_arg(self, processor):
         """
         """
 
-        processor.write(self.__class__.__name__.upper(),
-            "%s" % processor.acc()
-        )
+        processor.print_impl(processor.acc())
     #-def
 #-class
