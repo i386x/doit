@@ -37,11 +37,20 @@ from doit.text.pgen.readers.glap.cmd.errors import \
     CommandError
 
 from doit.text.pgen.readers.glap.cmd.runtime import \
+    isderived, \
     Pair, \
     List, \
     HashMap, \
     UserType, \
+    ExceptionClass, \
     Procedure
+
+NONE = 0
+EXCEPTION = 1
+RETURN = 2
+BREAK = 3
+CONTINUE = 4
+CLEANUP = 5
 
 NumericTypes = (int, float)
 SequenceTypes = (str, Pair, list)
@@ -131,27 +140,197 @@ class Initializer(object):
         """
         """
 
-        self.ctx.cmd.enter(processor, self.ctx)
+        self.ctx.cmd.enter(processor, self)
     #-def
 #-class
 
 class Finalizer(object):
     """
     """
-    __slots__ = [ 'ctx' ]
+    __slots__ = [ 'state', 'ctx', 'after', '__acc', '__sandboxed' ]
 
-    def __init__(self, ctx):
+    def __init__(self, ctx, after = [], sb = False):
         """
         """
 
+        self.state = (NONE,)
         self.ctx = ctx
+        self.after = after
+        self.__acc = None
+        self.__sandboxed = sb
+    #-def
+
+    def acc_backup(self, processor):
+        """
+        """
+
+        self.__acc = processor.acc()
+    #-def
+
+    def acc_restore(self, processor):
+        """
+        """
+
+        processor.setacc(self.__acc)
+    #-def
+
+    def pushacc(self, processor):
+        """
+        """
+
+        processor.pushacc()
+    #-def
+
+    def sandboxed(self):
+        """
+        """
+
+        return self.__sandboxed
     #-def
 
     def __call__(self, processor):
         """
         """
 
-        self.ctx.cmd.leave(processor, self.ctx)
+        if self.sandboxed():
+            self.ctx.cmd.leave(processor, self)
+            processor.setacc(self)
+            return
+        self.acc_backup(processor)
+        eh = self.state[2] if self.state[0] == EXCEPTION else []
+        if eh is None:
+            eh = []
+        processor.insertcode(
+            SandBox(eh), self.pushacc, SandBox(self.after), self.finalize
+        )
+    #-def
+
+    def finalize(self, processor):
+        """
+        """
+
+        after_fnlz = processor.acc()
+        eh_fnlz = processor.popval()
+
+        if after_fnlz.state[0] == NONE:
+            if self.state[0] == EXCEPTION:
+                _, e, eh = self.state
+                if eh is None:
+                    self.do_throw(processor, e)
+                elif eh_fnlz.state[0] == EXCEPTION:
+                    self.resolve_exception(processor, eh_fnlz.state)
+                elif eh_fnlz.state[0] == RETURN:
+                    self.resolve_return(processor, eh_fnlz.state)
+                elif eh_fnlz.state[0] == BREAK:
+                    self.resolve_break(processor, eh_fnlz.state)
+                elif eh_fnlz.state[0] == CONTINUE:
+                    self.resolve_continue(processor, eh_fnlz.state)
+                else:
+                    self.do_leave(processor)
+            elif self.state[0] == RETURN:
+                self.resolve_return(processor, self.state)
+            elif self.state[0] == BREAK:
+                self.resolve_break(processor, self.state)
+            elif self.state[0] == CONTINUE:
+                self.resolve_continue(processor, self.state)
+            elif self.state[0] == CLEANUP:
+                self.resolve_cleanup(processor, self.state)
+            else:
+                self.do_leave(processor)
+        elif after_fnlz.state[0] == EXCEPTION:
+            self.resolve_exception(processor, after_fnlz.state)
+        elif after_fnlz.state[0] == RETURN:
+            self.resolve_return(processor, after_fnlz.state)
+        elif after_fnlz.state[0] == BREAK:
+            self.resolve_break(processor, after_fnlz.state)
+        elif after_fnlz.state[0] == CONTINUE:
+            self.resolve_continue(processor, after_fnlz.state)
+        else:
+            self.do_leave(processor)
+    #-def
+
+    def resolve_exception(self, processor, state):
+        """
+        """
+
+        _, e, _ = state
+        self.do_throw(processor, e)
+    #-def
+
+    def resolve_return(self, processor, state):
+        """
+        """
+
+        _, tb, rc = state
+        self.do_leave(processor)
+        if self.ctx.cmd.isfunc():
+            processor.setacc(rc)
+        else:
+            processor.handle_event(RETURN, tb, rc)
+    #-def
+
+    def resolve_break(self, processor, state):
+        """
+        """
+
+        _, tb = state
+        self.do_leave(processor)
+        if self.ctx.cmd.isfunc():
+            processor.insertcode(CommandError(
+                processor.SyntaxError,
+                "%s: break used outside loop" % self.ctx.cmd.name,
+                tb
+            ))
+        elif self.ctx.cmd.isloop():
+            pass
+        else:
+            processor.handle_event(BREAK, tb)
+    #-def
+
+    def resolve_continue(self, processor, state):
+        """
+        """
+
+        _, tb = state
+        if self.ctx.cmd.isfunc():
+            self.do_leave(processor)
+            processor.insertcode(CommandError(
+                processor.SyntaxError,
+                "%s: continue used outside loop" % self.ctx.cmd.name,
+                tb
+            ))
+        elif self.ctx.cmd.isloop():
+            self.state = (NONE,)
+            processor.insertcode(self)
+            self.ctx.cmd.do_continue(processor)
+        else:
+            self.do_leave(processor)
+            processor.handle_event(CONTINUE, tb)
+    #-def
+
+    def resolve_cleanup(self, processor, state):
+        """
+        """
+
+        _, tb = state
+        self.do_leave(processor)
+        processor.handle_event(CLEANUP, tb)
+    #-def
+
+    def do_throw(self, processor, e):
+        """
+        """
+
+        self.do_leave(processor)
+        processor.insertcode(e)
+    #-def
+
+    def do_leave(self, processor):
+        """
+        """
+
+        self.ctx.cmd.leave(processor, self)
+        self.acc_restore(processor)
     #-def
 #-class
 
@@ -166,6 +345,13 @@ class Command(object):
 
         self.name = self.__class__.__name__.lower()
         self.location = Location()
+    #-def
+
+    def isloop(self):
+        """
+        """
+
+        return False
     #-def
 
     def isfunc(self):
@@ -196,7 +382,7 @@ class Command(object):
         pass
     #-def
 
-    def enter(self, processor, ctx):
+    def enter(self, processor, inlz):
         """
         """
 
@@ -210,7 +396,7 @@ class Command(object):
         pass
     #-def
 
-    def leave(self, processor, ctx):
+    def leave(self, processor, fnlz):
         """
         """
 
@@ -230,6 +416,13 @@ class Command(object):
 
         return None
     #-def
+
+    def do_continue(self, processor):
+        """
+        """
+
+        pass
+    #-def
 #-class
 
 class Trackable(Command):
@@ -244,22 +437,22 @@ class Trackable(Command):
         Command.__init__(self)
     #-def
 
-    def enter(self, processor, ctx):
+    def enter(self, processor, inlz):
         """
         """
 
-        ctx.env = processor.getenv()
-        ctx.nvals = processor.nvals()
-        processor.pushctx(ctx)
+        inlz.ctx.env = processor.getenv()
+        inlz.ctx.nvals = processor.nvals()
+        processor.pushctx(inlz.ctx)
     #-def
 
-    def leave(self, processor, ctx):
+    def leave(self, processor, fnlz):
         """
         """
 
-        while processor.nvals() > ctx.nvals:
+        while processor.nvals() > fnlz.ctx.nvals:
             processor.popval()
-        processor.popctx(ctx)
+        processor.popctx(fnlz.ctx)
     #-def
 #-class
 
@@ -330,6 +523,35 @@ class GetLocal(Trackable):
 
         ctx = processor.cmdctx(self)
         processor.setacc(ctx.env.getvar(self.varname))
+    #-def
+#-class
+
+class DefError(Command):
+    """
+    """
+    __slots__ = [ 'ename', 'ebasename' ]
+
+    def __init__(self, ename, ebasename):
+        """
+        """
+
+        Command.__init__(self)
+        self.ename = ename
+        self.ebasename = ebasename
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        processor.insertcode(self.do_deferror)
+    #-def
+
+    def do_deferror(self, processor):
+        """
+        """
+
+        processor.define_exception(self.ename, self.ebasename)
     #-def
 #-class
 
@@ -717,7 +939,8 @@ class Operation(Trackable):
         op_tab = self.__class__.OP_TAB
         if self.name not in op_tab:
             raise CommandError(processor.NameError,
-                "Undefined operation '%s'" % self.name
+                "Undefined operation '%s'" % self.name,
+                processor.traceback()
             )
 
         # 2) Load operands:
@@ -744,7 +967,8 @@ class Operation(Trackable):
                     "are" if arity != 1 else "is",
                     nargs,
                     "were" if nargs != 1 else "was"
-                )
+                ),
+                processor.traceback()
             )
 
         # 5) Do the occasional conversions:
@@ -776,7 +1000,8 @@ class Operation(Trackable):
                     "rd" if (i % 10) == 2 and (i % 100) != 12 else \
                     "th",
                     bo
-                )
+                ),
+                processor.traceback()
             )
 
         # 7) Test the occasional constraints:
@@ -784,7 +1009,9 @@ class Operation(Trackable):
             processor, *args
         )
         if not r:
-            raise CommandError(e, "%s: %s" % (self.name, m))
+            raise CommandError(
+                e, "%s: %s" % (self.name, m), processor.traceback()
+            )
 
         # 8) Do the operation:
         processor.setacc(op_spec['operation'](*args))
@@ -1589,7 +1816,8 @@ class ToBool(Operation):
             processor.setacc(False)
         else:
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 1st operand" % self.name
+                "%s: Bad type of 1st operand" % self.name,
+                processor.traceback()
             )
     #-def
 #-class
@@ -1623,13 +1851,15 @@ class ToInt(Operation):
                     processor.setacc(int(float(arg)))
                 except ValueError:
                     raise CommandError(processor.ValueError,
-                        "%s: String to integer conversion failed" % self.name
+                        "%s: String to integer conversion failed" % self.name,
+                        processor.traceback()
                     )
         elif isinstance(arg, UserType):
             processor.setacc(arg.to_int(processor))
         else:
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 1st operand" % self.name
+                "%s: Bad type of 1st operand" % self.name,
+                processor.traceback()
             )
     #-def
 #-class
@@ -1660,13 +1890,15 @@ class ToFlt(Operation):
                 processor.setacc(float(arg))
             except ValueError:
                 raise CommandError(processor.ValueError,
-                    "%s: String to float conversion failed" % self.name
+                    "%s: String to float conversion failed" % self.name,
+                    processor.traceback()
                 )
         elif isinstance(arg, UserType):
             processor.setacc(arg.to_float(processor))
         else:
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 1st operand" % self.name
+                "%s: Bad type of 1st operand" % self.name,
+                processor.traceback()
             )
     #-def
 #-class
@@ -1691,7 +1923,8 @@ class ToStr(Operation):
         if not isinstance(convspec, dict):
             raise CommandError(processor.TypeError,
                 "%s: Conversion specifications must be stored in hashmap" \
-                % self.name
+                % self.name,
+                processor.traceback()
             )
         arg = processor.popval()
         if isinstance(arg, bool):
@@ -1700,7 +1933,8 @@ class ToStr(Operation):
             if not isinstance(sTrue, str) or not isinstance(sFalse, str):
                 raise CommandError(processor.TypeError,
                     "%s: The names of booleans constants must be strings" \
-                    % self.name
+                    % self.name,
+                    processor.traceback()
                 )
             processor.setacc(sTrue if arg is True else sFalse)
         elif isinstance(arg, int):
@@ -1721,12 +1955,14 @@ class ToStr(Operation):
             sNull = convspec.get('snull', "null")
             if not isinstance(sNull, str):
                 raise CommandError(processor.TypeError,
-                    "%s: The name of null constant must be string" % self.name
+                    "%s: The name of null constant must be string" % self.name,
+                    processor.traceback()
                 )
             processor.setacc(sNull)
         else:
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 1st operand" % self.name
+                "%s: Bad type of 1st operand" % self.name,
+                processor.traceback()
             )
     #-def
 
@@ -1738,24 +1974,28 @@ class ToStr(Operation):
         flags = spec.get('%sflags' % p, spec.get('flags', ""))
         if not isinstance(flags, str) or len(set(flags) - set("-+ 0")) > 0:
             raise CommandError(processor.TypeError,
-                "%s: Bad flag specifier ('-', '+', ' ', '0')" % self.name
+                "%s: Bad flag specifier ('-', '+', ' ', '0')" % self.name,
+                processor.traceback()
             )
         size = spec.get('%ssize' % p, spec.get('size', 0))
         if not isinstance(size, int):
             raise CommandError(processor.TypeError,
-                "%s: Size specifier must be integer" % self.name
+                "%s: Size specifier must be integer" % self.name,
+                processor.traceback()
             )
         size = "" if size < 1 else "%d" % size
         prec = spec.get('%sprec' % p, spec.get('prec', -1))
         if not isinstance(prec, int):
             raise CommandError(processor.TypeError,
-                "%s: Precision specifier must be integer" % self.name
+                "%s: Precision specifier must be integer" % self.name,
+                processor.traceback()
             )
         prec = "" if prec < 0 else ".%d" % prec
         type = spec.get('%stype' % p, types[0])
         if type not in types:
             raise CommandError(processor.TypeError,
-                "%s: Bad display type %r" % (self.name, types)
+                "%s: Bad display type %r" % (self.name, types),
+                processor.traceback()
             )
         return "%%%s%s%s%s" % (flags, size, prec, type)
     #-def
@@ -1782,14 +2022,16 @@ class ToPair(Operation):
             if len(arg) != 2:
                 raise CommandError(processor.ValueError,
                     "%s: A pair can be made only from a sequence of length 2" \
-                    % self.name
+                    % self.name,
+                    processor.traceback()
                 )
             processor.setacc(Pair(arg[0], arg[1]))
         elif isinstance(arg, UserType):
             processor.setacc(arg.to_pair(processor))
         else:
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 1st operand" % self.name
+                "%s: Bad type of 1st operand" % self.name,
+                processor.traceback()
             )
     #-def
 #-class
@@ -1822,7 +2064,8 @@ class ToList(Operation):
             processor.setacc(arg.to_list(processor))
         else:
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 1st operand" % self.name
+                "%s: Bad type of 1st operand" % self.name,
+                processor.traceback()
             )
     #-def
 #-class
@@ -1850,7 +2093,8 @@ class ToHash(Operation):
             for x in arg:
                 if not isinstance(x, tuple) or len(x) != 2:
                     raise CommandError(processor.ValueError,
-                        "%s: A pair was expected inside list" % self.name
+                        "%s: A pair was expected inside list" % self.name,
+                        processor.traceback()
                     )
         if isinstance(arg, (list, dict)):
             processor.setacc(HashMap(arg))
@@ -1858,7 +2102,8 @@ class ToHash(Operation):
             processor.setacc(arg.to_hash(processor))
         else:
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 1st operand" % self.name
+                "%s: Bad type of 1st operand" % self.name,
+                processor.traceback()
             )
     #-def
 #-class
@@ -1885,7 +2130,8 @@ class Quantifier(Operation):
         proc = processor.popval()
         if not isinstance(proc, Procedure):
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 2nd operand" % self.name
+                "%s: Bad type of 2nd operand" % self.name,
+                processor.traceback()
             )
         state[0] = proc
         it = processor.popval()
@@ -1893,7 +2139,8 @@ class Quantifier(Operation):
             it = List(it)
         if not isinstance(it, CollectionTypes):
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 1st operand" % self.name
+                "%s: Bad type of 1st operand" % self.name,
+                processor.traceback()
             )
         state[1] = it.iterator()
         state[1].reset()
@@ -1925,7 +2172,8 @@ class Quantifier(Operation):
         if not isinstance(r, bool):
             raise CommandError(processor.TypeError,
                 "%s: Function %s should return boolean value" \
-                % (self.name, state[0][0])
+                % (self.name, state[0][0]),
+                processor.traceback()
             )
         state[2] = self.cf(state[2], r)
     #-def
@@ -1978,13 +2226,15 @@ class SeqOp(Operation):
         proc = processor.popval()
         if not isinstance(proc, Procedure):
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 2nd operand" % self.name
+                "%s: Bad type of 2nd operand" % self.name,
+                processor.traceback()
             )
         state[0] = proc
         it = processor.popval()
         if not isinstance(it, SequenceTypes):
             raise CommandError(processor.TypeError,
-                "%s: Bad type of 1st operand" % self.name
+                "%s: Bad type of 1st operand" % self.name,
+                processor.traceback()
             )
         if isinstance(it, str):
             it = List(it)
@@ -2018,13 +2268,15 @@ class SeqOp(Operation):
         if not isinstance(r, Pair):
             raise CommandError(processor.TypeError,
                 "%s: Function %s should return a pair" \
-                % (self.name, state[0][0])
+                % (self.name, state[0][0]),
+                processor.traceback()
             )
         result, keep_result = r
         if not isinstance(keep_result, bool):
             raise CommandError(processor.TypeError,
                 "%s: Function %s should return a pair (any, boolean)" \
-                % (self.name, state[0][0])
+                % (self.name, state[0][0]),
+                processor.traceback()
             )
         if keep_result:
             state[2].append(result)
@@ -2106,13 +2358,13 @@ class Block(Trackable):
         self.commands = commands
     #-def
 
-    def enter(self, processor, ctx):
+    def enter(self, processor, inlz):
         """
         """
 
-        ctx.env = processor.newenv()
-        ctx.nvals = processor.nvals()
-        processor.pushctx(ctx)
+        inlz.ctx.env = processor.newenv()
+        inlz.ctx.nvals = processor.nvals()
+        processor.pushctx(inlz.ctx)
     #-def
 
     def expand(self, processor):
@@ -2147,7 +2399,7 @@ class If(Trackable):
 
         ctx = CommandContext(self)
         processor.insertcode(
-            Initializer(ctx), self.c, self.do_if, Finalizer(ctx)
+            Initializer(ctx), ToBool(self.c), self.do_if, Finalizer(ctx)
         )
     #-def
 
@@ -2160,8 +2412,28 @@ class If(Trackable):
         )
     #-def
 #-class
- 
-class Foreach(Trackable):
+
+class Loop(Trackable):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        Trackable.__init__(self)
+    #-def
+
+    def isloop(self):
+        """
+        """
+
+        return True
+    #-def
+#-class
+
+class Foreach(Loop):
     """
     """
     __slots__ = [ 'var', 'itexp', 'body' ]
@@ -2170,7 +2442,7 @@ class Foreach(Trackable):
         """
         """
 
-        Trackable.__init__(self)
+        Loop.__init__(self)
         self.var = var
         self.itexp = itexp
         self.body = tuple(body)
@@ -2182,11 +2454,11 @@ class Foreach(Trackable):
 
         ctx = CommandContext(self)
         processor.insertcode(
-            Initializer(ctx), self.itexp, self.do_for, Finalizer(ctx)
+            Initializer(ctx), self.itexp, self.do_foreach, Finalizer(ctx)
         )
     #-def
 
-    def do_for(self, processor):
+    def do_foreach(self, processor):
         """
         """
 
@@ -2194,7 +2466,8 @@ class Foreach(Trackable):
         it = processor.acc()
         if not isinstance(it, CollectionTypes):
             raise CommandError(processor.TypeError,
-                "%s: Object must be iterable" % self.name
+                "%s: Object must be iterable" % self.name,
+                processor.traceback()
             )
         if isinstance(it, str):
             it = List(it)
@@ -2224,12 +2497,149 @@ class Foreach(Trackable):
         ctx = processor.cmdctx(self)
         ctx.env.setvar(self.var, processor.acc())
     #-def
+
+    def do_continue(self, processor):
+        """
+        """
+
+        processor.insertcode(self.do_loop)
+    #-def
+#-class
+
+class While(Loop):
+    """
+    """
+    __slots__ = [ 'c', 'b' ]
+
+    def __init__(self, c, b):
+        """
+        """
+
+        Loop.__init__(self)
+        self.c = c
+        self.b = tuple(b)
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(Initializer(ctx), self.do_while, Finalizer(ctx))
+    #-def
+
+    def do_while(self, processor):
+        """
+        """
+
+        processor.insertcode(ToBool(self.c), self.do_next)
+    #-def
+
+    def do_next(self, processor):
+        """
+        """
+
+        if processor.acc():
+            processor.insertcode(*(self.b + (self.do_while,)))
+    #-def
+
+    def do_continue(self, processor):
+        """
+        """
+
+        processor.insertcode(self.do_while)
+    #-def
+#-class
+
+class DoWhile(Loop):
+    """
+    """
+    __slots__ = [ 'b', 'c' ]
+
+    def __init__(self, b, c):
+        """
+        """
+
+        Loop.__init__(self)
+        self.b = tuple(b)
+        self.c = c
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(Initializer(ctx), self.do_dowhile, Finalizer(ctx))
+    #-def
+
+    def do_dowhile(self, processor):
+        """
+        """
+
+        processor.insertcode(*(self.b + (ToBool(self.c), self.do_next)))
+    #-def
+
+    def do_next(self, processor):
+        """
+        """
+
+        if processor.acc():
+            processor.insertcode(self.do_dowhile)
+    #-def
+
+    def do_continue(self, processor):
+        """
+        """
+
+        processor.insertcode(ToBool(self.c), self.do_next)
+    #-def
+#-class
+
+class Break(Command):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        Command.__init__(self)
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        processor.handle_event(BREAK, None)
+    #-def
+#-class
+
+class Continue(Command):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        Command.__init__(self)
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        processor.handle_event(CONTINUE, None)
+    #-def
 #-class
 
 class Closure(Trackable):
     """
     """
-    __slots__ = [ 'name', 'bvars', 'args', 'body', 'outer' ]
+    __slots__ = [ 'bvars', 'args', 'body', 'outer' ]
 
     def __init__(self, name, bvars, args, body, outer):
         """
@@ -2250,17 +2660,17 @@ class Closure(Trackable):
         return True
     #-def
 
-    def enter(self, processor, ctx):
+    def enter(self, processor, inlz):
         """
         """
 
-        ctx.env = processor.newenv(self.outer)
+        inlz.ctx.env = processor.newenv(self.outer)
         for bvar in self.bvars:
-            ctx.env.setvar(bvar, processor.Null)
+            inlz.ctx.env.setvar(bvar, processor.Null)
         for argname in self.args:
-            ctx.env.setvar(argname, self.args[argname])
-        ctx.nvals = processor.nvals()
-        processor.pushctx(ctx)
+            inlz.ctx.env.setvar(argname, self.args[argname])
+        inlz.ctx.nvals = processor.nvals()
+        processor.pushctx(inlz.ctx)
     #-def
 
     def expand(self, processor):
@@ -2328,7 +2738,8 @@ class Call(Trackable):
         proc = processor.acc()
         if not isinstance(proc, Procedure):
             raise CommandError(processor.TypeError,
-                "%s: Procedure expected" % self.name
+                "%s: Procedure expected" % self.name,
+                processor.traceback()
             )
         _, _, params, vararg, _, _ = proc
         nargs, nparams = len(self.args), len(params)
@@ -2336,7 +2747,8 @@ class Call(Trackable):
             else (lambda na, np: na == np)
         if not argsokf(nargs, nparams):
             raise CommandError(processor.TypeError,
-                "%s %s: Bad count of arguments" % (self.name, proc[0])
+                "%s %s: Bad count of arguments" % (self.name, proc[0]),
+                processor.traceback()
             )
         code = [{}, self.pushacc]
         nreqargs = nparams - 1 if vararg else nparams
@@ -2414,7 +2826,8 @@ class ECall(Trackable):
 
         if not hasattr(self.proc, '__call__'):
             raise CommandError(processor.TypeError,
-                "%s: External procedure must be callable" % self.name
+                "%s: External procedure must be callable" % self.name,
+                processor.traceback()
             )
         code = [[], self.pushacc]
         for x in self.args:
@@ -2441,7 +2854,8 @@ class ECall(Trackable):
             processor.insertcode(e)
         except:
             raise CommandError(processor.TypeError,
-                "%s: Calling the external procedure has failed" % self.name
+                "%s: Calling the external procedure has failed" % self.name,
+                processor.traceback()
             )
     #-def
 #-class
@@ -2470,7 +2884,164 @@ class Return(Command):
         """
         """
 
-        processor.handle_return()
+        processor.handle_event(RETURN, None, processor.acc())
+    #-def
+#-class
+
+class TryCatchFinally(Trackable):
+    """
+    """
+    __slots__ = [ 'b', 'h', 'f' ]
+
+    def __init__(self, b, h, f):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.b = tuple(b)
+        self.h = h
+        self.f = f
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            *((Initializer(ctx),) + self.b + (Finalizer(ctx, self.f),))
+        )
+    #-def
+
+    def find_exception_handler(self, ctx, e):
+        """
+        """
+
+        try:
+            if not (
+                isinstance(e, CommandError)
+                and isinstance(e.ecls, ExceptionClass)
+            ):
+                return None
+            for name, vname, handler in self.h:
+                ec = ctx.env.getvar(name)
+                if isderived(e.ecls, ec):
+                    if vname:
+                        ctx.env.setvar(vname, e)
+                    return handler
+            return None
+        except CommandError as ce:
+            return [ce]
+    #-def
+#-class
+
+class Throw(Trackable):
+    """
+    """
+    __slots__ = [ 'ecls', 'msg' ]
+
+    def __init__(self, ecls, msg):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.ecls = ecls
+        self.msg = msg
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.ecls, self.pushacc,
+            self.msg,
+            self.do_throw,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_throw(self, processor):
+        """
+        """
+
+        msg = processor.acc()
+        ecls = processor.popval()
+
+        if not isinstance(ecls, ExceptionClass):
+            raise CommandError(processor.TypeError,
+                "%s: Error class expected" % self.name,
+                processor.traceback()
+            )
+        if not isinstance(msg, str):
+            raise CommandError(processor.TypeError,
+                "%s: Error message must be string" % self.name,
+                processor.traceback()
+            )
+        raise CommandError(ecls, msg, processor.traceback())
+    #-def
+#-class
+
+class Rethrow(Trackable):
+    """
+    """
+    __slots__ = [ 'e' ]
+
+    def __init__(self, e):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.e = e
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx), self.e, self.do_rethrow, Finalizer(ctx)
+        )
+    #-def
+
+    def do_rethrow(self, processor):
+        """
+        """
+
+        e = processor.acc()
+        if not isinstance(e, CommandError):
+            raise CommandError(processor.TypeError,
+                "%s: Only command error can be thrown" % self.name,
+                processor.traceback()
+            )
+        processor.insertcode(e)
+    #-def
+#-class
+
+class SandBox(Trackable):
+    """
+    """
+    __slots__ = [ 'cmds' ]
+
+    def __init__(self, cmds):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.cmds = tuple(cmds)
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(*(
+            (Initializer(ctx),) + self.cmds + (Finalizer(ctx, sb = True),)
+        ))
     #-def
 #-class
 
@@ -2514,13 +3085,15 @@ class SetItem(Trackable):
 
         if not isinstance(container, (list, dict)):
             raise CommandError(processor.TypeError,
-                "%s: Container must be list or hashmap" % self.name
+                "%s: Container must be list or hashmap" % self.name,
+                processor.traceback()
             )
         if isinstance(container, list) and not (
             isinstance(index, int) and 0 <= index and index < len(container)
         ):
             raise CommandError(processor.IndexError,
-                "%s: Invalid index" % self.name
+                "%s: Invalid index" % self.name,
+                processor.traceback()
             )
         container[index] = value
     #-def
@@ -2563,13 +3136,15 @@ class DelItem(Trackable):
 
         if not isinstance(container, (list, dict)):
             raise CommandError(processor.TypeError,
-                "%s: Container must be list or hashmap" % self.name
+                "%s: Container must be list or hashmap" % self.name,
+                processor.traceback()
             )
         if isinstance(container, list) and not (
             isinstance(index, int) and 0 <= index and index < len(container)
         ):
             raise CommandError(processor.IndexError,
-                "%s: Invalid index" % self.name
+                "%s: Invalid index" % self.name,
+                processor.traceback()
             )
         if isinstance(container, dict) and index not in container:
             return
@@ -2614,7 +3189,8 @@ class Append(Trackable):
 
         if not isinstance(l, list):
             raise CommandError(processor.TypeError,
-                "%s: A list was expected" % self.name
+                "%s: A list was expected" % self.name,
+                processor.traceback()
             )
         l.append(v)
     #-def
@@ -2660,11 +3236,13 @@ class Insert(Trackable):
 
         if not isinstance(l, list):
             raise CommandError(processor.TypeError,
-                "%s: A list was expected" % self.name
+                "%s: A list was expected" % self.name,
+                processor.traceback()
             )
         if not (isinstance(i, int) and 0 <= i and i <= len(l)):
             raise CommandError(processor.IndexError,
-                "%s: Bad index" % self.name
+                "%s: Bad index" % self.name,
+                processor.traceback()
             )
         l.insert(i, v)
     #-def
@@ -2707,7 +3285,8 @@ class Remove(Trackable):
 
         if not isinstance(l, list):
             raise CommandError(processor.TypeError,
-                "%s: A list was expected" % self.name
+                "%s: A list was expected" % self.name,
+                processor.traceback()
             )
         if x in l:
             l.remove(x)
@@ -2751,7 +3330,8 @@ class RemoveAll(Trackable):
 
         if not isinstance(l, list):
             raise CommandError(processor.TypeError,
-                "%s: A list was expected" % self.name
+                "%s: A list was expected" % self.name,
+                processor.traceback()
             )
         while x in l:
             l.remove(x)
@@ -2796,11 +3376,13 @@ class Each(Trackable):
 
         if not isinstance(l, list):
             raise CommandError(processor.TypeError,
-                "%s: A list was expected" % self.name
+                "%s: A list was expected" % self.name,
+                processor.traceback()
             )
         if not isinstance(f, Procedure):
             raise CommandError(processor.TypeError,
-                "%s: A function was expected" % self.name
+                "%s: A function was expected" % self.name,
+                processor.traceback()
             )
         state = {0: l.iterator(), 1: f, 2: List()}
         state[0].reset()
@@ -2878,11 +3460,13 @@ class Visit(Trackable):
 
         if not isinstance(ut, UserType):
             raise CommandError(processor.TypeError,
-                "%s: A UserType object was expected" % self.name
+                "%s: A UserType object was expected" % self.name,
+                processor.traceback()
             )
         if not isinstance(f, Procedure):
             raise CommandError(processor.TypeError,
-                "%s: A function was expected" % self.name
+                "%s: A function was expected" % self.name,
+                processor.traceback()
             )
         state = {0: ut, 1: f, 2: List()}
         processor.insertcode(state, self.pushacc, self.do_args, self.do_ivisit)

@@ -246,7 +246,8 @@ class UserType(object):
         """
 
         raise CommandError(processor.TypeError,
-            "%s is not convertible to integer" % self.__class__.__name__
+            "%s is not convertible to integer" % self.__class__.__name__,
+            processor.traceback()
         )
     #-def
 
@@ -255,7 +256,8 @@ class UserType(object):
         """
 
         raise CommandError(processor.TypeError,
-            "%s is not convertible to float" % self.__class__.__name__
+            "%s is not convertible to float" % self.__class__.__name__,
+            processor.traceback()
         )
     #-def
 
@@ -264,7 +266,8 @@ class UserType(object):
         """
 
         raise CommandError(processor.TypeError,
-            "%s is not convertible to string" % self.__class__.__name__
+            "%s is not convertible to string" % self.__class__.__name__,
+            processor.traceback()
         )
     #-def
 
@@ -273,7 +276,8 @@ class UserType(object):
         """
 
         raise CommandError(processor.TypeError,
-            "%s is not convertible to pair" % self.__class__.__name__
+            "%s is not convertible to pair" % self.__class__.__name__,
+            processor.traceback()
         )
     #-def
 
@@ -282,7 +286,8 @@ class UserType(object):
         """
 
         raise CommandError(processor.TypeError,
-            "%s is not convertible to list" % self.__class__.__name__
+            "%s is not convertible to list" % self.__class__.__name__,
+            processor.traceback()
         )
     #-def
 
@@ -291,7 +296,8 @@ class UserType(object):
         """
 
         raise CommandError(processor.TypeError,
-            "%s is not convertible to hash" % self.__class__.__name__
+            "%s is not convertible to hash" % self.__class__.__name__,
+            processor.traceback()
         )
     #-def
 
@@ -300,7 +306,8 @@ class UserType(object):
         """
 
         raise CommandError(processor.TypeError,
-            "%s is not visitable" % self.__class__.__name__
+            "%s is not visitable" % self.__class__.__name__,
+            processor.traceback()
         )
     #-def
 #-class

@@ -64,15 +64,16 @@ class CommandProcessorError(DoItError):
 class CommandError(DoItError):
     """
     """
-    __slots__ = [ 'ecls', 'emsg' ]
+    __slots__ = [ 'ecls', 'emsg', 'tb' ]
 
-    def __init__(self, ecls, emsg):
+    def __init__(self, ecls, emsg, tb):
         """
         """
 
         DoItError.__init__(self, ERROR_COMMAND, "%s: %s" % (ecls, emsg))
         self.ecls = ecls
         self.emsg = emsg
+        self.tb = tb
     #-def
 
     def __repr__(self):

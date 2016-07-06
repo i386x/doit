@@ -48,6 +48,12 @@ from doit.text.pgen.readers.glap.cmd.runtime import \
     Procedure
 
 from doit.text.pgen.readers.glap.cmd.commands import \
+    NONE, \
+    EXCEPTION, \
+    RETURN, \
+    BREAK, \
+    CONTINUE, \
+    CLEANUP, \
     Finalizer, \
     Command
 
@@ -88,7 +94,8 @@ class Environment(dict):
         if self.__outer:
             return self.__outer.getvar(name)
         raise CommandError(self.__processor.NameError,
-            "Undefined variable '%s'" % name
+            "Undefined variable '%s'" % name,
+            self.__processor.traceback()
         )
     #-def
 
@@ -262,6 +269,13 @@ class CommandProcessor(object):
         return self.__acc
     #-def
 
+    def traceback(self):
+        """
+        """
+
+        return Traceback(self.__ctxstack)
+    #-def
+
     def run(self, commands):
         """
         """
@@ -290,58 +304,80 @@ class CommandProcessor(object):
             elif x is None or x is self.Null:
                 self.__acc = self.Null
             elif isinstance(x, CommandError):
-                self.handle_exception(x)
+                self.handle_event(EXCEPTION, x)
             else:
                 raise CommandProcessorError(Traceback(self.__ctxstack),
                     "run: Unexpected object in code buffer appeared"
                 )
     #-def
 
-    def handle_exception(self, e):
+    def handle_event(self, event, *args):
         """
         """
 
+        if event == NONE:
+            return
+        args = list(args)
         cb, stack = self.__codebuff, self.__ctxstack
-        tb = Traceback(stack)
+        tb = self.extract_tb(event, args)
         handled = False
-        while not handled and cb and stack:
-            x = cb.pop(0)
-            if isinstance(x, Finalizer):
-                if x.ctx is not stack[-1]:
-                    raise CommandProcessorError(tb,
-                        "handle_exception: Command stack is corrupted"
-                    )
-                eh = stack[-1].cmd.find_exception_handler(x.ctx, e)
-                if eh is not None:
-                    cb[:0] = eh
-                    self.__acc = e
-                    handled = True
-                x(self)
-        if not handled:
-            raise CommandProcessorError(tb, "Uncaught exception %r" % e)
-    #-def
-
-    def handle_return(self):
-        """
-        """
-
-        cb, stack = self.__codebuff, self.__ctxstack
-        tb = Traceback(stack)
         while cb:
             x = cb.pop(0)
             if isinstance(x, Finalizer):
                 if not stack or x.ctx is not stack[-1]:
                     raise CommandProcessorError(tb,
-                        "handle_return: Command stack is corrupted"
+                        "Command context stack is corrupted"
                     )
-                if not x.ctx.cmd.isfunc():
-                    x(self)
-                    continue
+                self.update_fnlz_state(x, event, args)
                 cb.insert(0, x)
+                handled = True
                 break
-        if not cb:
+        if event == CLEANUP:
+            return
+        if (event == EXCEPTION and not handled) or not cb:
             raise CommandProcessorError(tb,
-                "return used outside function scope"
+                "Uncaught exception %r" % args[0] if event == EXCEPTION else \
+                "return used outside function" if event == RETURN else \
+                "break used outside loop" if event == BREAK else \
+                "continue used outside loop" if event == CONTINUE else \
+                "Unhandled event #%d" % event
+            )
+    #-def
+
+    def extract_tb(self, event, args):
+        """
+        """
+
+        if event == EXCEPTION:
+            return args[0].tb
+        elif event in (RETURN, BREAK, CONTINUE, CLEANUP):
+            if args[0] is None:
+                args[0] = self.traceback()
+            return args[0]
+        else:
+            raise CommandProcessorError(self.traceback(),
+                "Unhandled event #%d" % event
+            )
+    #-def
+
+    def update_fnlz_state(self, fnlz, event, args):
+        """
+        """
+
+        if event == EXCEPTION:
+            e = args[0]
+            eh = fnlz.ctx.cmd.find_exception_handler(fnlz.ctx, e)
+            fnlz.state = (event, e, eh)
+        elif event == RETURN:
+            tb = args[0]
+            rc = args[1]
+            fnlz.state = (event, tb, rc)
+        elif event in (BREAK, CONTINUE, CLEANUP):
+            tb = args[0]
+            fnlz.state = (event, tb)
+        else:
+            raise CommandProcessorError(self.traceback(),
+                "Unhandled event #%d" % event
             )
     #-def
 
@@ -349,10 +385,8 @@ class CommandProcessor(object):
         """
         """
 
-        while self.__codebuff:
-            f = self.__codebuff.pop(0)
-            if isinstance(f, Finalizer):
-                f(self)
+        self.handle_event(CLEANUP, None)
+        self.run([])
         while self.__ctxstack:
             self.__ctxstack.pop()
         while self.__valstack:
@@ -367,7 +401,10 @@ class CommandProcessor(object):
         env = self.getenv()
         base = env.getvar(basename)
         if not isinstance(base, ExceptionClass):
-            raise CommandError(self.TypeError, "Base class must be exception")
+            raise CommandError(self.TypeError,
+                "Base class must be exception",
+                Traceback(self.__ctxstack)
+            )
         env[name] = ExceptionClass(name, base)
     #-def
 
@@ -393,6 +430,9 @@ class CommandProcessor(object):
         self.__consts['Exception'] = ExceptionClass(
             'Exception', self.BaseException
         )
+        self.__consts['SyntaxError'] = ExceptionClass(
+            'SyntaxError', self.Exception
+        )
         self.__consts['NameError'] = ExceptionClass(
             'NameError', self.Exception
         )
@@ -415,8 +455,9 @@ class CommandProcessor(object):
         """
 
         for x in (
-            self.BaseException, self.Exception, \
-            self.NameError, self.TypeError, self.ValueError, \
+            self.BaseException, self.Exception,
+            self.SyntaxError, self.NameError,
+            self.TypeError, self.ValueError,
             self.IndexError, self.KeyError
         ):
             if str(x) not in self.__env:

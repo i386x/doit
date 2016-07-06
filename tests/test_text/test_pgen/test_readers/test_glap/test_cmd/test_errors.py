@@ -109,9 +109,10 @@ class TestCommandErrorCase(unittest.TestCase):
     def test_CommandError(self):
         eclsname = "SomeError"
         detail = "Some error detail"
+        tb = ()
 
         with self.assertRaises(CommandError) as eh:
-            raise CommandError(AuxExceptionClass(eclsname), detail)
+            raise CommandError(AuxExceptionClass(eclsname), detail, tb)
 
         self.assertEqual(
             str(eh.exception),
@@ -123,6 +124,7 @@ class TestCommandErrorCase(unittest.TestCase):
         self.assertEqual(
             repr(eh.exception), "%s(\"%s\")" % (eclsname, detail)
         )
+        self.assertIs(eh.exception.tb, tb)
     #-def
 #-class
 

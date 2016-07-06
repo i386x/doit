@@ -51,6 +51,7 @@ from doit.text.pgen.readers.glap.cmd.runtime import \
 from doit.text.pgen.readers.glap.cmd.commands import \
     Location, \
     CommandContext, \
+    Initializer, Finalizer, \
     Command, \
     SetLocal, \
     GetLocal, \
@@ -73,8 +74,9 @@ from doit.text.pgen.readers.glap.cmd.commands import \
     ToBool, ToInt, ToFlt, ToStr, ToPair, ToList, ToHash, \
     All, Any, SeqOp, Map, Filter, \
     Lambda, \
-    Block, If, Foreach, \
+    Block, If, Foreach, While, DoWhile, Break, Continue, \
     Call, ECall, Return, \
+    TryCatchFinally, Throw, Rethrow, \
     SetItem, DelItem, Append, Insert, Remove, RemoveAll, \
     Each, Visit, \
     Print
@@ -197,14 +199,16 @@ class TestCommandCase(unittest.TestCase):
         c.set_location("X.f", 5, 8)
         self.assertEqual(str(c), '"command" at ["X.f":5:8]')
         c.help(p)
-        c.enter(p, ctx)
+        c.enter(p, Initializer(ctx))
         c.expand(p)
-        c.leave(p, ctx)
+        c.leave(p, Finalizer(ctx))
         p.setacc(56)
         c.pushacc(p)
         self.assertEqual(p.popval(), 56)
         self.assertIsNone(
-            c.find_exception_handler(ctx, CommandError(p.TypeError, ""))
+            c.find_exception_handler(
+                ctx, CommandError(p.TypeError, "", p.traceback())
+            )
         )
     #-def
 #-class
@@ -1519,11 +1523,12 @@ class TestIfCase(unittest.TestCase):
     #-def
 #-class
 
-class TestForeachCase(unittest.TestCase):
+class TestLoopCase(unittest.TestCase):
 
     def test_Foreach(self):
         p = CommandProcessor()
 
+        # foreach:
         p.run([
             SetLocal("x", 0),
             Foreach("i", [], [
@@ -1582,6 +1587,195 @@ class TestForeachCase(unittest.TestCase):
         self.assertEqual(p.getenv()["i"], 1)
         self.assertEqual(p.getenv()["j"], 5)
         self.assertEqual(p.getenv()["k"], "v")
+
+        # break, continue:
+        p.run([
+            SetLocal('x', []),
+            SetLocal('y', ""),
+            Foreach('c', "abc   def    ghi\n jkl   mno", [
+                If(IsAlpha(GetLocal('c')), [
+                    SetLocal('y', Concat(GetLocal('y'), GetLocal('c'))),
+                    Continue()
+                ], []),
+                If(Eq(GetLocal('c'), ' '), [
+                    If(ToBool(GetLocal('y')), [
+                        Append(GetLocal('x'), GetLocal('y')),
+                        SetLocal('y', "")
+                    ], []),
+                    Continue()
+                ], []),
+                If(ToBool(GetLocal('y')), [
+                    Append(GetLocal('x'), GetLocal('y')),
+                    SetLocal('y', "")
+                ], []),
+                Break()
+            ])
+        ])
+        self.assertEqual(p.getenv()['x'], ["abc", "def", "ghi"])
+    #-def
+
+    def test_While(self):
+        p = CommandProcessor()
+
+        p.run([
+            SetLocal('x', 10),
+            While(Gt(GetLocal('x'), 0), [
+                SetLocal('x', Sub(GetLocal('x'), 1))
+            ])
+        ])
+        self.assertEqual(p.getenv()['x'], 0)
+
+        p.run([
+            SetLocal('x', 1),
+            While(False, [
+                SetLocal('x', 2)
+            ])
+        ])
+        self.assertEqual(p.getenv()['x'], 1)
+
+        p.run([
+            SetLocal('x', 10),
+            While(True, [
+                If(Gt(GetLocal('x'), 0), [
+                    SetLocal('x', Sub(GetLocal('x'), 1)),
+                    Continue()
+                ], []),
+                Break(),
+                Continue()
+            ])
+        ])
+        self.assertEqual(p.getenv()['x'], 0)
+    #-def
+
+    def test_DoWhile(self):
+        p = CommandProcessor()
+
+        p.run([
+            SetLocal('x', 1),
+            DoWhile([
+                SetLocal('x', 2)
+            ], False)
+        ])
+        self.assertEqual(p.getenv()['x'], 2)
+
+        p.run([
+            SetLocal('x', 0),
+            SetLocal('y', 10),
+            DoWhile([
+                SetLocal('x', Add(GetLocal('x'), 1)),
+                SetLocal('y', Sub(GetLocal('y'), 1))
+            ], Gt(GetLocal('y'), 0))
+        ])
+        self.assertEqual(p.getenv()['x'], 10)
+
+        p.run([
+            SetLocal('x', 10),
+            DoWhile([
+                If(Gt(GetLocal('x'), 0), [
+                    SetLocal('x', Sub(GetLocal('x'), 1)),
+                    Continue()
+                ], []),
+                Break(),
+                Continue()
+            ], True)
+        ])
+        self.assertEqual(p.getenv()['x'], 0)
+
+        p.run([
+            SetLocal('x', 10),
+            DoWhile([
+                If(Gt(GetLocal('x'), 0), [
+                    SetLocal('x', Sub(GetLocal('x'), 1)),
+                    Continue()
+                ], []),
+                Break(),
+                Continue()
+            ], False)
+        ])
+        self.assertEqual(p.getenv()['x'], 9)
+    #-def
+
+    def test_nested_loops(self):
+        p = CommandProcessor()
+
+        # l = []
+        # foreach x [1, 2, -1, 3, 0, 8]
+        #   if (x < 0)
+        #     continue
+        #   y = x
+        #   if y == 0
+        #     break
+        #   do
+        #     z = 0
+        #     while true
+        #       if z < y
+        #         z += 1
+        #         continue
+        #       l += z
+        #       break
+        #     end
+        #     y -= 1
+        #     if y < 0
+        #       break
+        #   while true
+        # end
+        p.run([
+            SetLocal('l', []),
+            Foreach('x', [1, 2, -1, 3, 0, 8], [
+                If(Lt(GetLocal('x'), 0), [
+                    Continue()
+                ], []),
+                SetLocal('y', GetLocal('x')),
+                If(Eq(GetLocal('y'), 0), [
+                    Break()
+                ], []),
+                DoWhile([
+                    SetLocal('z', 0),
+                    While(True, [
+                        If(Lt(GetLocal('z'), GetLocal('y')), [
+                            SetLocal('z', Add(GetLocal('z'), 1)),
+                            Continue()
+                        ], []),
+                        Append(GetLocal('l'), GetLocal('z')),
+                        Break()
+                    ]),
+                    SetLocal('y', Sub(GetLocal('y'), 1)),
+                    If(Lt(GetLocal('y'), 0), [
+                        Break()
+                    ], [])
+                ], True)
+            ])
+        ])
+        self.assertEqual(p.getenv()['l'], [1, 0, 2, 1, 0, 3, 2, 1, 0])
+    #-def
+
+    def test_bad_cases(self):
+        p = CommandProcessor()
+
+        p.run([
+            Define("f", [], [], False, [
+                Break(), Return(0)
+            ]),
+            Define("g", [], [], False, [
+                Continue(), Return(1)
+            ])
+        ])
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                DoWhile([
+                    Call(GetLocal("f"))
+                ], False)
+            ])
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                DoWhile([
+                    Call(GetLocal("g"))
+                ], False)
+            ])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Break(), Add(1, 2), Continue()])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Continue(), Add(1, 2), Break()])
     #-def
 #-class
 
@@ -1783,6 +1977,537 @@ class TestCallCase(unittest.TestCase):
         self.assertEqual(p.acc(), 0.5)
         p.run([ECall(g_, 0, 1, {})])
         self.assertIs(p.acc(), p.Null)
+    #-def
+#-class
+
+class TestTryCatchFinallyCase(unittest.TestCase):
+
+    def test_TryCatchFinally(self):
+        p = CommandProcessor()
+
+        # try
+        #   <code>
+        # catch TypeError, e
+        #   <code>
+        # finally
+        #   <code>
+        # end
+        p.run([
+            SetLocal('x', 1),
+            SetLocal('y', 2),
+            TryCatchFinally([
+                Add(1, 2),
+                Sub(4, 3),
+                Div(0, "z"),
+                Mod(4, 3),
+                Break(),
+                Return(),
+                Continue()
+            ], [
+                ('TypeError', 'e', [
+                    SetLocal('x', GetLocal('e'))
+                ])
+            ], [
+                SetLocal('y', 3)
+            ])
+        ])
+        self.assertIs(p.getenv()['x'], p.getenv()['e'])
+        self.assertEqual(p.getenv()['y'], 3)
+
+        # function f(x, y, l)
+        #   try
+        #     if (x < 0)
+        #       throw ValueError("x must be non-negative")
+        #     if (y < 0)
+        #       throw KeyError("")
+        #     throw TypeError("catch me!")
+        #     l += "never get here!"
+        #   catch TypeError, e
+        #     l += 1
+        #   catch ValueError, e
+        #     l += 2
+        #     rethrow e
+        #   catch Exception, e
+        #     l += 3
+        #     try
+        #       try
+        #         if (y == -1)
+        #           l += 4
+        #           throw ValueError("y is -1")
+        #         if (y == -2)
+        #           l += 5
+        #           throw TypeError("")
+        #         l += 6
+        #         return 0
+        #       catch ValueError, e
+        #         l += 7
+        #         return 1
+        #       finally
+        #         l += 8
+        #         return 2
+        #       end
+        #     catch TypeError, e
+        #       l += 9
+        #       return 3
+        #     finally
+        #       l += 10
+        #       throw SyntaxError("catch me to!")
+        #     end
+        #   catch KeyError, e
+        #     l += "never get here! (2)"
+        #   finally
+        #     l += 11
+        #     return 5
+        #   end
+        #   l += 12
+        #   return 6
+        # end
+        p.run([
+            Define("f", ["e"], ["x", "y", "l"], False, [
+                TryCatchFinally([
+                    If(Lt(GetLocal('x'), 0), [
+                        Throw(GetLocal('ValueError'), "x must be non-negative")
+                    ], []),
+                    If(Lt(GetLocal('y'), 0), [
+                        Throw(GetLocal('KeyError'), "")
+                    ], []),
+                    Throw(GetLocal('TypeError'), "catch me!"),
+                    Append(GetLocal('l'), "never get here!")
+                ], [('TypeError', 'e', [
+                    Append(GetLocal('l'), 1)
+                ]), ('ValueError', 'e', [
+                    Append(GetLocal('l'), 2),
+                    Rethrow(GetLocal('e'))
+                ]), ('Exception', 'e', [
+                    Append(GetLocal('l'), 3),
+                    TryCatchFinally([
+                        TryCatchFinally([
+                            If(Eq(GetLocal('y'), -1), [
+                                Append(GetLocal('l'), 4),
+                                Throw(GetLocal('ValueError'), "y is -1")
+                            ], []),
+                            If(Eq(GetLocal('y'), -2), [
+                                Append(GetLocal('l'), 5),
+                                Throw(GetLocal('TypeError'), "")
+                            ], []),
+                            Append(GetLocal('l'), 6),
+                            Return(0)
+                        ], [('ValueError', 'e', [
+                            Append(GetLocal('l'), 7),
+                            Return(1)
+                        ])], [
+                            Append(GetLocal('l'), 8),
+                            Return(2)
+                        ])
+                    ], [('TypeError', 'e', [
+                        Append(GetLocal('l'), 9),
+                        Return(3)
+                    ])], [
+                        Append(GetLocal('l'), 10),
+                        Throw(GetLocal('SyntaxError'), "catch me too!")
+                    ])
+                ]), ('KeyError', 'e', [
+                    Append(GetLocal('l'), "never get here! (2)")
+                ])], [
+                    Append(GetLocal('l'), 11),
+                    Return(5)
+                ]),
+                Append(GetLocal('l'), 12),
+                Return(6)
+            ])
+        ])
+
+        # f(1, 1, l)
+        # > l == [1, 11], r == 5
+        p.run([
+            SetLocal('l', []),
+            SetLocal('r', Call(GetLocal("f"), 1, 1, GetLocal("l")))
+        ])
+        self.assertEqual(p.getenv()['l'], [1, 11])
+        self.assertEqual(p.getenv()['r'], 5)
+        # f(1, -1, l)
+        # > l == [3, 4, 7, 8, 10, 11], r == 5
+        p.run([
+            SetLocal('l', []),
+            SetLocal('r', Call(GetLocal("f"), 1, -1, GetLocal("l")))
+        ])
+        self.assertEqual(p.getenv()['l'], [3, 4, 7, 8, 10, 11])
+        self.assertEqual(p.getenv()['r'], 5)
+        # f(1, -2, l)
+        # > l == [3, 5, 8, 10, 11], r == 5
+        p.run([
+            SetLocal('l', []),
+            SetLocal('r', Call(GetLocal("f"), 1, -2, GetLocal("l")))
+        ])
+        self.assertEqual(p.getenv()['l'], [3, 5, 8, 10, 11])
+        self.assertEqual(p.getenv()['r'], 5)
+        # f(1, -3, l)
+        # > l == [3, 6, 8, 10, 11], r == 5
+        p.run([
+            SetLocal('l', []),
+            SetLocal('r', Call(GetLocal("f"), 1, -3, GetLocal("l")))
+        ])
+        self.assertEqual(p.getenv()['l'], [3, 6, 8, 10, 11])
+        self.assertEqual(p.getenv()['r'], 5)
+        # f(-1, -3, l)
+        # > l == [2, 11], r == 5
+        p.run([
+            SetLocal('l', []),
+            SetLocal('r', Call(GetLocal("f"), -1, -3, GetLocal("l")))
+        ])
+        self.assertEqual(p.getenv()['l'], [2, 11])
+        self.assertEqual(p.getenv()['r'], 5)
+
+        # function g(x)
+        #   try
+        #     if (x < 0)
+        #       throw ValueError("")
+        #     return 1
+        #   catch ValueError, e
+        #     if (x < -1)
+        #         rethrow e
+        #     return 2
+        #   end
+        # end
+        p.run([
+            Define("g", ["e"], ["x"], False, [
+                TryCatchFinally([
+                    If(Lt(GetLocal("x"), 0), [
+                        Throw(GetLocal("ValueError"), "")
+                    ], []),
+                    Return(1)
+                ], [('ValueError', 'e', [
+                    If(Lt(GetLocal("x"), -1), [
+                        Rethrow(GetLocal("e"))
+                    ], []),
+                    Return(2)
+                ])], [])
+            ])
+        ])
+        # g(0)
+        # > 1
+        p.run([Call(GetLocal("g"), 0)])
+        self.assertEqual(p.acc(), 1)
+        # g(-1)
+        # > 2
+        p.run([Call(GetLocal("g"), -1)])
+        self.assertEqual(p.acc(), 2)
+        # g(-2)
+        # > ValueError
+        with self.assertRaises(CommandProcessorError):
+            p.run([Call(GetLocal("g"), -2)])
+
+        # try
+        #   throw ValueError("")
+        # catch KeyError
+        # end
+        code = [
+            TryCatchFinally([
+                Throw(GetLocal("ValueError"), "")
+            ], [
+                ('KeyError', "", [])
+            ], [])
+        ]
+        with self.assertRaises(CommandProcessorError):
+            p.run(code)
+
+        # try
+        #   throw KeyError("")
+        # catch KeyError
+        #   throw ValueError("")
+        # end
+        code = [
+            TryCatchFinally([
+                Throw(GetLocal("KeyError"), "")
+            ], [('KeyError', "", [
+                Throw(GetLocal("ValueError"), "")
+            ])], [])
+        ]
+        with self.assertRaises(CommandProcessorError):
+            p.run(code)
+
+        # function h()
+        #   try
+        #     throw KeyError("")
+        #   catch KeyError
+        #     return 1
+        #   end
+        #   return 2
+        # end
+        code = [
+            Define("h", [], [], False, [
+                TryCatchFinally([
+                    Throw(GetLocal("KeyError"), "")
+                ], [("KeyError", "", [
+                    Return(1)
+                ])], []),
+                Return(2)
+            ]),
+            Call(GetLocal("h"))
+        ]
+        p.run(code)
+        self.assertEqual(p.acc(), 1)
+
+        # l = []
+        # while true
+        #   try
+        #     throw KeyError("")
+        #   catch KeyError
+        #     l += 1
+        #     break
+        #   end
+        #   l += 2
+        #   continue
+        # end
+        code = [
+            SetLocal('l', []),
+            While(True, [
+                TryCatchFinally([
+                    Throw(GetLocal("KeyError"), "")
+                ], [("KeyError", "", [
+                    Append(GetLocal('l'), 1),
+                    Break()
+                ])], []),
+                Append(GetLocal('l'), 2),
+                Continue()
+            ])
+        ]
+        p.run(code)
+        self.assertEqual(p.getenv()['l'], [1])
+
+        # l = []
+        # foreach x [1, 2, 3]
+        #   try
+        #     throw KeyError("")
+        #   catch KeyError
+        #     l += 1
+        #     continue
+        #   end
+        #   l += 2
+        # end
+        code = [
+            SetLocal('l', []),
+            Foreach('x', [1, 2, 3], [
+                TryCatchFinally([
+                    Throw(GetLocal("KeyError"), "")
+                ], [("KeyError", "", [
+                    Append(GetLocal('l'), 1),
+                    Continue()
+                ])], []),
+                Append(GetLocal('l'), 2)
+            ])
+        ]
+        p.run(code)
+        self.assertEqual(p.getenv()['l'], [1, 1, 1])
+
+        # l = []
+        # try
+        #   throw KeyError("")
+        # catch KeyError
+        #   l += 1
+        # end
+        code = [
+            SetLocal('l', []),
+            TryCatchFinally([
+                Throw(GetLocal("KeyError"), "")
+            ], [("KeyError", "", [
+                Append(GetLocal('l'), 1)
+            ])], [])
+        ]
+        p.run(code)
+        self.assertEqual(p.getenv()['l'], [1])
+
+        # function fg()
+        #   try
+        #     return 1
+        #   catch BaseError
+        #   end
+        #   return 0
+        # end
+        code = [
+            Define("fg", [], [], False, [
+                TryCatchFinally([
+                    Return(1)
+                ], [
+                    ('BaseError', "", [])
+                ], []),
+                Return(0)
+            ]),
+            Call(GetLocal("fg"))
+        ]
+        p.run(code)
+        self.assertEqual(p.acc(), 1)
+
+        # while true
+        #   try
+        #     break
+        #   end
+        # end
+        code = [
+            While(True, [
+                TryCatchFinally([Break()], [], [])
+            ])
+        ]
+        p.run(code)
+
+        # l = []
+        # foreach x [1, 2, 3]
+        #   try
+        #     continue
+        #     l += x
+        #   end
+        # end
+        code = [
+            SetLocal('l', []),
+            Foreach('x', [1, 2, 3], [
+                TryCatchFinally([
+                    Continue(),
+                    Append(GetLocal('l'), GetLocal('x'))
+                ], [], [])
+            ])
+        ]
+        p.run(code)
+        self.assertEqual(p.getenv()['l'], [])
+
+        # try
+        # end
+        p.run([TryCatchFinally([], [], [])])
+
+        # try
+        #   return 1
+        # finally
+        #   throw KeyError("")
+        # end
+        code = [
+            TryCatchFinally([
+                Return(1)
+            ], [], [
+                Throw(GetLocal("KeyError"), "")
+            ])
+        ]
+        with self.assertRaises(CommandProcessorError):
+            p.run(code)
+
+        # while true
+        #   try
+        #     continue
+        #   finally
+        #     break
+        #   end
+        # end
+        code = [
+            While(True, [
+                TryCatchFinally([
+                    Continue()
+                ], [], [
+                    Break()
+                ])
+            ])
+        ]
+        p.run(code)
+
+        # while true
+        #   try
+        #     throw KeyError("")
+        #   catch KeyError
+        #     continue
+        #   finally
+        #     break
+        #   end
+        # end
+        code = [
+            While(True, [
+                TryCatchFinally([
+                    Throw(GetLocal("KeyError"), "")
+                ], [('KeyError', "", [Continue()])], [
+                    Break()
+                ])
+            ])
+        ]
+        p.run(code)
+
+        # try
+        #   throw KeyError("")
+        # catch KeyError
+        #   continue
+        # finally
+        #   break
+        # end
+        code = [
+            TryCatchFinally([
+                Throw(GetLocal("KeyError"), "")
+            ], [('KeyError', "", [Continue()])], [
+                Break()
+            ])
+        ]
+        with self.assertRaises(CommandProcessorError):
+            p.run(code)
+
+        # try
+        #   throw KeyError("")
+        # catch KeyError
+        #   break
+        # finally
+        #   continue
+        # end
+        code = [
+            TryCatchFinally([
+                Throw(GetLocal("KeyError"), "")
+            ], [('KeyError', "", [Break()])], [
+                Continue()
+            ])
+        ]
+        with self.assertRaises(CommandProcessorError):
+            p.run(code)
+
+        # foreach x [1, 2, 3]
+        #   try
+        #     break
+        #   finally
+        #     continue
+        #   end
+        # end
+        code = [
+            Foreach('x', [1, 2, 3, "abc"], [
+                TryCatchFinally([Break()], [], [Continue()])
+            ])
+        ]
+        p.run(code)
+        self.assertEqual(p.getenv()['x'], "abc")
+
+        # foreach x [1, 2, 3]
+        #   try
+        #     throw KeyError("")
+        #   catch KeyError
+        #     break
+        #   finally
+        #     continue
+        #   end
+        # end
+        code = [
+            Foreach('x', [1, 2, "def"], [
+                TryCatchFinally([
+                    Throw(GetLocal("KeyError"), "")
+                ], [
+                    ('KeyError', "", [Break()])
+                ], [
+                    Continue()
+                ])
+            ])
+        ]
+        p.run(code)
+        self.assertEqual(p.getenv()['x'], "def")
+    #-def
+
+    def test_bad_cases(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([Throw(1, "")])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Throw(GetLocal("KeyError"), 0)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Rethrow(0)])
     #-def
 #-class
 
@@ -2028,8 +2753,9 @@ def suite():
     suite.addTest(unittest.makeSuite(TestOperationsCase))
     suite.addTest(unittest.makeSuite(TestBlockCase))
     suite.addTest(unittest.makeSuite(TestIfCase))
-    suite.addTest(unittest.makeSuite(TestForeachCase))
+    suite.addTest(unittest.makeSuite(TestLoopCase))
     suite.addTest(unittest.makeSuite(TestCallCase))
+    suite.addTest(unittest.makeSuite(TestTryCatchFinallyCase))
     suite.addTest(unittest.makeSuite(TestSetItemCase))
     suite.addTest(unittest.makeSuite(TestDelItemCase))
     suite.addTest(unittest.makeSuite(TestAppendCase))

@@ -90,10 +90,10 @@ class TLoad(Command):
         self.varname = varname
     #-def
 
-    def enter(self, processor, ctx):
-        ctx.env = processor.getenv()
-        ctx.nvals = processor.nvals()
-        processor.pushctx(ctx)
+    def enter(self, processor, inlz):
+        inlz.ctx.env = processor.getenv()
+        inlz.ctx.nvals = processor.nvals()
+        processor.pushctx(inlz.ctx)
     #-def
 
     def expand(self, processor):
@@ -106,10 +106,10 @@ class TLoad(Command):
         processor.setacc(ctx.env.getvar(self.varname))
     #-def
 
-    def leave(self, processor, ctx):
-        while processor.nvals() > ctx.nvals:
+    def leave(self, processor, fnlz):
+        while processor.nvals() > fnlz.ctx.nvals:
             processor.popval()
-        processor.popctx(ctx)
+        processor.popctx(fnlz.ctx)
     #-def
 #-class
 
@@ -121,10 +121,10 @@ class TStore(Command):
         self.varname = varname
     #-def
 
-    def enter(self, processor, ctx):
-        ctx.env = processor.getenv()
-        ctx.nvals = processor.nvals()
-        processor.pushctx(ctx)
+    def enter(self, processor, inlz):
+        inlz.ctx.env = processor.getenv()
+        inlz.ctx.nvals = processor.nvals()
+        processor.pushctx(inlz.ctx)
     #-def
 
     def expand(self, processor):
@@ -137,10 +137,10 @@ class TStore(Command):
         ctx.env.setvar(self.varname, processor.acc())
     #-def
 
-    def leave(self, processor, ctx):
-        while processor.nvals() > ctx.nvals:
+    def leave(self, processor, fnlz):
+        while processor.nvals() > fnlz.ctx.nvals:
             processor.popval()
-        processor.popctx(ctx)
+        processor.popctx(fnlz.ctx)
     #-def
 #-class
 
@@ -152,10 +152,10 @@ class TBlock(Command):
         self.cmds = tuple(cmds)
     #-def
 
-    def enter(self, processor, ctx):
-        ctx.env = processor.envclass()(processor, processor.getenv())
-        ctx.nvals = processor.nvals()
-        processor.pushctx(ctx)
+    def enter(self, processor, inlz):
+        inlz.ctx.env = processor.envclass()(processor, processor.getenv())
+        inlz.ctx.nvals = processor.nvals()
+        processor.pushctx(inlz.ctx)
     #-def
 
     def expand(self, processor):
@@ -165,10 +165,10 @@ class TBlock(Command):
         )
     #-def
 
-    def leave(self, processor, ctx):
-        while processor.nvals() > ctx.nvals:
+    def leave(self, processor, fnlz):
+        while processor.nvals() > fnlz.ctx.nvals:
             processor.popval()
-        processor.popctx(ctx)
+        processor.popctx(fnlz.ctx)
     #-def
 #-class
 
@@ -180,14 +180,14 @@ class TLogBlock(TBlock):
         self.i = i
     #-def
 
-    def enter(self, processor, ctx):
-        TBlock.enter(self, processor, ctx)
-        ctx.env.wlog(processor, "<%d>" % self.i)
+    def enter(self, processor, inlz):
+        TBlock.enter(self, processor, inlz)
+        inlz.ctx.env.wlog(processor, "<%d>" % self.i)
     #-def
 
-    def leave(self, processor, ctx):
-        ctx.env.wlog(processor, "</%d>" % self.i)
-        TBlock.leave(self, processor, ctx)
+    def leave(self, processor, fnlz):
+        fnlz.ctx.env.wlog(processor, "</%d>" % self.i)
+        TBlock.leave(self, processor, fnlz)
     #-def
 #-class
 
@@ -200,10 +200,10 @@ class TSet(Command):
         self.value = value
     #-def
 
-    def enter(self, processor, ctx):
-        ctx.env = processor.getenv()
-        ctx.nvals = processor.nvals()
-        processor.pushctx(ctx)
+    def enter(self, processor, inlz):
+        inlz.ctx.env = processor.getenv()
+        inlz.ctx.nvals = processor.nvals()
+        processor.pushctx(inlz.ctx)
     #-def
 
     def expand(self, processor):
@@ -216,10 +216,10 @@ class TSet(Command):
         ctx.env.setvar(self.varname, self.value)
     #-def
 
-    def leave(self, processor, ctx):
-        while processor.nvals() > ctx.nvals:
+    def leave(self, processor, fnlz):
+        while processor.nvals() > fnlz.ctx.nvals:
             processor.popval()
-        processor.popctx(ctx)
+        processor.popctx(fnlz.ctx)
     #-def
 #-class
 
@@ -231,10 +231,10 @@ class TLoadEnv(Command):
         self.load_global = load_global
     #-def
 
-    def enter(self, processor, ctx):
-        ctx.env = processor.getenv() if not self.load_global else None
-        ctx.nvals = processor.nvals()
-        processor.pushctx(ctx)
+    def enter(self, processor, inlz):
+        inlz.ctx.env = processor.getenv() if not self.load_global else None
+        inlz.ctx.nvals = processor.nvals()
+        processor.pushctx(inlz.ctx)
     #-def
 
     def expand(self, processor):
@@ -246,10 +246,10 @@ class TLoadEnv(Command):
         processor.setacc(processor.getenv())
     #-def
 
-    def leave(self, processor, ctx):
-        while processor.nvals() > ctx.nvals:
+    def leave(self, processor, fnlz):
+        while processor.nvals() > fnlz.ctx.nvals:
             processor.popval()
-        processor.popctx(ctx)
+        processor.popctx(fnlz.ctx)
     #-def
 #-class
 
@@ -268,11 +268,13 @@ class TThrow(Command):
 
     def do_throw(self, processor):
         ecls = processor.getenv().getvar(self.ename)
+        tb = processor.traceback()
         if not isinstance(ecls, ExceptionClass):
             raise CommandError(processor.TypeError,
-                "Only exception objects can be throwed"
+                "Only exception objects can be throwed",
+                tb
             )
-        processor.insertcode(CommandError(ecls, self.emsg))
+        processor.insertcode(CommandError(ecls, self.emsg, tb))
     #-def
 #-class
 
@@ -285,10 +287,10 @@ class TTryCatch(Command):
         self.handlers = handlers
     #-def
 
-    def enter(self, processor, ctx):
-        ctx.env = processor.getenv()
-        ctx.nvals = processor.nvals()
-        processor.pushctx(ctx)
+    def enter(self, processor, inlz):
+        inlz.ctx.env = processor.getenv()
+        inlz.ctx.nvals = processor.nvals()
+        processor.pushctx(inlz.ctx)
     #-def
 
     def expand(self, processor):
@@ -298,10 +300,10 @@ class TTryCatch(Command):
         )
     #-def
 
-    def leave(self, processor, ctx):
-        while processor.nvals() > ctx.nvals:
+    def leave(self, processor, fnlz):
+        while processor.nvals() > fnlz.ctx.nvals:
             processor.popval()
-        processor.popctx(ctx)
+        processor.popctx(fnlz.ctx)
     #-def
 
     def find_exception_handler(self, ctx, e):
@@ -311,9 +313,11 @@ class TTryCatch(Command):
                 and isinstance(e.ecls, ExceptionClass)
             ):
                 return None
-            for name, handler in self.handlers:
+            for name, vname, handler in self.handlers:
                 ec = ctx.env.getvar(name)
                 if isderived(e.ecls, ec):
+                    if vname:
+                        ctx.env.setvar(vname, e)
                     return handler
             return None
         except CommandError as ce:
@@ -503,6 +507,8 @@ class TestCommandProcessorCase(unittest.TestCase):
         self.assertEqual(str(p.BaseException), 'BaseException')
         self.assertIs(p.Exception.base(), p.BaseException)
         self.assertEqual(str(p.Exception), 'Exception')
+        self.assertIs(p.SyntaxError.base(), p.Exception)
+        self.assertEqual(str(p.SyntaxError), 'SyntaxError')
         self.assertIs(p.NameError.base(), p.Exception)
         self.assertEqual(str(p.NameError), 'NameError')
         self.assertIs(p.TypeError.base(), p.Exception)
@@ -689,8 +695,8 @@ class TestCommandProcessorCase(unittest.TestCase):
             TTryCatch([
                 TLoad('?')
             ], [
-                ('TypeError', [TSet('et', 1)]),
-                ('NameError', [TSet('et', 2)])
+                ('TypeError', "", [TSet('et', 1)]),
+                ('NameError', "", [TSet('et', 2)])
             ])
         ])
         self.assertEqual(p.getenv().getvar('et'), 2)
@@ -699,9 +705,9 @@ class TestCommandProcessorCase(unittest.TestCase):
             TTryCatch([
                 TLoad('?')
             ], [
-                ('BaseException', [TSet('et', 0)]),
-                ('TypeError', [TSet('et', 1)]),
-                ('NameError', [TSet('et', 2)])
+                ('BaseException', "", [TSet('et', 0)]),
+                ('TypeError', "", [TSet('et', 1)]),
+                ('NameError', "", [TSet('et', 2)])
             ])
         ])
         self.assertEqual(p.getenv().getvar('et'), 0)
@@ -711,8 +717,8 @@ class TestCommandProcessorCase(unittest.TestCase):
                 TTryCatch([
                     TLoad('?')
                 ], [
-                    ('_TypeError', [TSet('et', 1)]),
-                    ('NameError', [TSet('et', 2)])
+                    ('_TypeError', "", [TSet('et', 1)]),
+                    ('NameError', "", [TSet('et', 2)])
                 ])
             ])
 
@@ -720,8 +726,8 @@ class TestCommandProcessorCase(unittest.TestCase):
             TTryCatch([
                 TLoad('?')
             ], [
-                ('NameError', [TSet('et', 3)]),
-                ('_NameError', [TSet('et', 4)])
+                ('NameError', "", [TSet('et', 3)]),
+                ('_NameError', "", [TSet('et', 4)])
             ])
         ])
         self.assertEqual(p.getenv().getvar('et'), 3)
@@ -731,11 +737,11 @@ class TestCommandProcessorCase(unittest.TestCase):
                 TTryCatch([
                     TLoad('?')
                 ], [
-                    ('TypeError', [TSet('et', 5)]),
-                    ('_Error', [TSet('et', 6)])
+                    ('TypeError', "", [TSet('et', 5)]),
+                    ('_Error', "", [TSet('et', 6)])
                 ])
             ], [
-                ('NameError', [TSet('et', 7)])
+                ('NameError', "", [TSet('et', 7)])
             ])
         ])
         self.assertEqual(p.getenv().getvar('et'), 7)
@@ -746,11 +752,11 @@ class TestCommandProcessorCase(unittest.TestCase):
                     TTryCatch([
                         TLoad('?')
                     ], [
-                        ('TypeError', [TSet('et', 5)]),
-                        ('_Error', [TSet('et', 6)])
+                        ('TypeError', "", [TSet('et', 5)]),
+                        ('_Error', "", [TSet('et', 6)])
                     ])
                 ], [
-                    ('TypeError', [TSet('et', 7)])
+                    ('TypeError', "", [TSet('et', 7)])
                 ])
             ])
 
@@ -759,7 +765,7 @@ class TestCommandProcessorCase(unittest.TestCase):
                 TTryCatch([
                     TLoad('?'), Finalizer(Command())
                 ], [
-                    ('NameError', [])
+                    ('NameError', "", [])
                 ])
             ])
     #-def
@@ -861,7 +867,7 @@ class TestCommandProcessorCase(unittest.TestCase):
             TTryCatch([
                 TThrow('MyError', m)
             ], [
-                ('MyError', [TStore('x')])
+                ('MyError', 'e', [TLoad('e'), TStore('x')])
             ])
         ])
         self.assertIs(env.getvar('x').ecls, env.getvar('MyError'))
@@ -871,7 +877,7 @@ class TestCommandProcessorCase(unittest.TestCase):
             TTryCatch([
                 TDefError('MySecondError', 'u')
             ], [
-                ('NameError', [TSet('x', 42)])
+                ('NameError', "", [TSet('x', 42)])
             ])
         ])
         self.assertEqual(env.getvar('x'), 42)
@@ -880,7 +886,7 @@ class TestCommandProcessorCase(unittest.TestCase):
             TTryCatch([
                 TDefError('MySecondError', 'x')
             ], [
-                ('TypeError', [TSet('x', 43)])
+                ('TypeError', "", [TSet('x', 43)])
             ])
         ])
         self.assertEqual(env.getvar('x'), 43)
@@ -895,14 +901,14 @@ class TestCommandProcessorCase(unittest.TestCase):
             TTryCatch([
                 TThrow('E', "1")
             ], [
-                ('X', [TSet('a', 11)]),
-                ('E', [TSet('a', 12)])
+                ('X', "", [TSet('a', 11)]),
+                ('E', "", [TSet('a', 12)])
             ]),
             TTryCatch([
                 TThrow('X', "2")
             ], [
-                ('E', [TSet('b', 13)]),
-                ('X', [TSet('b', 14)])
+                ('E', "", [TSet('b', 13)]),
+                ('X', "", [TSet('b', 14)])
             ])
         ])
         self.assertEqual(env.getvar('a'), 12)
