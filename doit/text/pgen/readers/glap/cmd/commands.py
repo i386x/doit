@@ -431,6 +431,47 @@ class Command(object):
     #-def
 #-class
 
+class Const(Command):
+    """
+    """
+    __slots__ = [ 'constval' ]
+
+    def __init__(self, constval):
+        """
+        """
+
+        Command.__init__(self)
+        self.constval = constval
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        processor.setacc(self.constval)
+    #-def
+#-class
+
+class Version(Command):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        Command.__init__(self)
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        processor.setacc(processor.version())
+    #-def
+#-class
+
 class Trackable(Command):
     """
     """
@@ -993,6 +1034,11 @@ class Operation(Trackable):
             operation = (lambda a, b: HashMap.merge(a, b))
         ),
         # - informative:
+        # 'type' is defined separately
+        'instanceof': dict(
+            types = [(object, object)],
+            operation = (lambda a, b: isinstance(a, b))
+        ),
         'strlen': dict(
             types = [(str,)],
             operation = (lambda a: len(a))
@@ -1667,6 +1713,47 @@ class Join(Operation):
 #-class
 
 class Merge(Operation):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a, b):
+        """
+        """
+
+        Operation.__init__(self, a, b)
+    #-def
+#-class
+
+class Type(Operation):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a):
+        """
+        """
+
+        Operation.__init__(self, a)
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        a = processor.popval()
+        for t in processor.types():
+            if isinstance(a, t):
+                processor.setacc(t)
+                return
+        raise CommandError(processor.TypeError,
+            "%s: Unknown type" % self.name,
+            processor.traceback()
+        )
+    #-def
+#-class
+
+class InstanceOf(Operation):
     """
     """
     __slots__ = []

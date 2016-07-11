@@ -33,6 +33,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+import collections
+
+from doit.config.version import DOIT_VERSION
+
 from doit.text.pgen.readers.glap.cmd.errors import \
     CommandProcessorError, \
     CommandError
@@ -57,6 +61,8 @@ from doit.text.pgen.readers.glap.cmd.commands import \
     Location, \
     Finalizer, \
     Command, \
+    Macro, \
+    Module, \
     MainModule
 
 class MetaInfo(object):
@@ -136,7 +142,8 @@ class CommandProcessor(object):
     """
     """
     __slots__ = [
-        '__env', '__ctxstack', '__valstack', '__codebuff', '__acc', '__consts'
+        '__env', '__ctxstack', '__valstack', '__codebuff', '__acc', '__consts',
+        '__types'
     ]
 
     def __init__(self, env = None):
@@ -149,10 +156,22 @@ class CommandProcessor(object):
         self.__valstack = []
         self.__codebuff = []
         self.__acc = None
-        self.__initialize_constants()
+        self.__initialize_types_and_constants()
         self.__copy_exceptions_to_env()
         self.__initialize_main_module()
         self.cleanup()
+    #-def
+
+    def version(self):
+        """
+        """
+
+        return Pair(
+            DOIT_VERSION.major * 10000 \
+            + DOIT_VERSION.minor * 100 \
+            + DOIT_VERSION.patchlevel,
+            DOIT_VERSION.date
+        )
     #-def
 
     def envclass(self):
@@ -302,12 +321,20 @@ class CommandProcessor(object):
         return "%s::%s" % ("::".join([x.name for x in self.traceback()]), name)
     #-def
 
+    def types(self):
+        """
+        """
+
+        return list(self.__types.values())
+    #-def
+
     def run(self, commands):
         """
         """
 
         cb = self.__codebuff
         cb[:0] = commands
+        types = self.types()
         while cb:
             x = cb.pop(0)
             if isinstance(x, Command):
@@ -319,7 +346,7 @@ class CommandProcessor(object):
                     cb[:0] = [e]
             elif isinstance(x, (
                 bool, int, float, str, Iterable, UserType, Procedure
-            )):
+            )) or x in types:
                 self.__acc = x
             elif isinstance(x, tuple) and len(x) == 2:
                 self.__acc = Pair(*x)
@@ -425,19 +452,35 @@ class CommandProcessor(object):
         """
 
         if attr[0].isupper():
-            if attr not in self.__consts:
+            if attr not in self.__types and attr not in self.__consts:
                 raise CommandProcessorError(Traceback(self.__ctxstack),
-                    "There is no '%s' constant defined" % attr
+                    "There is no '%s' type or constant defined" % attr
                 )
-            return self.__consts[attr]
+            return self.__types.get(attr, self.__consts.get(attr))
         return object.__getattribute__(self, attr)
     #-def
 
-    def __initialize_constants(self):
+    def __initialize_types_and_constants(self):
         """
         """
 
         _ = lambda s, b: ExceptionClass(s, self.mkqname(s), b)
+        self.__types = collections.OrderedDict([
+            ('NullType', self.__class__),
+            ('Boolean', bool),
+            ('Integer', int),
+            ('Float', float),
+            ('String', str),
+            ('Pair', Pair),
+            ('List', list),
+            ('HashMap', dict),
+            ('UserType', UserType),
+            ('ErrorClass', ExceptionClass),
+            ('Error', CommandError),
+            ('Macro', Macro),
+            ('Proc', Procedure),
+            ('Module', Module)
+        ])
         self.__consts = { 'Null': self }
         self.__consts['BaseException'] = _('BaseException', None)
         self.__consts['Exception'] = _('Exception', self.BaseException)

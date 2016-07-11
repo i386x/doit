@@ -36,6 +36,8 @@ IN THE SOFTWARE.\
 
 import unittest
 
+from doit.config.version import DOIT_VERSION as DV
+
 from doit.text.pgen.readers.glap.cmd.errors import \
     CommandProcessorError, \
     CommandError
@@ -53,6 +55,8 @@ from doit.text.pgen.readers.glap.cmd.commands import \
     CommandContext, \
     Initializer, Finalizer, \
     Command, \
+    Const, \
+    Version, \
     MacroNode as _n, MacroNodeSequence as _s, MacroNodeAtom as _a, \
         MacroNodeParam as _p, \
     Expand, \
@@ -66,7 +70,7 @@ from doit.text.pgen.readers.glap.cmd.commands import \
     And, Or, Not, \
     NewPair, \
     Copy, Slice, Concat, Join, Merge, \
-    Strlen, Size, Empty, Contains, Count, \
+    Type, InstanceOf, Strlen, Size, Empty, Contains, Count, \
     IsDigit, IsUpper, IsLower, IsAlpha, IsLetter, IsAlnum, IsWord, \
     Keys, Values, \
     First, Second, GetItem, \
@@ -214,6 +218,17 @@ class TestCommandCase(unittest.TestCase):
                 ctx, CommandError(p.TypeError, "", p.traceback())
             )
         )
+    #-def
+#-class
+
+class TestVersionCase(unittest.TestCase):
+
+    def test_version(self):
+        dv = (DV.major * 10000 + DV.minor * 100 + DV.patchlevel, DV.date)
+        p = CommandProcessor()
+
+        p.run([Version()])
+        self.assertEqual(p.acc(), dv)
     #-def
 #-class
 
@@ -674,6 +689,73 @@ class TestOperationsCase(unittest.TestCase):
         p.run([Merge(d2, d1)])
         self.assertEqual(p.acc(), d2d1)
         self.assertIsInstance(p.acc(), HashMap)
+    #-def
+
+    def test_Type(self):
+        p = CommandProcessor()
+
+        p.run([Type(p.Null)])
+        self.assertIs(p.acc(), p.NullType)
+        p.run([Type(None)])
+        self.assertIs(p.acc(), p.NullType)
+        p.run([Type(True)])
+        self.assertIs(p.acc(), p.Boolean)
+        p.run([Type(False)])
+        self.assertIs(p.acc(), p.Boolean)
+        p.run([Type(-1)])
+        self.assertIs(p.acc(), p.Integer)
+        p.run([Type(0.5)])
+        self.assertIs(p.acc(), p.Float)
+        p.run([Type("sd")])
+        self.assertIs(p.acc(), p.String)
+        p.run([Type((1, 2))])
+        self.assertIs(p.acc(), p.Pair)
+        p.run([Type(Pair(1, 2))])
+        self.assertIs(p.acc(), p.Pair)
+        p.run([Type([])])
+        self.assertIs(p.acc(), p.List)
+        p.run([Type(List())])
+        self.assertIs(p.acc(), p.List)
+        p.run([Type({})])
+        self.assertIs(p.acc(), p.HashMap)
+        p.run([Type(HashMap())])
+        self.assertIs(p.acc(), p.HashMap)
+        p.run([Type(UT_000())])
+        self.assertIs(p.acc(), p.UserType)
+        p.run([Type(GetLocal('Exception'))])
+        self.assertIs(p.acc(), p.ErrorClass)
+        p.run([
+            TryCatchFinally([
+                Add("1", "2")
+            ], [('TypeError', 'e', [
+                SetLocal('e', Type(GetLocal('e')))
+            ])], [])
+        ])
+        self.assertIs(p.getenv()['e'], p.Error)
+        p.run([
+            DefMacro("M", [], []),
+            Type(GetLocal("M"))
+        ])
+        self.assertIs(p.acc(), p.Macro)
+        p.run([
+            Define("f", [], [], False, []),
+            Type(GetLocal("f"))
+        ])
+        self.assertIs(p.acc(), p.Proc)
+        p.run([
+            DefModule("A", []),
+            Type(GetLocal("A"))
+        ])
+        self.assertIs(p.acc(), p.Module)
+    #-def
+
+    def test_InstanceOf(self):
+        p = CommandProcessor()
+
+        p.run([InstanceOf(1, Const(p.Integer))])
+        self.assertTrue(p.acc())
+        p.run([InstanceOf(1, Const(p.List))])
+        self.assertFalse(p.acc())
     #-def
 
     def test_Strlen(self):
@@ -2993,6 +3075,7 @@ def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestLocationCase))
     suite.addTest(unittest.makeSuite(TestCommandCase))
+    suite.addTest(unittest.makeSuite(TestVersionCase))
     suite.addTest(unittest.makeSuite(TestExpandCase))
     suite.addTest(unittest.makeSuite(TestSetLocalCase))
     suite.addTest(unittest.makeSuite(TestGetLocalCase))
