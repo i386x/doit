@@ -54,28 +54,41 @@ from doit.text.pgen.readers.glap.cmd.commands import \
     BREAK, \
     CONTINUE, \
     CLEANUP, \
+    Location, \
     Finalizer, \
-    Command
+    Command, \
+    MainModule
+
+class MetaInfo(object):
+    """
+    """
+    __slots__ = [ 'qname', 'location' ]
+
+    def __init__(self):
+        """
+        """
+
+        self.qname = ""
+        self.location = Location()
+    #-def
+#-class
 
 class Environment(dict):
     """
     """
-    __slots__ = [ '__processor', '__outer' ]
+    __slots__ = [ 'processor', '__outer', 'meta' ]
 
     def __init__(self, processor = None, outer = None):
         """
         """
 
         dict.__init__(self)
-        self.__processor = processor
+        self.processor = \
+            processor if processor is not None else \
+            outer.processor if outer is not None else \
+            None
         self.__outer = outer
-    #-def
-
-    def setprocessor(self, processor):
-        """
-        """
-
-        self.__processor = processor
+        self.meta = {}
     #-def
 
     def setvar(self, name, value):
@@ -83,6 +96,8 @@ class Environment(dict):
         """
 
         self[name] = value
+        if name not in self.meta:
+            self.meta[name] = MetaInfo()
     #-def
 
     def getvar(self, name):
@@ -93,9 +108,9 @@ class Environment(dict):
             return self[name]
         if self.__outer:
             return self.__outer.getvar(name)
-        raise CommandError(self.__processor.NameError,
+        raise CommandError(self.processor.NameError,
             "Undefined variable '%s'" % name,
-            self.__processor.traceback()
+            self.processor.traceback()
         )
     #-def
 
@@ -105,6 +120,8 @@ class Environment(dict):
 
         if name in self:
             del self[name]
+        if name in self.meta:
+            del self.meta[name]
     #-def
 
     def outer(self):
@@ -127,13 +144,15 @@ class CommandProcessor(object):
         """
 
         self.__env = env if env is not None else Environment()
-        self.__env.setprocessor(self)
+        self.__env.processor = self
         self.__ctxstack = []
         self.__valstack = []
         self.__codebuff = []
         self.__acc = None
         self.__initialize_constants()
         self.__copy_exceptions_to_env()
+        self.__initialize_main_module()
+        self.cleanup()
     #-def
 
     def envclass(self):
@@ -276,6 +295,13 @@ class CommandProcessor(object):
         return Traceback(self.__ctxstack)
     #-def
 
+    def mkqname(self, name):
+        """
+        """
+
+        return "%s::%s" % ("::".join([x.name for x in self.traceback()]), name)
+    #-def
+
     def run(self, commands):
         """
         """
@@ -394,20 +420,6 @@ class CommandProcessor(object):
         self.__acc = None
     #-def
 
-    def define_exception(self, name, basename):
-        """
-        """
-
-        env = self.getenv()
-        base = env.getvar(basename)
-        if not isinstance(base, ExceptionClass):
-            raise CommandError(self.TypeError,
-                "Base class must be exception",
-                Traceback(self.__ctxstack)
-            )
-        env[name] = ExceptionClass(name, base)
-    #-def
-
     def __getattr__(self, attr):
         """
         """
@@ -425,29 +437,16 @@ class CommandProcessor(object):
         """
         """
 
+        _ = lambda s, b: ExceptionClass(s, self.mkqname(s), b)
         self.__consts = { 'Null': self }
-        self.__consts['BaseException'] = ExceptionClass('BaseException', None)
-        self.__consts['Exception'] = ExceptionClass(
-            'Exception', self.BaseException
-        )
-        self.__consts['SyntaxError'] = ExceptionClass(
-            'SyntaxError', self.Exception
-        )
-        self.__consts['NameError'] = ExceptionClass(
-            'NameError', self.Exception
-        )
-        self.__consts['TypeError'] = ExceptionClass(
-            'TypeError', self.Exception
-        )
-        self.__consts['ValueError'] = ExceptionClass(
-            'ValueError', self.Exception
-        )
-        self.__consts['IndexError'] = ExceptionClass(
-            'IndexError', self.Exception
-        )
-        self.__consts['KeyError'] = ExceptionClass(
-            'KeyError', self.Exception
-        )
+        self.__consts['BaseException'] = _('BaseException', None)
+        self.__consts['Exception'] = _('Exception', self.BaseException)
+        self.__consts['SyntaxError'] = _('SyntaxError', self.Exception)
+        self.__consts['NameError'] = _('NameError', self.Exception)
+        self.__consts['TypeError'] = _('TypeError', self.Exception)
+        self.__consts['ValueError'] = _('ValueError', self.Exception)
+        self.__consts['IndexError'] = _('IndexError', self.Exception)
+        self.__consts['KeyError'] = _('KeyError', self.Exception)
     #-def
 
     def __copy_exceptions_to_env(self):
@@ -462,6 +461,15 @@ class CommandProcessor(object):
         ):
             if str(x) not in self.__env:
                 self.__env[str(x)] = x
+    #-def
+
+    def __initialize_main_module(self):
+        """
+        """
+
+        mm = MainModule()
+        self.__env.setvar(mm.name, mm)
+        self.run([mm])
     #-def
 
     def print_impl(self, s):

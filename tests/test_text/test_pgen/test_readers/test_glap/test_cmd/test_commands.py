@@ -53,9 +53,12 @@ from doit.text.pgen.readers.glap.cmd.commands import \
     CommandContext, \
     Initializer, Finalizer, \
     Command, \
+    MacroNode as _n, MacroNodeSequence as _s, MacroNodeAtom as _a, \
+        MacroNodeParam as _p, \
+    Expand, \
     SetLocal, \
     GetLocal, \
-    Define, \
+    DefMacro, DefError, Define, DefModule, \
     Operation, \
     Add, Sub, Mul, Div, Mod, Neg, \
     BitAnd, BitOr, BitXor, ShiftL, ShiftR, Inv, \
@@ -79,7 +82,8 @@ from doit.text.pgen.readers.glap.cmd.commands import \
     TryCatchFinally, Throw, Rethrow, \
     SetItem, DelItem, Append, Insert, Remove, RemoveAll, \
     Each, Visit, \
-    Print
+    Print, \
+    Module, SetMember, GetMember
 
 from doit.text.pgen.readers.glap.cmd.eval import \
     Environment, \
@@ -210,6 +214,40 @@ class TestCommandCase(unittest.TestCase):
                 ctx, CommandError(p.TypeError, "", p.traceback())
             )
         )
+    #-def
+#-class
+
+class TestExpandCase(unittest.TestCase):
+
+    def test_macros(self):
+        p = Printer()
+
+        p.run([
+            DefMacro('M', [], [_n(GetLocal, _a('z'))]),
+            DefMacro('m', ['x', 'y'], [
+                _n(Foreach, _p('x'), _a([1, 2, 3]), _s(
+                    _n(Print, _p('y')),
+                    _n(Print, _n(GetLocal, _p('x')))
+                ))
+            ]),
+            DefMacro('bad', ['x'], [_p('y')])
+        ])
+        self.assertEqual(p.output, "")
+
+        p.run([
+            Expand(GetLocal('m'), "z", Expand(GetLocal('M')))
+        ])
+        self.assertEqual(p.output, "112233")
+        self.assertEqual(p.getenv()['z'], 3)
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([Expand(GetLocal('bad'), 0)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Expand(0)])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Expand(GetLocal('m'))])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Expand(GetLocal('M'), 1)])
     #-def
 #-class
 
@@ -507,11 +545,24 @@ class TestOperationsCase(unittest.TestCase):
         p.run([And(True, True)])
         self.assertTrue(p.acc())
         p.run([And(None, True)])
-        self.assertFalse(p.acc())
+        self.assertIs(p.acc(), p.Null)
         p.run([And(True, None)])
-        self.assertFalse(p.acc())
+        self.assertIs(p.acc(), p.Null)
         p.run([And(None, None)])
-        self.assertFalse(p.acc())
+        self.assertIs(p.acc(), p.Null)
+
+        # Short evaluation:
+        p.run([And("", Add("a", "b"))])
+        self.assertIsInstance(p.acc(), str)
+        self.assertEqual(p.acc(), "")
+        p.run([And(1, 0)])
+        self.assertIsInstance(p.acc(), int)
+        self.assertEqual(p.acc(), 0)
+        p.run([And(1, 2)])
+        self.assertIsInstance(p.acc(), int)
+        self.assertEqual(p.acc(), 2)
+        with self.assertRaises(CommandProcessorError):
+            p.run([And(1, Add("a", "b"))])
     #-def
 
     def test_Or(self):
@@ -519,6 +570,14 @@ class TestOperationsCase(unittest.TestCase):
 
         p.run([Or(None, True)])
         self.assertTrue(p.acc())
+
+        # Short evaluation:
+        p.run([Or("a", "b")])
+        self.assertEqual(p.acc(), "a")
+        p.run([Or("a", Neg(""))])
+        self.assertEqual(p.acc(), "a")
+        with self.assertRaises(CommandProcessorError):
+            p.run([Or(0, Neg(""))])
     #-def
 
     def test_Not(self):
@@ -1035,7 +1094,7 @@ class TestOperationsCase(unittest.TestCase):
         self.assertIs(p.acc(), True)
         p.run([ToBool(UT_000())])
         self.assertIs(p.acc(), False)
-        p.run([ToBool(Procedure(1, 2, 3, 4, 5, 6))])
+        p.run([ToBool(Procedure(1, 2, 3, 4, 5, 6, 7))])
         self.assertIs(p.acc(), True)
         p.run([ToBool(p.Null)])
         self.assertIs(p.acc(), False)
@@ -1282,7 +1341,7 @@ class TestOperationsCase(unittest.TestCase):
         with self.assertRaises(CommandProcessorError):
             p.run([ToStr(UserType())])
         # procedure:
-        p.run([ToStr(Procedure("f1", 0, 0, 0, 0, 0))])
+        p.run([ToStr(Procedure("f1", "::f1", 0, 0, 0, 0, 0))])
         self.assertIsInstance(p.acc(), str)
         self.assertEqual(p.acc(), "f1")
         # null:
@@ -1362,7 +1421,7 @@ class TestOperationsCase(unittest.TestCase):
         with self.assertRaises(CommandProcessorError):
             p.run([ToHash([(1, 2), (1, 2, 3)])])
         with self.assertRaises(CommandProcessorError):
-            p.run([ToHash([(1, 2), Procedure(1, 2, 3, 4, 5, 6)])])
+            p.run([ToHash([(1, 2), Procedure(1, 2, 3, 4, 5, 6, 7)])])
         p.run([ToHash([])])
         self.assertIsInstance(p.acc(), HashMap)
         self.assertEqual(p.acc(), {})
@@ -2509,6 +2568,63 @@ class TestTryCatchFinallyCase(unittest.TestCase):
         with self.assertRaises(CommandProcessorError):
             p.run([Rethrow(0)])
     #-def
+
+    def test_deferror(self):
+        m = "Oook!"
+        p = CommandProcessor()
+        env = p.getenv()
+
+        p.run([
+            DefError('MyError', GetLocal('Exception')),
+            TryCatchFinally([
+                Throw(GetLocal('MyError'), m)
+            ], [
+                ('MyError', 'e', [SetLocal('x', GetLocal('e'))])
+            ], [])
+        ])
+        self.assertIs(env.getvar('x').ecls, env.getvar('MyError'))
+        self.assertEqual(env.getvar('x').emsg, m)
+
+        p.run([
+            TryCatchFinally([
+                DefError('MySecondError', GetLocal('u'))
+            ], [
+                ('NameError', "", [SetLocal('x', 42)])
+            ], [])
+        ])
+        self.assertEqual(env.getvar('x'), 42)
+
+        p.run([
+            TryCatchFinally([
+                DefError('MySecondError', GetLocal('x'))
+            ], [
+                ('TypeError', "", [SetLocal('x', 43)])
+            ], [])
+        ])
+        self.assertEqual(env.getvar('x'), 43)
+
+        p.run([
+            DefError('E', GetLocal('Exception')),
+            Block(
+                DefError('E', GetLocal('Exception')),
+                SetLocal('X', GetLocal('E'), 1)
+            ),
+            TryCatchFinally([
+                Throw(GetLocal('E'), "1")
+            ], [
+                ('X', "", [SetLocal('a', 11)]),
+                ('E', "", [SetLocal('a', 12)])
+            ], []),
+            TryCatchFinally([
+                Throw(GetLocal('X'), "2")
+            ], [
+                ('E', "", [SetLocal('b', 13)]),
+                ('X', "", [SetLocal('b', 14)])
+            ], [])
+        ])
+        self.assertEqual(env.getvar('a'), 12)
+        self.assertEqual(env.getvar('b'), 14)
+    #-def
 #-class
 
 class TestSetItemCase(unittest.TestCase):
@@ -2744,10 +2860,140 @@ class TestPrintCase(unittest.TestCase):
     #-def
 #-class
 
+class TestModuleCase(unittest.TestCase):
+
+    def test_modules(self):
+        p = Printer()
+
+        self.assertIs(p.getenv()[""], p.getenv()["this"])
+        self.assertIsInstance(p.getenv()[""], Module)
+
+        # x = 1
+        # module A
+        #   x = 2
+        #   module B
+        #     x = 3
+        #     function f()
+        #       x = 4
+        #       print :x :A:x :A:B:x A:x A:B:x B:x this:x x
+        #     end
+        #   end
+        # end
+        p.run([
+            SetLocal('x', 1),
+            DefModule("A", [
+                SetLocal('x', 2),
+                DefModule("B", [
+                    SetLocal('x', 3),
+                    Define("f", [], [], False, [
+                        SetLocal('x', 4),
+                        Print(
+                            GetMember(GetLocal(""), 'x'),
+                            GetMember(GetMember(GetLocal(""), 'A'), 'x'),
+                            GetMember(
+                                GetMember(GetMember(GetLocal(""), 'A'), 'B'),
+                                'x'
+                            ),
+                            GetMember(GetLocal('A'), 'x'),
+                            GetMember(GetMember(GetLocal('A'), 'B'), 'x'),
+                            GetMember(GetLocal('B'), 'x'),
+                            GetMember(GetLocal('this'), 'x'),
+                            GetLocal('x')
+                        )
+                    ])
+                ])
+            ])
+        ])
+
+        p.run([
+            Call(GetMember(GetMember(GetLocal('A'), 'B'), 'f'))
+        ])
+        self.assertEqual(p.output, "12323334")
+        p.run([p.getenv()['A']])
+        self.assertIsInstance(p.acc(), Module)
+        self.assertIs(p.acc(), p.getenv()['A'])
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                DefModule('_', [
+                    Break()
+                ])
+            ])
+        with self.assertRaises(CommandProcessorError):
+            p.run([
+                DefModule('_1', [
+                    DefModule('_2', [
+                        DefModule('_3', [
+                            DefModule('_4', [
+                                Continue()
+                            ])
+                        ])
+                    ])
+                ])
+            ])
+
+        p.run([
+            DefModule('C', [
+                Return(42),
+                SetLocal('z', 8)
+            ])
+        ])
+        self.assertEqual(p.acc(), 42)
+        with self.assertRaises(CommandProcessorError):
+            p.run([GetMember(GetLocal('C'), 'z')])
+
+        p.run([
+            SetLocal('_z', 3),
+            DefModule('D', [
+                Return(GetLocal('_z'))
+            ])
+        ])
+        self.assertEqual(p.acc(), 3)
+        with self.assertRaises(CommandProcessorError):
+            p.run([GetMember(GetLocal('D'), '_z')])
+
+        p.run([
+            SetLocal('p', 4),
+            DefModule('E', [
+                DefModule('F', [
+                    SetLocal("t", 'a'),
+                    Define("g", [], [], False, [
+                        Return(GetLocal("t"))
+                    ]),
+                    Define("_g", [], [], False, [
+                        Return(GetMember(GetLocal("this"), 't'))
+                    ])
+                ])
+            ])
+        ])
+        with self.assertRaises(CommandProcessorError):
+            p.run([GetMember(GetMember(GetLocal('E'), 'F'), 'p')])
+        p.run([SetMember(GetMember(GetLocal('E'), 'F'), 'p', 42)])
+        p.run([GetMember(GetMember(GetLocal('E'), 'F'), 'p')])
+        self.assertEqual(p.acc(), 42)
+        p.run([GetMember(GetMember(GetLocal('E'), 'F'), 't')])
+        self.assertEqual(p.acc(), 'a')
+        p.run([
+            Call(GetMember(GetMember(GetLocal('E'), 'F'), 'g'))
+        ])
+        self.assertEqual(p.acc(), 'a')
+        p.run([
+            Call(GetMember(GetMember(GetLocal('E'), 'F'), '_g'))
+        ])
+        self.assertEqual(p.acc(), 'a')
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([GetMember(1, 'x')])
+        with self.assertRaises(CommandProcessorError):
+            p.run([SetMember(1, 'x', 0)])
+    #-def
+#-class
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestLocationCase))
     suite.addTest(unittest.makeSuite(TestCommandCase))
+    suite.addTest(unittest.makeSuite(TestExpandCase))
     suite.addTest(unittest.makeSuite(TestSetLocalCase))
     suite.addTest(unittest.makeSuite(TestGetLocalCase))
     suite.addTest(unittest.makeSuite(TestOperationsCase))
@@ -2765,5 +3011,6 @@ def suite():
     suite.addTest(unittest.makeSuite(TestEachCase))
     suite.addTest(unittest.makeSuite(TestVisitCase))
     suite.addTest(unittest.makeSuite(TestPrintCase))
+    suite.addTest(unittest.makeSuite(TestModuleCase))
     return suite
 #-def

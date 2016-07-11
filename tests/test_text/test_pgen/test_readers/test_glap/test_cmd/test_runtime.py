@@ -203,11 +203,15 @@ class TestUserTypeCase(unittest.TestCase):
 class TestExceptionClassCase(unittest.TestCase):
 
     def setUp(self):
-        self.e0 = ExceptionClass('BaseException', None)
-        self.e01 = ExceptionClass('Exception', self.e0)
-        self.e02 = ExceptionClass('SystemError', self.e0)
-        self.e011 = ExceptionClass('NameError', self.e01)
-        self.e012 = ExceptionClass('TypeError', self.e01)
+        self.e0 = ExceptionClass('BaseException', '::BaseException', None)
+        self.e01 = ExceptionClass('Exception', '::Exception', self.e0)
+        self.e02 = ExceptionClass('SystemError', '::SystemError', self.e0)
+        self.e011 = ExceptionClass('NameError', '::NameError', self.e01)
+        self.e012 = ExceptionClass('TypeError', '::TypeError', self.e01)
+    #-def
+
+    def test_members(self):
+        self.assertEqual(self.e0.qname, '::BaseException')
     #-def
 
     def test_getters(self):
@@ -307,12 +311,13 @@ class TestTracebackCase(unittest.TestCase):
 class TestProcedureTemplateCase(unittest.TestCase):
 
     def test_Procedure(self):
-        name, bvars, params, vararg, body, outer = \
-            "proc", ['x'], ['y', 'z'], True, [], [[]]
-        proc = Procedure(name, bvars, params, vararg, body, outer)
+        name, qname, bvars, params, vararg, body, outer = \
+            "proc", "::proc", ['x'], ['y', 'z'], True, [], [[]]
+        proc = Procedure(name, qname, bvars, params, vararg, body, outer)
 
-        _name, _bvars, _params, _vararg, _body, _outer = proc
+        _name, _qname, _bvars, _params, _vararg, _body, _outer = proc
         self.assertEqual(_name, name)
+        self.assertEqual(_qname, qname)
         self.assertEqual(_bvars, bvars)
         self.assertEqual(_params, params)
         self.assertEqual(_vararg, vararg)

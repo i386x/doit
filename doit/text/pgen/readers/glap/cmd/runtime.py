@@ -315,13 +315,14 @@ class UserType(object):
 class ExceptionClass(object):
     """
     """
-    __slots__ = [ '__name', '__base' ]
+    __slots__ = [ '__name', 'qname', '__base' ]
 
-    def __init__(self, name, base):
+    def __init__(self, name, qname, base):
         """
         """
 
         self.__name = name
+        self.qname = qname
         self.__base = base
     #-def
 
@@ -377,16 +378,16 @@ class Procedure(tuple):
     """
     __slots__ = []
 
-    def __new__(cls, name, bvars, params, vararg, body, outer):
+    def __new__(cls, name, qname, bvars, params, vararg, body, outer):
         """
         """
 
         return super(Procedure, cls).__new__(
-            cls, (name, bvars, params, vararg, body, outer)
+            cls, (name, qname, bvars, params, vararg, body, outer)
         )
     #-def
 
-    def __init__(self, name, bvars, params, vararg, body, outer):
+    def __init__(self, name, qname, bvars, params, vararg, body, outer):
         """
         """
 

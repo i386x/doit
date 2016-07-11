@@ -147,9 +147,13 @@ class Initializer(object):
 class Finalizer(object):
     """
     """
-    __slots__ = [ 'state', 'ctx', 'after', '__acc', '__sandboxed' ]
+    __slots__ = [
+        'state', 'ctx', 'after', '__acc', '__sandboxed', '__on_throw'
+    ]
 
-    def __init__(self, ctx, after = [], sb = False):
+    def __init__(self, ctx,
+        after = [], sb = False, on_throw = (lambda f, p, e: None)
+    ):
         """
         """
 
@@ -158,6 +162,7 @@ class Finalizer(object):
         self.after = after
         self.__acc = None
         self.__sandboxed = sb
+        self.__on_throw = on_throw
     #-def
 
     def acc_backup(self, processor):
@@ -274,16 +279,16 @@ class Finalizer(object):
         """
 
         _, tb = state
-        self.do_leave(processor)
         if self.ctx.cmd.isfunc():
-            processor.insertcode(CommandError(
+            self.do_throw(processor, CommandError(
                 processor.SyntaxError,
                 "%s: break used outside loop" % self.ctx.cmd.name,
                 tb
             ))
         elif self.ctx.cmd.isloop():
-            pass
+            self.do_leave(processor)
         else:
+            self.do_leave(processor)
             processor.handle_event(BREAK, tb)
     #-def
 
@@ -293,8 +298,7 @@ class Finalizer(object):
 
         _, tb = state
         if self.ctx.cmd.isfunc():
-            self.do_leave(processor)
-            processor.insertcode(CommandError(
+            self.do_throw(processor, CommandError(
                 processor.SyntaxError,
                 "%s: continue used outside loop" % self.ctx.cmd.name,
                 tb
@@ -321,6 +325,7 @@ class Finalizer(object):
         """
         """
 
+        self.__on_throw(self, processor, e)
         self.do_leave(processor)
         processor.insertcode(e)
     #-def
@@ -337,13 +342,14 @@ class Finalizer(object):
 class Command(object):
     """
     """
-    __slots__ = [ 'name', 'location' ]
+    __slots__ = [ 'name', 'qname', 'location' ]
 
     def __init__(self):
         """
         """
 
         self.name = self.__class__.__name__.lower()
+        self.qname = self.name
         self.location = Location()
     #-def
 
@@ -456,6 +462,152 @@ class Trackable(Command):
     #-def
 #-class
 
+class MacroNode(object):
+    """
+    """
+    __slots__ = [ 'ctor', 'nodes' ]
+
+    def __init__(self, ctor, *nodes):
+        """
+        """
+
+        self.ctor = ctor
+        self.nodes = nodes
+    #-def
+
+    def substitute(self, p2v):
+        """
+        """
+
+        return self.ctor(*[x.substitute(p2v) for x in self.nodes])
+    #-def
+#-class
+
+class MacroNodeSequence(MacroNode):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, *nodes):
+        """
+        """
+
+        MacroNode.__init__(self, (lambda *args: list(args)), *nodes)
+    #-def
+#-class
+
+class MacroNodeAtom(MacroNode):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, atom):
+        """
+        """
+
+        MacroNode.__init__(self, None, atom)
+    #-def
+
+    def substitute(self, p2v):
+        """
+        """
+
+        return self.nodes[0]
+    #-def
+#-class
+
+class MacroNodeParam(MacroNode):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, param):
+        """
+        """
+
+        MacroNode.__init__(self, None, param)
+    #-def
+
+    def substitute(self, p2v):
+        """
+        """
+
+        return p2v.get(self.nodes[0], self)
+    #-def
+#-class
+
+class Macro(object):
+    """
+    """
+    __slots__ = [ 'name', 'qname', 'params', 'body' ]
+
+    def __init__(self, name, qname, params, body):
+        """
+        """
+
+        self.name = name
+        self.qname = qname
+        self.params = params
+        self.body = body
+    #-def
+
+    def substitute(self, args):
+        """
+        """
+
+        return [node.substitute(dict(zip(self.params, args)))
+            for node in self.body
+        ]
+    #-def
+#-class
+
+class Expand(Command):
+    """
+    """
+    __slots__ = [ 'macro', 'args' ]
+
+    def __init__(self, macro, *args):
+        """
+        """
+
+        Command.__init__(self)
+        self.macro = macro
+        self.args = args
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        processor.insertcode(self.macro, self.do_expand)
+    #-def
+
+    def do_expand(self, processor):
+        """
+        """
+
+        macro = processor.acc()
+
+        if not isinstance(macro, Macro):
+            raise CommandError(processor.TypeError,
+                "%s: Macro expected" % self.name,
+                processor.traceback()
+            )
+        if len(macro.params) != len(self.args):
+            raise CommandError(processor.TypeError,
+                "%s: Macro %s needs %d argument%s, but %d %s given" % (
+                    self.name, macro.name,
+                    len(macro.params),
+                    "" if len(macro.params) == 1 else "s",
+                    len(self.args),
+                    "was" if len(self.args) == 1 else "were"
+                ),
+                processor.traceback()
+            )
+        processor.insertcode(*(macro.substitute(self.args)))
+    #-def
+#-class
+
 class SetLocal(Trackable):
     """
     """
@@ -491,6 +643,7 @@ class SetLocal(Trackable):
             env = env.outer()
             d -= 1
         env.setvar(self.varname, processor.acc())
+        env.meta[self.varname].qname = processor.mkqname(self.varname)
     #-def
 #-class
 
@@ -526,46 +679,97 @@ class GetLocal(Trackable):
     #-def
 #-class
 
-class DefError(Command):
+class DefMacro(Trackable):
     """
     """
-    __slots__ = [ 'ename', 'ebasename' ]
+    __slots__ = [ 'mname', 'params', 'body' ]
 
-    def __init__(self, ename, ebasename):
+    def __init__(self, mname, params, body):
         """
         """
 
-        Command.__init__(self)
-        self.ename = ename
-        self.ebasename = ebasename
+        Trackable.__init__(self)
+        self.mname = mname
+        self.params = params
+        self.body = body
     #-def
 
     def expand(self, processor):
         """
         """
 
-        processor.insertcode(self.do_deferror)
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx), self.do_defmacro, Finalizer(ctx)
+        )
+    #-def
+
+    def do_defmacro(self, processor):
+        """
+        """
+
+        ctx = processor.cmdctx(self)
+        qname = processor.mkqname(self.mname)
+        ctx.env.setvar(self.mname, Macro(
+            self.mname, qname, self.params, self.body
+        ))
+        ctx.env.meta[self.mname].qname = qname
+    #-def
+#-class
+
+class DefError(Trackable):
+    """
+    """
+    __slots__ = [ 'ename', 'ebase' ]
+
+    def __init__(self, ename, ebase):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.ename = ename
+        self.ebase = ebase
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx), self.ebase, self.do_deferror, Finalizer(ctx)
+        )
     #-def
 
     def do_deferror(self, processor):
         """
         """
 
-        processor.define_exception(self.ename, self.ebasename)
+        ebase = processor.acc()
+        ctx = processor.cmdctx(self)
+
+        if not isinstance(ebase, ExceptionClass):
+            raise CommandError(processor.TypeError,
+                "%s: Error base must be exception class" % self.name,
+                processor.traceback()
+            )
+        qname = processor.mkqname(self.ename)
+        ctx.env.setvar(self.ename, ExceptionClass(self.ename, qname, ebase))
+        ctx.env.meta[self.ename].qname = qname
     #-def
 #-class
 
 class Define(Trackable):
     """
     """
-    __slots__ = [ 'name', 'bvars', 'params', 'vararg', 'body' ]
+    __slots__ = [ 'pname', 'bvars', 'params', 'vararg', 'body' ]
 
-    def __init__(self, name, bvars, params, vararg, body):
+    def __init__(self, pname, bvars, params, vararg, body):
         """
         """
 
         Trackable.__init__(self)
-        self.name = name
+        self.pname = pname
         self.bvars = bvars
         self.params = params
         self.vararg = vararg
@@ -587,12 +791,64 @@ class Define(Trackable):
         """
 
         ctx = processor.cmdctx(self)
+        qname = processor.mkqname(self.pname)
         ctx.env.setvar(
-            self.name,
-            Procedure(self.name,
+            self.pname,
+            Procedure(self.pname, qname,
                 self.bvars, self.params, self.vararg, self.body, ctx.env
             )
         )
+        ctx.env.meta[self.pname].qname = qname
+    #-def
+#-class
+
+class DefModule(Trackable):
+    """
+    """
+    __slots__ = [ 'mname', 'body' ]
+
+    def __init__(self, mname, body):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.mname = mname
+        self.body = body
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.create_module,
+            self.do_defmodule,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def create_module(self, processor):
+        """
+        """
+
+        ctx = processor.cmdctx(self)
+        m = Module(
+            self.mname, processor.mkqname(self.mname), self.body, ctx.env
+        )
+        processor.insertcode(m, self.pushacc, m)
+    #-def
+
+    def do_defmodule(self, processor):
+        """
+        """
+
+        ctx = processor.cmdctx(self)
+        m = processor.acc()
+        ctx.env.setvar(self.mname, m)
+        ctx.env.meta[self.mname].qname = m.qname
+        processor.setacc(processor.popval())
     #-def
 #-class
 
@@ -700,20 +956,7 @@ class Operation(Trackable):
             operation = (lambda a, b: a is b)
         ),
         # Logic operations:
-        'and': dict(
-            types = [(bool, bool)],
-            conversions = (lambda p, a: \
-                False if a is p.Null else a
-            ),
-            operation = (lambda a, b: a and b)
-        ),
-        'or': dict(
-            types = [(bool, bool)],
-            conversions = (lambda p, a: \
-                False if a is p.Null else a
-            ),
-            operation = (lambda a, b: a or b)
-        ),
+        # - 'and' and 'or' were defined separately
         'not': dict(
             types = [(bool,)],
             conversions = (lambda p, a: \
@@ -1265,7 +1508,7 @@ class Is(Operation):
     #-def
 #-class
 
-class And(Operation):
+class AndOr(Operation):
     """
     """
     __slots__ = []
@@ -1276,9 +1519,50 @@ class And(Operation):
 
         Operation.__init__(self, a, b)
     #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.operands[0],
+            self.pushacc,
+            self.to_bool,
+            self.do_andor,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def to_bool(self, processor):
+        """
+        """
+
+        processor.insertcode(ToBool(processor.acc()))
+    #-def
+
+    def do_andor(self, processor):
+        """
+        """
+
+        bool_a = processor.acc()
+        orig_a = processor.popval()
+
+        if self.__class__ is Or:
+            if bool_a:
+                processor.setacc(orig_a)
+            else:
+                processor.insertcode(self.operands[1])
+        else:
+            if bool_a:
+                processor.insertcode(self.operands[1])
+            else:
+                processor.setacc(orig_a)
+    #-def
 #-class
 
-class Or(Operation):
+class And(AndOr):
     """
     """
     __slots__ = []
@@ -1287,7 +1571,20 @@ class Or(Operation):
         """
         """
 
-        Operation.__init__(self, a, b)
+        AndOr.__init__(self, a, b)
+    #-def
+#-class
+
+class Or(AndOr):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a, b):
+        """
+        """
+
+        AndOr.__init__(self, a, b)
     #-def
 #-class
 
@@ -2339,8 +2636,8 @@ class Lambda(Operation):
 
         ctx = processor.cmdctx(self)
         params, vararg, body, bvars = self.operands
-        processor.setacc(Procedure(
-            "<lambda>", bvars, params, vararg, body, ctx.env
+        processor.setacc(Procedure("<lambda>", processor.mkqname("<lambda>"),
+            bvars, params, vararg, body, ctx.env
         ))
     #-def
 #-class
@@ -2436,7 +2733,7 @@ class Loop(Trackable):
 class Foreach(Loop):
     """
     """
-    __slots__ = [ 'var', 'itexp', 'body' ]
+    __slots__ = [ 'var', 'qvar', 'itexp', 'body' ]
 
     def __init__(self, var, itexp, body):
         """
@@ -2444,6 +2741,7 @@ class Foreach(Loop):
 
         Loop.__init__(self)
         self.var = var
+        self.qvar = var
         self.itexp = itexp
         self.body = tuple(body)
     #-def
@@ -2453,6 +2751,7 @@ class Foreach(Loop):
         """
 
         ctx = CommandContext(self)
+        self.qvar = processor.mkqname(self.var)
         processor.insertcode(
             Initializer(ctx), self.itexp, self.do_foreach, Finalizer(ctx)
         )
@@ -2496,6 +2795,7 @@ class Foreach(Loop):
 
         ctx = processor.cmdctx(self)
         ctx.env.setvar(self.var, processor.acc())
+        ctx.env.meta[self.var].qname = self.qvar
     #-def
 
     def do_continue(self, processor):
@@ -2641,12 +2941,13 @@ class Closure(Trackable):
     """
     __slots__ = [ 'bvars', 'args', 'body', 'outer' ]
 
-    def __init__(self, name, bvars, args, body, outer):
+    def __init__(self, name, qname, bvars, args, body, outer):
         """
         """
 
         Trackable.__init__(self)
         self.name = name
+        self.qname = qname
         self.bvars = bvars
         self.args = args
         self.body = tuple(body)
@@ -2667,8 +2968,10 @@ class Closure(Trackable):
         inlz.ctx.env = processor.newenv(self.outer)
         for bvar in self.bvars:
             inlz.ctx.env.setvar(bvar, processor.Null)
+            inlz.ctx.env.meta[bvar].qname = "%s::%s" % (self.qname, bvar)
         for argname in self.args:
             inlz.ctx.env.setvar(argname, self.args[argname])
+            inlz.ctx.env.meta[argname].qname = "%s::%s" % (self.qname, argname)
         inlz.ctx.nvals = processor.nvals()
         processor.pushctx(inlz.ctx)
     #-def
@@ -2702,8 +3005,8 @@ class ICall(Command):
         """
 
         args = processor.popval()
-        name, bvars, _, _, body, outer = self.proc
-        processor.insertcode(Closure(name, bvars, args, body, outer))
+        name, qname, bvars, _, _, body, outer = self.proc
+        processor.insertcode(Closure(name, qname, bvars, args, body, outer))
     #-def
 #-class
 
@@ -2741,13 +3044,15 @@ class Call(Trackable):
                 "%s: Procedure expected" % self.name,
                 processor.traceback()
             )
-        _, _, params, vararg, _, _ = proc
+        _, _, _, params, vararg, _, _ = proc
         nargs, nparams = len(self.args), len(params)
         argsokf = (lambda na, np: np > 0 and na >= np - 1) if vararg \
             else (lambda na, np: na == np)
         if not argsokf(nargs, nparams):
             raise CommandError(processor.TypeError,
-                "%s %s: Bad count of arguments" % (self.name, proc[0]),
+                "%s %s (%s): Bad count of arguments" % (
+                    self.name, proc[0], proc[1]
+                ),
                 processor.traceback()
             )
         code = [{}, self.pushacc]
@@ -2928,6 +3233,8 @@ class TryCatchFinally(Trackable):
                 if isderived(e.ecls, ec):
                     if vname:
                         ctx.env.setvar(vname, e)
+                        p = ctx.env.processor
+                        ctx.env.meta[vname].qname = p.mkqname(vname)
                     return handler
             return None
         except CommandError as ce:
@@ -3529,5 +3836,201 @@ class Print(Trackable):
         """
 
         processor.print_impl(processor.acc())
+    #-def
+#-class
+
+class Module(Trackable):
+    """
+    """
+    INIT = 0
+    INITIALIZED = 1
+    ERROR = 2
+    THISVARNAME = 'this'
+    __slots__ = [ 'body', 'outer', 'state', 'ctx' ]
+
+    def __init__(self, name, qname, body, outer):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.name = name
+        self.qname = qname
+        self.body = tuple(body)
+        self.outer = outer
+        self.state = self.__class__.INIT
+        self.ctx = CommandContext(self)
+    #-def
+
+    def isfunc(self):
+        """
+        """
+
+        return True
+    #-def
+
+    def enter(self, processor, inlz):
+        """
+        """
+
+        if inlz.ctx.env is None:
+            inlz.ctx.env = processor.newenv(self.outer)
+        sthis = self.__class__.THISVARNAME
+        inlz.ctx.env.setvar(sthis, self)
+        inlz.ctx.env.meta[sthis].qname = "%s::%s" % (self.qname, sthis)
+        inlz.ctx.nvals = processor.nvals()
+        processor.pushctx(inlz.ctx)
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        if self.state == self.__class__.INITIALIZED:
+            processor.setacc(self)
+            return
+        inlz = Initializer(self.ctx)
+        fnlz = Finalizer(self.ctx,
+            after = [self.set_initialized], on_throw = self.set_error
+        )
+        processor.insertcode(*((inlz,) + self.body + (self.return_this, fnlz)))
+    #-def
+
+    def return_this(self, processor):
+        """
+        """
+
+        processor.setacc(self)
+    #-def
+
+    def set_initialized(self, processor):
+        """
+        """
+
+        self.state = self.__class__.INITIALIZED
+    #-def
+
+    def set_error(self, fnlz, processor, e):
+        """
+        """
+
+        self.state = self.__class__.ERROR
+    #-def
+#-class
+
+class MainModule(Module):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        Module.__init__(self, "", "", [], None)
+    #-def
+
+    def enter(self, processor, inlz):
+        """
+        """
+
+        inlz.ctx.env = processor.getenv()
+        Module.enter(self, processor, inlz)
+    #-def
+#-class
+
+class SetMember(Trackable):
+    """
+    """
+    __slots__ = [ 'module', 'member', 'value' ]
+
+    def __init__(self, module, member, value):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.module = module
+        self.member = member
+        self.value = value
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.module, self.pushacc,
+            self.value,
+            self.do_setmember,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_setmember(self, processor):
+        """
+        """
+
+        value = processor.acc()
+        module = processor.popval()
+
+        if not isinstance(module, Module):
+            raise CommandError(processor.TypeError,
+                "%s: Module expected" % self.name,
+                processor.traceback()
+            )
+        module.ctx.env.setvar(self.member, value)
+        module.ctx.env.meta[self.member].qname = "%s::%s" % (
+            module.qname, self.member
+        )
+    #-def
+#-class
+
+class GetMember(Trackable):
+    """
+    """
+    __slots__ = [ 'module', 'member' ]
+
+    def __init__(self, module, member):
+        """
+        """
+
+        Trackable.__init__(self)
+        self.module = module
+        self.member = member
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            self.module,
+            self.do_getmember,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_getmember(self, processor):
+        """
+        """
+
+        module = processor.acc()
+
+        if not isinstance(module, Module):
+            raise CommandError(processor.TypeError,
+                "%s: Module expected" % self.name,
+                processor.traceback()
+            )
+        if self.member not in module.ctx.env:
+            raise CommandError(processor.NameError,
+                "%s: Module %s (%s) has no member %s" % (
+                    self.name, module.name, module.qname, self.member
+                ),
+                processor.traceback()
+            )
+        processor.setacc(module.ctx.env.getvar(self.member))
     #-def
 #-class

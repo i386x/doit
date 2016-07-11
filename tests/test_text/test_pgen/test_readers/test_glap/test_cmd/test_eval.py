@@ -325,24 +325,6 @@ class TTryCatch(Command):
     #-def
 #-class
 
-class TDefError(Command):
-    __slots__ = [ 'ename', 'ebasename' ]
-
-    def __init__(self, name, basename):
-        Command.__init__(self)
-        self.ename = name
-        self.ebasename = basename
-    #-def
-
-    def expand(self, processor):
-        processor.insertcode(self.do_deferror)
-    #-def
-
-    def do_deferror(self, processor):
-        processor.define_exception(self.ename, self.ebasename)
-    #-def
-#-class
-
 class TestEnvironmentCase(unittest.TestCase):
 
     def test_vars(self):
@@ -350,7 +332,7 @@ class TestEnvironmentCase(unittest.TestCase):
         e1 = Environment(p)
         e1.setvar('x', 42)
         e2 = Environment(outer = e1)
-        e2.setprocessor(p)
+        e2.processor = p
         e2.setvar('x', 43)
         e2['y'] = 44
 
@@ -654,9 +636,9 @@ class TestCommandProcessorCase(unittest.TestCase):
         p.run([ut])
         self.assertIsInstance(p.acc(), UserType)
         self.assertIs(p.acc(), ut)
-        p.run([Procedure(1, 2, 3, 4, 5, 6)])
+        p.run([Procedure(1, 2, 3, 4, 5, 6, 7)])
         self.assertIsInstance(p.acc(), Procedure)
-        self.assertEqual(p.acc(), (1, 2, 3, 4, 5, 6))
+        self.assertEqual(p.acc(), (1, 2, 3, 4, 5, 6, 7))
         p.run([(2, 5)])
         self.assertIsInstance(p.acc(), Pair)
         self.assertEqual(p.acc(), (2, 5))
@@ -682,14 +664,18 @@ class TestCommandProcessorCase(unittest.TestCase):
             p.run([CommandProcessor()])
     #-def
 
-    def test_exception_handling(self):
+    def test_event_handling(self):
         p = CommandProcessor()
+        c = Command()
+        _c = Command()
+        ctx = CommandContext(c)
+        _ctx = CommandContext(_c)
 
         with self.assertRaises(CommandProcessorError):
             p.run([TLoad('?'), TSet('x', -1)])
 
         with self.assertRaises(CommandProcessorError):
-            p.run([TLoad('?'), Command(), Command(), Command()])
+            p.run([TLoad('?'), c, _c, c])
 
         p.run([
             TTryCatch([
@@ -768,14 +754,6 @@ class TestCommandProcessorCase(unittest.TestCase):
                     ('NameError', "", [])
                 ])
             ])
-    #-def
-
-    def test_return_handling(self):
-        p = CommandProcessor()
-        c = Command()
-        _c = Command()
-        ctx = CommandContext(c)
-        _ctx = CommandContext(_c)
 
         with self.assertRaises(CommandProcessorError):
             p.run([Return()])
@@ -855,64 +833,6 @@ class TestCommandProcessorCase(unittest.TestCase):
         with self.assertRaises(CommandProcessorError):
             p.popval()
         self.assertIsNone(p.acc())
-    #-def
-
-    def test_define_exception(self):
-        m = "Oook!"
-        p = CommandProcessor()
-        env = p.getenv()
-
-        p.run([
-            TDefError('MyError', 'Exception'),
-            TTryCatch([
-                TThrow('MyError', m)
-            ], [
-                ('MyError', 'e', [TLoad('e'), TStore('x')])
-            ])
-        ])
-        self.assertIs(env.getvar('x').ecls, env.getvar('MyError'))
-        self.assertEqual(env.getvar('x').emsg, m)
-
-        p.run([
-            TTryCatch([
-                TDefError('MySecondError', 'u')
-            ], [
-                ('NameError', "", [TSet('x', 42)])
-            ])
-        ])
-        self.assertEqual(env.getvar('x'), 42)
-
-        p.run([
-            TTryCatch([
-                TDefError('MySecondError', 'x')
-            ], [
-                ('TypeError', "", [TSet('x', 43)])
-            ])
-        ])
-        self.assertEqual(env.getvar('x'), 43)
-
-        p.run([
-            TDefError('E', 'Exception'),
-            TBlock([
-                TDefError('E', 'Exception'),
-                TLoad('E')
-            ]),
-            TStore('X'),
-            TTryCatch([
-                TThrow('E', "1")
-            ], [
-                ('X', "", [TSet('a', 11)]),
-                ('E', "", [TSet('a', 12)])
-            ]),
-            TTryCatch([
-                TThrow('X', "2")
-            ], [
-                ('E', "", [TSet('b', 13)]),
-                ('X', "", [TSet('b', 14)])
-            ])
-        ])
-        self.assertEqual(env.getvar('a'), 12)
-        self.assertEqual(env.getvar('b'), 14)
     #-def
 
     def test_impls(self):
