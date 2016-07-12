@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/text/pgen/readers/glap/cmd/eval.py
+#! \file    ./doit/support/cmd/eval.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-02-14 14:41:36 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -8,7 +8,7 @@
 #! \fdesc   @pyfile.docstr
 #
 """\
-Command processor.\
+Command processor implementation.\
 """
 
 __license__ = """\
@@ -37,11 +37,11 @@ import collections
 
 from doit.config.version import DOIT_VERSION
 
-from doit.text.pgen.readers.glap.cmd.errors import \
+from doit.support.cmd.errors import \
     CommandProcessorError, \
     CommandError
 
-from doit.text.pgen.readers.glap.cmd.runtime import \
+from doit.support.cmd.runtime import \
     Iterable, \
     Pair, \
     List, \
@@ -51,7 +51,7 @@ from doit.text.pgen.readers.glap.cmd.runtime import \
     Traceback, \
     Procedure
 
-from doit.text.pgen.readers.glap.cmd.commands import \
+from doit.support.cmd.commands import \
     NONE, \
     EXCEPTION, \
     RETURN, \

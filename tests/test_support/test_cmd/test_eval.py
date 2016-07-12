@@ -1,6 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/test_text/test_pgen/ \
-#!              test_readers/test_glap/test_cmd/test_eval.py
+#! \file    ./tests/test_support/test_cmd/test_eval.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-04-18 18:07:39 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -9,7 +8,7 @@
 #! \fdesc   @pyfile.docstr
 #
 """\
-Glap reader command processor eval module tests.\
+Command processor's eval module tests.\
 """
 
 __license__ = """\
@@ -36,11 +35,11 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from doit.text.pgen.readers.glap.cmd.errors import \
+from doit.support.cmd.errors import \
     CommandProcessorError, \
     CommandError
 
-from doit.text.pgen.readers.glap.cmd.runtime import \
+from doit.support.cmd.runtime import \
     isderived, \
     Pair, \
     List, \
@@ -49,11 +48,11 @@ from doit.text.pgen.readers.glap.cmd.runtime import \
     ExceptionClass, \
     Procedure
 
-from doit.text.pgen.readers.glap.cmd.eval import \
+from doit.support.cmd.eval import \
     Environment, \
     CommandProcessor
 
-from doit.text.pgen.readers.glap.cmd.commands import \
+from doit.support.cmd.commands import \
     CommandContext, \
     Initializer, \
     Finalizer, \

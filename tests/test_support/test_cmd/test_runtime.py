@@ -1,6 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/test_text/test_pgen/ \
-#!              test_readers/test_glap/test_cmd/test_runtime.py
+#! \file    ./tests/test_support/test_cmd/test_runtime.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-04-07 18:58:51 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -9,7 +8,7 @@
 #! \fdesc   @pyfile.docstr
 #
 """\
-Glap reader command processor runtime module tests.\
+Command processor's runtime module tests.\
 """
 
 __license__ = """\
@@ -36,10 +35,10 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from doit.text.pgen.readers.glap.cmd.errors import \
+from doit.support.cmd.errors import \
     CommandError
 
-from doit.text.pgen.readers.glap.cmd.runtime import \
+from doit.support.cmd.runtime import \
     isderived, \
     BaseIterator, \
     FiniteIterator, \
@@ -52,10 +51,10 @@ from doit.text.pgen.readers.glap.cmd.runtime import \
     Traceback, \
     Procedure
 
-from doit.text.pgen.readers.glap.cmd.eval import \
+from doit.support.cmd.eval import \
     CommandProcessor
 
-from doit.text.pgen.readers.glap.cmd.commands import \
+from doit.support.cmd.commands import \
     Location
 
 class PseudoCommand(object):

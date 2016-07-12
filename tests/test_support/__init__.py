@@ -35,7 +35,7 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_utils, test_errors, test_visitnode, test_observer
+from . import test_utils, test_errors, test_visitnode, test_observer, test_cmd
 
 def suite():
     suite = unittest.TestSuite()
@@ -43,5 +43,6 @@ def suite():
     suite.addTest(test_utils.suite())
     suite.addTest(test_visitnode.suite())
     suite.addTest(test_observer.suite())
+    suite.addTest(test_cmd.suite())
     return suite
 #-def

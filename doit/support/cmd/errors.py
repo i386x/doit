@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/text/pgen/readers/glap/cmd/errors.py
+#! \file    ./doit/support/cmd/errors.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-02-15 13:19:12 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -8,7 +8,7 @@
 #! \fdesc   @pyfile.docstr
 #
 """\
-Command processor errors.\
+Command processor's errors.\
 """
 
 __license__ = """\

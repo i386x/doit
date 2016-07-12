@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/text/pgen/readers/glap/cmd/commands.py
+#! \file    ./doit/support/cmd/commands.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-02-14 15:36:02 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -8,7 +8,7 @@
 #! \fdesc   @pyfile.docstr
 #
 """\
-Possible commands to be processed by command processor.\
+Command processor's basic commands.\
 """
 
 __license__ = """\
@@ -33,10 +33,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from doit.text.pgen.readers.glap.cmd.errors import \
+from doit.support.cmd.errors import \
     CommandError
 
-from doit.text.pgen.readers.glap.cmd.runtime import \
+from doit.support.cmd.runtime import \
     isderived, \
     Pair, \
     List, \

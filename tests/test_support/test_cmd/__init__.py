@@ -1,6 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/test_text/test_pgen/ \
-#!              test_readers/test_glap/test_cmd/__init__.py
+#! \file    ./tests/test_support/test_cmd/__init__.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-04-07 09:54:47 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language

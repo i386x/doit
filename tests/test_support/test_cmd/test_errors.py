@@ -1,6 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/test_text/test_pgen/ \
-#!              test_readers/test_glap/test_cmd/test_errors.py
+#! \file    ./tests/test_support/test_cmd/test_errors.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-04-06 20:37:59 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -9,7 +8,7 @@
 #! \fdesc   @pyfile.docstr
 #
 """\
-Glap reader command processor error module tests.\
+Command processor's error module tests.\
 """
 
 __license__ = """\
@@ -38,7 +37,7 @@ import unittest
 
 from doit.support.errors import DoItError
 
-from doit.text.pgen.readers.glap.cmd.errors import \
+from doit.support.cmd.errors import \
     ERROR_COMMAND_PROCESSOR, \
     ERROR_COMMAND, \
     CommandProcessorError, \

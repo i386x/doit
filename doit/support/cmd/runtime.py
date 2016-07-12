@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/text/pgen/readers/glap/cmd/runtime.py
+#! \file    ./doit/support/cmd/runtime.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-04-01 13:05:11 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -8,7 +8,7 @@
 #! \fdesc   @pyfile.docstr
 #
 """\
-Command processor runtime.\
+Command processor's runtime utilities.\
 """
 
 __license__ = """\
@@ -33,7 +33,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from doit.text.pgen.readers.glap.cmd.errors import \
+from doit.support.cmd.errors import \
     CommandError
 
 def isderived(exc, base):
