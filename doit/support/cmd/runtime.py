@@ -301,7 +301,7 @@ class UserType(object):
         )
     #-def
 
-    def visit(self, processor, f, *args):
+    def do_visit(self, processor, f, *args):
         """
         """
 

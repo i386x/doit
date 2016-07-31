@@ -67,7 +67,7 @@ from doit.support.cmd.commands import \
     BitAnd, BitOr, BitXor, ShiftL, ShiftR, Inv, \
     Lt, Gt, Le, Ge, Eq, Ne, Is, \
     And, Or, Not, \
-    NewPair, \
+    NewPair, NewList, NewHashMap, \
     Copy, Slice, Concat, Join, Merge, \
     Type, InstanceOf, Strlen, Size, Empty, Contains, Count, \
     IsDigit, IsUpper, IsLower, IsAlpha, IsLetter, IsAlnum, IsWord, \
@@ -75,6 +75,7 @@ from doit.support.cmd.commands import \
     First, Second, GetItem, \
     Substr, Find, RFind, \
     LStrip, RStrip, Strip, ToUpper, ToLower, Subst, Trans, \
+    Head, Tail, \
     Sort, Reverse, Unique, \
     Split, \
     ToBool, ToInt, ToFlt, ToStr, ToPair, ToList, ToHash, \
@@ -129,12 +130,12 @@ class UT_000(UserType):
         return HashMap({1.25: "gosh!"})
     #-def
 
-    def visit(self, processor, f, *args):
+    def do_visit(self, processor, f, *args):
         processor.insertcode(
             Call(f,
                 0,
-                ECall(self.left.visit, processor, f, *args),
-                ECall(self.right.visit, processor, f, *args),
+                ECall(self.left.do_visit, processor, f, *args),
+                ECall(self.right.do_visit, processor, f, *args),
                 *args
             )
         )
@@ -149,7 +150,7 @@ class UT_001(UserType):
         self.v = v
     #-def
 
-    def visit(self, processor, f, *args):
+    def do_visit(self, processor, f, *args):
         processor.insertcode(
             Call(f, 1, self.v, *args)
         )
@@ -611,7 +612,40 @@ class TestOperationsCase(unittest.TestCase):
             SetLocal('v', "***"),
             NewPair(GetLocal('a'), GetLocal('v'))
         ])
+        self.assertIsInstance(p.acc(), Pair)
         self.assertEqual(p.acc(), (1, "***"))
+    #-def
+
+    def test_NewList(self):
+        p = CommandProcessor()
+
+        p.run([
+            SetLocal('x', 1),
+            SetLocal('y', "o"),
+            SetLocal('z', 1.25),
+            NewList(GetLocal('x'), GetLocal('y'), GetLocal('z'))
+        ])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [1, "o", 1.25])
+        p.run([NewList()])
+        self.assertIsInstance(p.acc(), List)
+        self.assertEqual(p.acc(), [])
+    #-def
+
+    def test_NewHashMap(self):
+        p = CommandProcessor()
+
+        p.run([
+            SetLocal('x', NewPair('x', 1)),
+            NewHashMap((1, 2), GetLocal('x'), NewPair(0.25, 'z'))
+        ])
+        self.assertIsInstance(p.acc(), HashMap)
+        self.assertEqual(p.acc(), {1: 2, 'x': 1, 0.25: 'z'})
+        p.run([NewHashMap()])
+        self.assertIsInstance(p.acc(), HashMap)
+        self.assertEqual(p.acc(), {})
+        with self.assertRaises(CommandProcessorError):
+            p.run([NewHashMap((1, 'a'), NewList(1, 2))])
     #-def
 
     def test_Copy(self):
@@ -1097,6 +1131,52 @@ class TestOperationsCase(unittest.TestCase):
 
         p.run([Trans("abcdefgh", tab)])
         self.assertEqual(p.acc(), "?0bc<Z>efgh")
+    #-def
+
+    def test_Head(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([Head("")])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Head([])])
+        p.run([Head("a")])
+        self.assertEqual(p.acc(), 'a')
+        p.run([Head("ba")])
+        self.assertEqual(p.acc(), 'b')
+        p.run([Head("cba")])
+        self.assertEqual(p.acc(), 'c')
+        p.run([Head(('x', 2))])
+        self.assertEqual(p.acc(), 'x')
+        p.run([Head([1])])
+        self.assertEqual(p.acc(), 1)
+        p.run([Head([2, 1])])
+        self.assertEqual(p.acc(), 2)
+        p.run([Head([3, 2, 1])])
+        self.assertEqual(p.acc(), 3)
+    #-def
+
+    def test_Tail(self):
+        p = CommandProcessor()
+
+        with self.assertRaises(CommandProcessorError):
+            p.run([Tail("")])
+        with self.assertRaises(CommandProcessorError):
+            p.run([Tail([])])
+        p.run([Tail("a")])
+        self.assertEqual(p.acc(), "")
+        p.run([Tail("ba")])
+        self.assertEqual(p.acc(), "a")
+        p.run([Tail("cba")])
+        self.assertEqual(p.acc(), "ba")
+        p.run([Tail(('x', 2))])
+        self.assertEqual(p.acc(), [2])
+        p.run([Tail([1])])
+        self.assertEqual(p.acc(), [])
+        p.run([Tail([2, 1])])
+        self.assertEqual(p.acc(), [1])
+        p.run([Tail([3, 2, 1])])
+        self.assertEqual(p.acc(), [2, 1])
     #-def
 
     def test_Sort(self):

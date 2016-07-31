@@ -997,7 +997,7 @@ class Operation(Trackable):
             operation = (lambda a, b: a is b)
         ),
         # Logic operations:
-        # - 'and' and 'or' were defined separately
+        # - 'and' and 'or' are defined separately
         'not': dict(
             types = [(bool,)],
             conversions = (lambda p, a: \
@@ -1011,6 +1011,7 @@ class Operation(Trackable):
             types = [(object, object)],
             operation = (lambda a, b: Pair(a, b))
         ),
+        # 'newlist' and 'newhashmap' are defined separately
         'copy': dict(
             types = [(CollectionTypes,)],
             operation = (lambda a: \
@@ -1152,7 +1153,7 @@ class Operation(Trackable):
             types = [(str, str, int, int)],
             operation = (lambda a, b, c, d: a.rfind(b, c, d))
         ),
-        # - adjustments:
+        # - adjustments/miscellaneous:
         'lstrip': dict(
             types = [(str,)],
             operation = (lambda a: a.lstrip())
@@ -1180,6 +1181,24 @@ class Operation(Trackable):
         'trans': dict(
             types = [(str, dict)],
             operation = (lambda a, b: ''.join([b.get(x, x) for x in a]))
+        ),
+        'head': dict(
+            types = [(SequenceTypes,)],
+            constraints = (lambda p, a: \
+                (True, None, "") if len(a) >= 1 else \
+                (False, p.ValueError, "Non-empty sequence was expected")
+            ),
+            operation = (lambda a: a[0])
+        ),
+        'tail': dict(
+            types = [(SequenceTypes,)],
+            constraints = (lambda p, a: \
+                (True, None, "") if len(a) >= 1 else \
+                (False, p.ValueError, "Non-empty sequence was expected")
+            ),
+            operation = (lambda a: \
+                list(a[1:]) if isinstance(a, tuple) else a[1:]
+            )
         ),
         'sort': dict(
             types = [(list,)],
@@ -1233,11 +1252,7 @@ class Operation(Trackable):
             )
 
         # 2) Load operands:
-        args = []
-        for _ in self.operands:
-            args.append(processor.popval())
-        args.reverse()
-        nargs = len(args)
+        args, nargs = self.load_operands(processor)
 
         # 3) Load operation specification:
         op_spec = op_tab[self.name]
@@ -1304,6 +1319,17 @@ class Operation(Trackable):
 
         # 8) Do the operation:
         processor.setacc(op_spec['operation'](*args))
+    #-def
+
+    def load_operands(self, processor):
+        """
+        """
+
+        args = []
+        for _ in self.operands:
+            args.append(processor.popval())
+        args.reverse()
+        return args, len(args)
     #-def
 #-class
 
@@ -1657,6 +1683,61 @@ class NewPair(Operation):
         """
 
         Operation.__init__(self, a, b)
+    #-def
+#-class
+
+class NewList(Operation):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, *items):
+        """
+        """
+
+        Operation.__init__(self, *items)
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        processor.setacc(List(self.load_operands(processor)[0]))
+    #-def
+#-class
+
+class NewHashMap(Operation):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, *items):
+        """
+        """
+
+        Operation.__init__(self, *items)
+    #-def
+
+    def do_op(self, processor):
+        """
+        """
+
+        items, _ = self.load_operands(processor)
+
+        for n, i in enumerate(items, 1):
+            if not isinstance(i, tuple) or len(i) != 2:
+                raise CommandError(processor.TypeError,
+                    "%s: %d%s argument must be a pair" % (
+                        self.name,
+                        n,
+                        "st" if (n % 10) == 1 and (n % 100) != 11 else \
+                        "nd" if (n % 10) == 2 and (n % 100) != 12 else \
+                        "rd" if (n % 10) == 3 and (n % 100) != 13 else \
+                        "th"
+                    ),
+                    processor.traceback()
+                )
+        processor.setacc(HashMap(dict(items)))
     #-def
 #-class
 
@@ -2114,6 +2195,32 @@ class Trans(Operation):
         """
 
         Operation.__init__(self, a, b)
+    #-def
+#-class
+
+class Head(Operation):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a):
+        """
+        """
+
+        Operation.__init__(self, a)
+    #-def
+#-class
+
+class Tail(Operation):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, a):
+        """
+        """
+
+        Operation.__init__(self, a)
     #-def
 #-class
 
@@ -3889,7 +3996,7 @@ class Visit(Trackable):
         """
 
         state = processor.popval()
-        state[0].visit(processor, state[1], *(state[2]))
+        state[0].do_visit(processor, state[1], *(state[2]))
     #-def
 #-class
 
