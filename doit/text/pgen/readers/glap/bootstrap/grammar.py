@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/text/pgen/readers/glap/grammar.py
+#! \file    ./doit/text/pgen/readers/glap/bootstrap/grammar.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-02-11 10:19:52 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
@@ -33,12 +33,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-GAC = GrammarAdjustmentCommand
-GAP = GrammarAdjustmentParam
-GAA = GrammarActionCommand
-GAM = GrammarActionMacro
-
-class GlapLexer(Grammar):
+class GlapLexer(Lexer):
     """
     """
     __slots__ = []
@@ -47,23 +42,23 @@ class GlapLexer(Grammar):
         """
         """
 
-        Grammar.__init__(self)
-        self.set_name(self.__class__.__name__)
+        Lexer.__init__(self)
 
         self['COMMENT']    = S('-') + S('-') + V('COMMENTCHAR')['*']
+        self['WS']         = V('WHITESPACE')['+']
         self['ID']         = V('LETTER_') + V('ALNUM_')['*']
         self['INT']        = V('INT_PART')
-                           | (S('0') + V('ODIGIT')['*']) % "odigs"
+                           | (S('0') + V('ODIGIT')['*'])
                            | S('0') + (S('x') | S('X'))
-                             + V('XDIGIT')['+'] % "xdigs"
-        self['FLOAT']      = V('INT_PART') % "idigs" + V('FLOAT_PART')
+                             + V('XDIGIT')['+']
+        self['FLOAT']      = V('INT_PART') + V('FLOAT_PART')
         self['INT_PART']   = V('NZ_DIGIT') + V('DIGIT')['*']
         self['FLOAT_PART'] = V('FRAC_PART') + V('EXP_PART')['?']
                            | V('EXP_PART')
-        self['FRAC_PART']  = S('.') + V('DIGIT')['+'] % "fdigs"
+        self['FRAC_PART']  = S('.') + V('DIGIT')['+']
         self['EXP_PART']   = (S('E') | S('e'))
-                             + (S('+') | S('-'))['?'] % "sign"
-                             + V('DIGIT')['+'] % "expdigs"
+                             + (S('+') | S('-'))['?']
+                             + V('DIGIT')['+']
 
         self['ALNUM_']      = A(  V('LETTER_') | V('DIGIT')           )
         self['LETTER_']     = A(  R('A', 'Z') | R('a', 'z') | S('_')  )
@@ -73,48 +68,21 @@ class GlapLexer(Grammar):
         self['COMMENTCHAR'] = A(  V('SOURCECHAR') - S('\n')           )
         self['SOURCECHAR']  = A(  ~(R('\0', '\37') | S('\177'))       )
 
-        self.set_grammar_adjustment_program("Lexer", [
-            (GAC.Import, (".", "GlapParser", "GetOperators"), "GetOperators"),
-
-            (GAC.SetMatchedContentVariableName, "s"),
-            (GAC.SetMatchedSymbolVariableName, "c"),
-            (GAC.SetGenericInitialAction, [
-                (GAA.SetVar, GAM.MatchedContentVariableName, String(""))
-            ]),
-            (GAC.SetGenericFinalAction, [
-                (GAA.Emit, GAM.CurrentRuleName, GAM.MatchedContentVariableName)
-            ]),
-            (GAC.SetErrorAction, [
-                (GAA.Emit, 'OTHER', GAM.MatcheSymbolVariableName)
-            ]),
-
-            (GAC.AddToken, 'WHITESPACE', GAP.Skip),
-            (GAC.AddToken, 'COMMENT', GAP.Skip),
-            (GAC.AddToken, 'ID', GAP.Emit),
-            (GAC.AddToken, 'INT', GAP.Emit),
-            (GAC.AddToken, 'FLOAT', GAP.Emit),
-            (GAC.Invoke, "GetOperators", GAM.This),
-            (GAC.SetInitialAction, 'INT', [
-                (GAA.SetVar, "s", String("")),
-                (GAA.SetVar, "base", Id('DEC'))
-            ]),
-            (GAC.SetActionByLabel, 'INT', "odigs", [
-                (GAA.SetVar, "base", Id('OCT'))
-            ]),
-            (GAC.SetActionByLabel, 'INT', "xdigs", [
-                (GAA.SetVar, "base", Id('HEX'))
-            ]),
-            (GAC.SetFinalAction, 'INT', [
-                (GAA.Emit, 'INT', "s", "base")
-            ]),
-            (GAC.SetFinalAction, 'FLOAT', [
-                (GAA.Emit, 'FLOAT', "idigs", "fdigs", "sign", "expdigs")
-            ])
+        self.set_code([
+            Call(GetLocal('tokens'),
+                Call(GetLocal('lexskip'), 'COMMENT'),
+                Call(GetLocal('lexskip'), 'WS'),
+                'ID',
+                'INT',
+                'FLOAT',
+                Expand(GetLocal('str2tok')),
+                Expand(GetLocal('other'))
+            )
         ])
     #-def
 #-class
 
-class GlapParser(Grammar):
+class GlapParser(Parser):
     """
     """
     __slots__ = []
@@ -124,7 +92,72 @@ class GlapParser(Grammar):
         """
 
         Grammar.__init__(self)
-        self.set_name(self.__class__.__name__)
+
+        def start_module():
+            m, factory, name = str2id("m factory name")
+            return Assign(m, factory._NewModule(name))
+
+        def add_to_module():
+            m, munit = str2id("m munit")
+            return m._add(munit)
+
+        def end_module():
+            m = str2id("m")
+            return Block(
+                m._commit(),
+                Return(m)
+            )
+
+        def start_grammar():
+            g, factory, name, gtspec = str2id("g factory name gtspec")
+            return Assign(g, factory._NewGrammar(name, gtspec))
+
+        def add_r_to_g():
+            g, r = str2id("g r")
+            return g._add(r)
+
+        def add_cmd_to_g():
+            g, cmd = str2id("g cmd")
+            return g._add(cmd)
+
+        def end_grammar():
+            g = str2id("g")
+            return Block(
+                g._commit(),
+                Return(g)
+            )
+
+        def start_gts_list():
+            gts_list, factory = str2id("gts_list factory")
+            return Assign(gts_list, factory._NewGTSList())
+
+        def add_gts_to_gts_list():
+            gts_list, name = str2id("gts_list name")
+            return gts_list._add(name)
+
+        def end_gts_list():
+            gts_list = str2id("gts_list")
+            return Block(
+                gts_list._commit(),
+                Return(gts_list)
+            )
+
+        def start_rule():
+            r, factory, lhs = str2id("r factory lhs")
+            return Assign(r, factory._NewRule(lhs))
+
+        def set_alias_flag():
+            r = str2id("r")
+            true = BoolLiteral(True)
+            return r._set_alias_flag(true)
+
+        def end_rule():
+            r, rhs = str2id("r rhs")
+            return Block(
+                r._add(rhs),
+                r._commit(),
+                Return(r)
+            )
 
         self['start'] = (
             V('module')
@@ -132,18 +165,26 @@ class GlapParser(Grammar):
         self['module'] = (
             T("module") + T('ID') % "name"
               + start_module()
-              + V('module_unit')['*']
+              + (
+                V('module_unit') % "munit"
+                + add_to_module()
+              )['*']
               + end_module()
             + T("end")
         )
         self['module_unit'] = (
-            V('grammar')
+            V('command')
+            | V('module')
+            | V('grammar')
         )
         self['grammar'] = (
             T("grammar") + T('ID') % "name"
-            + V('grammar_type_spec')['?']
+            + V('grammar_type_spec')['?'] % "gtspec"
               + start_grammar()
-              + V('rule')['*']
+              + (
+                V('rule') % "r" + add_r_to_g()
+                | T(".") + V('command') % "cmd" + add_cmd_to_g()
+              )['*']
               + end_grammar()
             + T("end")
         )
@@ -162,10 +203,10 @@ class GlapParser(Grammar):
             + T(")")
         )
         self['rule'] = (
-          start_rule()
-          + T('ID')
+          T('ID') % "lhs"
+          + start_rule()
             + (T("->") | T(":") + set_alias_flag())
-            + V('rule_rhs_expr')
+            + V('rule_rhs_expr') % "rhs"
           + end_rule()
           + T(";")
         )
@@ -198,40 +239,30 @@ class GlapParser(Grammar):
         self['action'] = (
           T("{")
           + start_action()
-            + V('GlapActionParser', 'start')
+            + V('act_start')
           + end_action()
           + T("}")
         )
-
-        def is_str_ge(s, sz):
-            return (GAO.And,
-                (GAO.Type, s, GLT.String),
-                (GAO.GtEq, (GAO.Strlen, s), sz),
-            )
-        #-def
-
-        def trans
-
-        self.set_grammar_adjustment_program("Parser", [
-            (GAC.Define, "GetOperators", "lexer", [
-                (GAC.ForEach, "r", GAM.Rules, [
-                    (GAC.Visit, "r", "n", [
-                        (GAC.If, (GAC.Expr, is_str_ge("n", 2)), [
-                            (GAC.With, "lexer", [
-                                (GAC.AddRule, trans("n"), makerhs("n")),
-                                (GAC.AddToken, trans("n"), GAP.Emit)
-                            ])
-                        ])
-                    ])
-                ])
-            ])
-        ])
+        self['command'] = (
+          V('c_expr') + T('DELIM')
+        )
+        self['c_expr'] = PrecedenceGraph(
+          (0, (0, "=", 1), 1),
+          (0, (0, "+=", 1), 1),
+          (0, (0, "-=", 1), 1),
+          (0, (0, "*=", 1), 1),
+          (0, (0, "/=", 1), 1),
+          (0, (0, "%=", 1), 1),
+          (0, (0, "&=", 1), 1),
+          (0, (0, "|=", 1), 1),
+          (0, (0, "^=", 1), 1),
+          (0, (0, "<<=", 1), 1),
+          (0, (0, ">>=", 1), 1),
+          (0, (0, "&&=", 1), 1),
+          (0, (0, "||=", 1), 1),
+          (0, (0, ".=", 1), 1),
+          (0, (0, "++=", 1), 1),
+          (0, (0, "~~=", 1), 1),
+        )
     #-def
 #-class
-
-def module():
-    """
-    """
-
-    return None
-#-def
