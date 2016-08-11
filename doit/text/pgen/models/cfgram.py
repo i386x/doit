@@ -112,6 +112,15 @@ class TerminalNode(RuleNode, VisitableLeaf):
         RuleNode.__init__(self)
         VisitableLeaf.__init__(self, value)
     #-def
+
+    def do_visit(self, processor, f, *args):
+        """
+        """
+
+        processor.insertcode(
+            Call(f, self, self.traverse(lambda _, v: v), *args)
+        )
+    #-def
 #-class
 
 class UnaryNode(RuleNode, UnaryVisitableNode):
@@ -126,6 +135,19 @@ class UnaryNode(RuleNode, UnaryVisitableNode):
         RuleNode.__init__(self)
         UnaryVisitableNode.__init__(self, node)
     #-def
+
+    def do_visit(self, processor, f, *args):
+        """
+        """
+
+        n = self.traverse(lambda _, n: n)
+        processor.insertcode(
+            Call(f, self,
+                ECall(n.do_visit, processor, f, *args),
+                *args
+            )
+        )
+    #-def
 #-class
 
 class BinaryNode(RuleNode, BinaryVisitableNode):
@@ -139,6 +161,20 @@ class BinaryNode(RuleNode, BinaryVisitableNode):
 
         RuleNode.__init__(self)
         BinaryVisitableNode.__init__(self, lhs, rhs)
+    #-def
+
+    def do_visit(self, processor, f, *args):
+        """
+        """
+
+        n1, n2 = self.traverse(lambda _, n1, n2: n1, n2)
+        processor.insertcode(
+            Call(f, self,
+                ECall(n1.do_visit, processor, f, *args),
+                ECall(n2.do_visit, processor, f, *args),
+                *args
+            )
+        )
     #-def
 #-class
 
@@ -172,7 +208,7 @@ class Sym(TerminalNode):
         """
         """
 
-        return self.visit(lambda n, v: v)
+        return self.traverse(lambda _, v: v)
     #-def
 #-class
 
@@ -335,18 +371,20 @@ class Alternation(BinaryNode):
     #-def
 #-class
 
-class Grammar(object):
+class Grammar(UserType):
     """
     """
-    __slots__ = [ '__start', '__rules', 'cache' ]
+    __slots__ = [ '__start', '__rules', 'cache', 'properties' ]
 
     def __init__(self, start = "start"):
         """
         """
 
+        UserType.__init__(self)
         self.__start = start
         self.__rules = collections.OrderedDict()
         self.cache = {}
+        self.properties = {}
     #-def
 
     def __setitem__(self, key, value):
@@ -358,14 +396,21 @@ class Grammar(object):
         self.__rules[key] = value
     #-def
 
-    def get_start(self):
+    def set_start(self, start):
+        """
+        """
+
+        self.__start = start
+    #-def
+
+    def start(self):
         """
         """
 
         return self.__start
     #-def
 
-    def get_rules(self):
+    def rules(self):
         """
         """
 
