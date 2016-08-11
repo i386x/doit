@@ -33,7 +33,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-class AbstractSyntaxTree(object):
+from doit.support.cmd.runtime import UserType
+
+class AbstractSyntaxTree(UserType):
     """
     """
     __slots__ = []
@@ -42,6 +44,6 @@ class AbstractSyntaxTree(object):
         """
         """
 
-        pass
+        UserType.__init__(self)
     #-def
 #-class
