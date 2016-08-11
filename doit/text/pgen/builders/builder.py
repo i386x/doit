@@ -33,29 +33,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-class Builder(object):
+class Builder(Application):
     """
     """
-    __slots__ = [ '__writer' ]
+    __slots__ = []
 
-    def __init__(self, writer):
+    def __init__(self, owner = None):
         """
         """
 
-        self.__writer = writer
-    #-def
-
-    def build(self, model):
-        """
-        """
-
-        not_implemented()
-    #-def
-
-    def emit(self, *data):
-        """
-        """
-
-        self.__writer.write(*data)
+        Application.__init__(self, owner)
     #-def
 #-class
