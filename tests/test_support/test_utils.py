@@ -38,7 +38,59 @@ import unittest
 from ..common import RAISE_FROM_ENTER, SUPRESS, ContextManagerMock
 
 from doit.support.errors import DoItAssertionError
-from doit.support.utils import WithStatementExceptionHandler, Collection
+
+from doit.support.utils import \
+    ordinal_suffix, WithStatementExceptionHandler, Collection
+
+class TestOrdinalSuffixCase(unittest.TestCase):
+
+    def test_ordinal_suffix(self):
+        cases = [
+            (0, 'th'),
+            (1, 'st'),
+            (2, 'nd'),
+            (3, 'rd'),
+            (4, 'th'),
+            (5, 'th'),
+            (10, 'th'),
+            (11, 'th'),
+            (12, 'th'),
+            (13, 'th'),
+            (14, 'th'),
+            (15, 'th'),
+            (20, 'th'),
+            (21, 'st'),
+            (22, 'nd'),
+            (23, 'rd'),
+            (24, 'th'),
+            (25, 'th'),
+            (30, 'th'),
+            (31, 'st'),
+            (32, 'nd'),
+            (33, 'rd'),
+            (34, 'th'),
+            (35, 'th'),
+            (50, 'th'),
+            (51, 'st'),
+            (52, 'nd'),
+            (53, 'rd'),
+            (54, 'th'),
+            (55, 'th'),
+            (90, 'th'),
+            (91, 'st'),
+            (92, 'nd'),
+            (93, 'rd'),
+            (94, 'th'),
+            (95, 'th')
+        ]
+        bases = [0, 100, 1000, 10000, 1000000]
+
+        for b in bases:
+            for c in cases:
+                self.assertEqual(ordinal_suffix(b + c[0]), c[1])
+                self.assertEqual(ordinal_suffix(-(b + c[0])), c[1])
+    #-def
+#-class
 
 class TestWithStatementExceptionHandlerCase(unittest.TestCase):
 
@@ -262,6 +314,7 @@ class TestCollectionCase(unittest.TestCase):
 
 def suite():
     suite = unittest.TestSuite()
+    suite.addTest(unittest.makeSuite(TestOrdinalSuffixCase))
     suite.addTest(unittest.makeSuite(TestWithStatementExceptionHandlerCase))
     suite.addTest(unittest.makeSuite(TestCollectionCase))
     return suite

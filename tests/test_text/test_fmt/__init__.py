@@ -1,14 +1,14 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/test_text/__init__.py
+#! \file    ./tests/test_text/test_fmt/__init__.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
-#! \stamp   2016-04-07 09:45:26 (UTC+01:00, DST+01:00)
+#! \stamp   2016-08-11 15:47:13 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
-DoIt! test_text package initialization file.\
+DoIt! test_fmt package initialization file.\
 """
 
 __license__ = """\
@@ -35,11 +35,10 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_fmt, test_pgen
+from . import test_format
 
 def suite():
     suite = unittest.TestSuite()
-    suite.addTest(test_fmt.suite())
-    suite.addTest(test_pgen.suite())
+    suite.addTest(test_format.suite())
     return suite
 #-def

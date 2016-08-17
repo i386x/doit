@@ -33,6 +33,24 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.support.errors import DoItError
+from doit.support.utils import ordinal_suffix
+
+ERROR_FORMAT = DoItError.alloc_codes(1)
+
+class FormatError(DoItError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, emsg):
+        """
+        """
+
+        DoItError.__init__(self, ERROR_FORMAT, emsg)
+    #-def
+#-class
+
 class TextNode(object):
     """
     """
@@ -70,19 +88,19 @@ class TextBlock(TextNode):
                 "I don't know how to process <%s> node" % self.name
             )
         rule = rules[self.name]
-        if self.alternative >= len(rule.alts):
+        if self.alternative not in rule.alts:
             raise FormatError("Rule <%s> has no [%d] alternative" % (
                 rule.lhs, self.alternative
             ))
         alt = rule.alts[self.alternative]
-        l = [Block()]
+        l = [Block([])]
         i = j = 0
         while i < len(alt):
             node = alt[i]
             if isinstance(node, LineBreak):
                 l[-1].add(node.clone())
                 if node.data <= 0 and not nobreak:
-                    l.append(Block())
+                    l.append(Block([]))
                 i += 1
             elif isinstance(node, TextOp):
                 l[-1].add(node)
@@ -90,17 +108,13 @@ class TextBlock(TextNode):
             elif isinstance(node, (Var, Term)):
                 if j >= len(self.elements) \
                 or not isinstance(self.elements[j], node.friend) \
-                or self.elements[j].name != node.name \
-                or (
-                   isinstance(node, Var) \
-                   and node.alternative != self.alternative
-                ):
+                or self.elements[j].name != node.name:
                     self.__nomatch(j, rule.lhs)
                 l[-1].add(self.elements[j])
                 i += 1
                 j += 1
             else:
-                self.__badnode(i)
+                self.__badnode(i, rule.lhs)
         if j < len(self.elements):
             n = len(self.elements) - j
             raise FormatError(
@@ -113,7 +127,7 @@ class TextBlock(TextNode):
             )
         while l and l[-1].empty():
             del l[-1]
-        if l and (
+        if l and not nobreak and (
             not isinstance(l[-1].elements[-1], LineBreak) \
             or l[-1].elements[-1].data > 0
         ):
@@ -128,11 +142,7 @@ class TextBlock(TextNode):
         raise FormatError(
             "Rule <%s> and block [%s] did not match at %d%s element (%s)" % (
                 lhs, self.name,
-                j + 1,
-                "st" if (j % 10) == 0 and (j % 100) != 10 else \
-                "nd" if (j % 10) == 1 and (j % 100) != 11 else \
-                "rd" if (j % 10) == 2 and (j % 100) != 12 else \
-                "th",
+                j + 1, ordinal_suffix(j + 1),
                 "relatively to block"
             )
         )
@@ -145,20 +155,23 @@ class TextBlock(TextNode):
         raise FormatError(
             "Rule <%s>: Unknown element on %d%s position" % (
                 lhs,
-                i + 1,
-                "st" if (i % 10) == 0 and (i % 100) != 10 else \
-                "nd" if (i % 10) == 1 and (i % 100) != 11 else \
-                "rd" if (i % 10) == 2 and (i % 100) != 12 else \
-                "th"
+                i + 1, ordinal_suffix(i + 1)
             )
         )
+    #-def
+
+    def __repr__(self):
+        """
+        """
+
+        return "%s(%r, %r)" % (self.name, self.elements, self.alternative)
     #-def
 #-class
 
 class TextTerminal(TextNode):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'data' ]
 
     def __init__(self, name, data = None):
         """
@@ -166,6 +179,15 @@ class TextTerminal(TextNode):
 
         TextNode.__init__(self, name)
         self.data = data
+    #-def
+
+    def __repr__(self):
+        """
+        """
+
+        if self.data is None:
+            return self.name
+        return "%s(%r)" % (self.name, self.data)
     #-def
 #-class
 
@@ -188,13 +210,12 @@ class Var(RuleNode):
     friend = TextBlock
     __slots__ = [ 'name' ]
 
-    def __init__(self, name, alternative = 0):
+    def __init__(self, name):
         """
         """
 
         RuleNode.__init__(self)
         self.name = name
-        self.alternative = alternative
     #-def
 #-class
 
@@ -202,7 +223,7 @@ class Term(RuleNode):
     """
     """
     friend = TextTerminal
-    __slots__ = [ 'name' ]
+    __slots__ = [ 'name', 'data' ]
 
     def __init__(self, name = "???", data = None):
         """
@@ -221,6 +242,15 @@ class Term(RuleNode):
         obj.name = self.name
         obj.data = self.data
         return obj
+    #-def
+
+    def __repr__(self):
+        """
+        """
+
+        if self.data is None:
+            return self.name
+        return "%s(%r)" % (self.name, self.data)
     #-def
 #-class
 
@@ -289,7 +319,7 @@ class LineBreak(TextOp):
     #-def
 #-class
 
-class SpaceOrLineBreak(TextOp):
+class SpaceOrLineBreak(LineBreak):
     """
     """
 
@@ -297,7 +327,8 @@ class SpaceOrLineBreak(TextOp):
         """
         """
 
-        TextOp.__init__(self, '%space_or_linebreak', cost)
+        LineBreak.__init__(self, cost)
+        self.name = '%space_or_linebreak'
     #-def
 #-class
 
@@ -305,12 +336,12 @@ class IncBreakCost(TextOp):
     """
     """
 
-    def __init__(self):
+    def __init__(self, i = 1):
         """
         """
 
         name = '%%%s' % self.__class__.__name__.lower()
-        TextOp.__init__(self, name)
+        TextOp.__init__(self, name, i)
     #-def
 #-class
 
@@ -318,26 +349,50 @@ class DecBreakCost(TextOp):
     """
     """
 
-    def __init__(self):
+    def __init__(self, d = 1):
         """
         """
 
         name = '%%%s' % self.__class__.__name__.lower()
-        TextOp.__init__(self, name)
+        TextOp.__init__(self, name, d)
     #-def
 #-class
 
 class Rule(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'lhs', 'alts' ]
 
-    def __init__(self, lhs, alts = []):
+    def __init__(self, lhs, alts):
         """
         """
 
         self.lhs = lhs
         self.alts = alts
+    #-def
+#-class
+
+class FormattingRules(dict):
+    """
+    """
+    __slots__ = [ 'indentation', 'line_limit' ]
+
+    def __init__(self):
+        """
+        """
+
+        dict.__init__(self)
+        self.indentation = 2
+        self.line_limit = 80
+    #-def
+
+    def add(self, label, lhs, rhs):
+        """
+        """
+
+        if lhs not in self:
+            self[lhs] = Rule(lhs, {})
+        self[lhs].alts[label] = rhs
     #-def
 #-class
 
@@ -458,14 +513,15 @@ class Rule(object):
 class Block(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'elements', 'indentation_level', 'lpbs' ]
 
-    def __init__(self, elements = [], level = 0):
+    def __init__(self, elements, level = 0):
         """
         """
 
         self.elements = elements
         self.indentation_level = level
+        self.update_lpbs(elements)
     #-def
 
     def add(self, element):
@@ -473,6 +529,20 @@ class Block(object):
         """
 
         self.elements.append(element)
+        if isinstance(element, LineBreak):
+            if element.data > 0 and not element.data in self.lpbs:
+                self.lpbs.append(element.data)
+                self.lpbs.sort()
+    #-def
+
+    def update_lpbs(self, elements):
+        """
+        """
+
+        self.lpbs = [e.data for e in elements if isinstance(e, LineBreak)]
+        self.lpbs = dict([(x, 0) for x in self.lpbs if x > 0])
+        self.lpbs = list(self.lpbs.keys())
+        self.lpbs.sort()
     #-def
 
     def empty(self):
@@ -480,6 +550,15 @@ class Block(object):
         """
 
         return len(self.elements) == 0
+    #-def
+
+    def __repr__(self):
+        """
+        """
+
+        return "%s(%r, %r)" % (
+            self.__class__.__name__, self.elements, self.indentation_level
+        )
     #-def
 
     def expand_elements(self, formatter):
@@ -504,6 +583,7 @@ class Block(object):
             else:
                 expanded_elements.append(e)
         self.elements = expanded_elements
+        self.update_lpbs(self.elements)
         return expanded
     #-def
 
@@ -518,18 +598,23 @@ class Block(object):
             if isinstance(e, LineBreak):
                 l.append(e.__class__(current_break_cost))
             elif isinstance(e, IncBreakCost):
-                current_break_cost += 1
+                current_break_cost += e.data
             elif isinstance(e, DecBreakCost):
-                current_break_cost -= 1
+                current_break_cost -= e.data
             else:
                 l.append(e)
         self.elements = l
+        self.update_lpbs(self.elements)
     #-def
 
     def decrease_break_costs(self, decrement = 1):
         """
         """
 
+        if decrement < 0:
+            decrement = 0
+            if self.lpbs:
+                decrement = self.lpbs.pop(0)
         for e in self.elements:
             if isinstance(e, LineBreak):
                 e.data -= decrement
@@ -554,7 +639,7 @@ class Block(object):
                 break
             j -= 1
         if i >= j:
-            return k - 1, k, 1 # blank line
+            return k - 1, k, 1 # blank line (count in NL)
         # 2) Compute the line length:
         k = i
         while k < j:
@@ -563,7 +648,28 @@ class Block(object):
             elif isinstance(self.elements[k], TextTerminal):
                 l += len(self.elements[k].data)
             k += 1
-        return i, j, l
+        return i, j, l + 1 # count in NL
+    #-def
+
+    def to_str(self, i, j, formatter):
+        """
+        """
+
+        if i == len(self.elements) - 1:
+            return '\n'
+        s = ' ' * (formatter.rules.indentation * self.indentation_level)
+        while i <= j: # j points always to NL
+            e = self.elements[i]
+            if isinstance(e, TextTerminal):
+                s += e.data
+            elif isinstance(e, Space):
+                s += ' '
+            elif isinstance(e, SpaceOrLineBreak):
+                s += '\n' if e.data <= 0 else ' '
+            elif isinstance(e, LineBreak):
+                s += '\n' if e.data <= 0 else ''
+            i += 1
+        return s
     #-def
 
     def do_break(self):
@@ -614,7 +720,7 @@ class Block(object):
         """
         """
 
-        b = Block()
+        b = Block([])
         while i < len(self.elements):
             b.add(self.elements[i])
             i += 1
@@ -671,8 +777,6 @@ class Formatter(object):
 
         if isinstance(text, TextBlock):
             unexpanded_blocks.extend(text.make_subblocks(self))
-        elif isinstance(text, TextTerminal):
-            unexpanded_blocks.append(Block(elements = [text, LineBreak(0)]))
         else:
             raise FormatError("Invalid input")
 
@@ -683,10 +787,10 @@ class Formatter(object):
             while contribs:
                 c = contribs.pop(0)
                 i, j, l = c.compute_line_length(self)
-                if l < self.rules.line_limit:
-                    output.write(c.to_str(i, j))
+                if l <= self.rules.line_limit:
+                    output.write(c.to_str(i, j, self))
                     continue
-                c.decrease_break_costs()
+                c.decrease_break_costs(-1)
                 new_contribs = c.do_break()
                 if len(new_contribs) <= 1:
                     raise FormatError(

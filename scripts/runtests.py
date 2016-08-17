@@ -38,7 +38,8 @@ import os
 import unittest
 
 here = os.path.abspath(os.path.dirname(sys.argv[0]))
-sys.path.insert(0, here)
+root = os.path.join(here, os.pardir)
+sys.path.insert(0, root)
 
 import tests
 

@@ -37,6 +37,23 @@ from doit.support.errors import doit_assert
 
 _assert = doit_assert
 
+def ordinal_suffix(n):
+    """Returns a suffix of the given ordinal number.
+
+    :param int n: Ordinal number.
+
+    :returns: Suffix (:class:`str`) that corresponds to `n`.
+    """
+
+    n = abs(n)
+    return (
+        "st" if (n % 10) == 1 and (n % 100) != 11 else \
+        "nd" if (n % 10) == 2 and (n % 100) != 12 else \
+        "rd" if (n % 10) == 3 and (n % 100) != 13 else \
+        "th"
+    )
+#-def
+
 class WithStatementExceptionHandler(object):
     """Implements exception handler which catch any exception raised inside
     with-statement.
