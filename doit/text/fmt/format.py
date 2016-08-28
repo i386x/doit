@@ -267,6 +267,27 @@ class TextOp(Term):
     #-def
 #-class
 
+class TextCommand(TextOp):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        name = '%%%s' % self.__class__.__name__.lower()
+        TextOp.__init__(self, name)
+    #-def
+
+    def run(self, block, formatter, input, output):
+        """
+        """
+
+        output.append(self)
+    #-def
+#-class
+
 class Indent(TextOp):
     """
     """
@@ -297,12 +318,12 @@ class Space(TextOp):
     """
     """
 
-    def __init__(self):
+    def __init__(self, n = 1):
         """
         """
 
         name = '%%%s' % self.__class__.__name__.lower()
-        TextOp.__init__(self, name)
+        TextOp.__init__(self, name, n)
     #-def
 #-class
 
@@ -500,14 +521,15 @@ class FormattingRules(dict):
 #   (in this order):
 #
 #     1. expand all elements
-#     2. adjust break costs
-#     3. call do_break first time to get a list of blocks with fixed
+#     2. run all text commands
+#     3. adjust break costs
+#     4. call do_break first time to get a list of blocks with fixed
 #        indentations
-#     4. get a block
-#     5. compute its length
-#     6. if it satisfy the restrictions, emit it
-#     7. otherwise, decrease break costs by 1 and call do_break again
-#     8. repeat this from point 4 until no blocks are available or an error
+#     5. get a block
+#     6. compute its length
+#     7. if it satisfy the restrictions, emit it
+#     8. otherwise, decrease break costs by 1 and call do_break again
+#     9. repeat this from point 4 until no blocks are available or an error
 #        has been encountered
 #
 class Block(object):
@@ -587,6 +609,21 @@ class Block(object):
         return expanded
     #-def
 
+    def execute_commands(self, formatter):
+        """
+        """
+
+        processed = []
+        elements = self.elements
+        while elements:
+            e = elements.pop(0)
+            if isinstance(e, TextCommand):
+                e.run(self, formatter, elements, processed)
+            else:
+                processed.append(e)
+        self.elements = processed
+    #-def
+
     def adjust_break_costs(self):
         """
         """
@@ -643,7 +680,9 @@ class Block(object):
         # 2) Compute the line length:
         k = i
         while k < j:
-            if isinstance(self.elements[k], (Space, SpaceOrLineBreak)):
+            if isinstance(self.elements[k], Space):
+                l += self.elements[k].data
+            if isinstance(self.elements[k], SpaceOrLineBreak):
                 l += 1
             elif isinstance(self.elements[k], TextTerminal):
                 l += len(self.elements[k].data)
@@ -663,7 +702,7 @@ class Block(object):
             if isinstance(e, TextTerminal):
                 s += e.data
             elif isinstance(e, Space):
-                s += ' '
+                s += ' ' * e.data
             elif isinstance(e, SpaceOrLineBreak):
                 s += '\n' if e.data <= 0 else ' '
             elif isinstance(e, LineBreak):
@@ -782,6 +821,7 @@ class Formatter(object):
 
         for b in unexpanded_blocks:
             b.expand_elements(self)
+            b.execute_commands(self)
             b.adjust_break_costs()
             contribs = b.do_break()
             while contribs:

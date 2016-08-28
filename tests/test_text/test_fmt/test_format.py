@@ -82,7 +82,7 @@ text_03 = _b('S', [
 ])
 text_03_sbs = [
     [
-        '%space', 'a', '%space', 'b', '%space_or_linebreak(1000)',
+        '%space(1)', 'a', '%space(1)', 'b', '%space_or_linebreak(1000)',
         '%linebreak(0)'
     ]
 ]
@@ -119,7 +119,7 @@ text_05_too_much = _b('start', [
 ], 2)
 text_05_sbs = [
     [
-        '[', 'start([a], 1)', ',', '%space', 'start([a], 1)', ']',
+        '[', 'start([a], 1)', ',', '%space(1)', 'start([a], 1)', ']',
         '%linebreak(0)'
     ], [
         'a', 'start([a], 1)', '%linebreak(0)'
@@ -628,7 +628,7 @@ class TestBlockCase(unittest.TestCase):
         b.decrease_break_costs(2)
         sb = [repr(e) for e in b.elements]
         self.assertEqual(sb, [
-            'a', '%space', '%linebreak(2)', 'a', '%space_or_linebreak(1)'
+            'a', '%space(1)', '%linebreak(2)', 'a', '%space_or_linebreak(1)'
         ])
     #-def
 
@@ -761,7 +761,7 @@ class TestBlockCase(unittest.TestCase):
 
         r = b.get_block(2)
         sb = [repr(e) for e in r[0].elements]
-        self.assertEqual(sb, [ 'a', '%space', 'b', '%linebreak(0)' ])
+        self.assertEqual(sb, [ 'a', '%space(1)', 'b', '%linebreak(0)' ])
         self.assertEqual(r[1], 6)
 
         r = b.get_block(6)

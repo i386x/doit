@@ -78,6 +78,14 @@ class ParserGenerator(Application):
         """
         """
 
+        if self.helpscreen in None:
+            hlp = PageBuilder()
+            hlp.paragraph("""
+            usage: %(appname)s [program options] <command> [command options]
+            """)
+            hlp.paragraph("where program options are")
+            opts = TableProxy(col0 = 24, sep0 = 2, col1 = 52)
+            opts.row
         self.werr(self.strip_block("""\
         usage: %(appname)s [program options] <command> [command options]
 
