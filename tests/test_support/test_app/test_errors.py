@@ -1,14 +1,14 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/test_support/test_app/__init__.py
+#! \file    ./tests/test_support/test_app/test_errors.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
-#! \stamp   2016-08-26 09:40:22 (UTC+01:00, DST+01:00)
+#! \stamp   2016-09-03 15:54:56 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
-DoIt! test_app package initialization file.\
+Application errors tests.\
 """
 
 __license__ = """\
@@ -35,15 +35,21 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_errors, test_io, test_printer, test_options, \
-              test_application
+from doit.support.app.errors import \
+    ApplicationError, ApplicationExit
+
+class TestApplicationErrorCase(unittest.TestCase):
+
+    def test_raising(self):
+        with self.assertRaises(ApplicationError):
+            raise ApplicationError("")
+        with self.assertRaises(ApplicationError):
+            raise ApplicationExit()
+    #-def
+#-class
 
 def suite():
     suite = unittest.TestSuite()
-    suite.addTest(test_errors.suite())
-    suite.addTest(test_io.suite())
-    suite.addTest(test_printer.suite())
-    suite.addTest(test_options.suite())
-    suite.addTest(test_application.suite())
+    suite.addTest(unittest.makeSuite(TestApplicationErrorCase))
     return suite
 #-def

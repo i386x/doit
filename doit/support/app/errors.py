@@ -1,14 +1,14 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/test_support/test_app/__init__.py
+#! \file    ./doit/support/app/errors.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
-#! \stamp   2016-08-26 09:40:22 (UTC+01:00, DST+01:00)
+#! \stamp   2016-09-03 14:38:52 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
-DoIt! test_app package initialization file.\
+Application errors.\
 """
 
 __license__ = """\
@@ -33,17 +33,34 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-import unittest
+from doit.support.errors import DoItError
 
-from . import test_errors, test_io, test_printer, test_options, \
-              test_application
+ERROR_APPLICATION = DoItError.alloc_codes(1)
 
-def suite():
-    suite = unittest.TestSuite()
-    suite.addTest(test_errors.suite())
-    suite.addTest(test_io.suite())
-    suite.addTest(test_printer.suite())
-    suite.addTest(test_options.suite())
-    suite.addTest(test_application.suite())
-    return suite
-#-def
+class ApplicationError(DoItError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, emsg):
+        """
+        """
+
+        DoItError.__init__(self, ERROR_APPLICATION, emsg)
+    #-def
+#-class
+
+class ApplicationExit(ApplicationError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        ApplicationError.__init__(self,
+            "I am a signal rather then error. Please, handle me properly"
+        )
+    #-def
+#-class
