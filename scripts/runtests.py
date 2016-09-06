@@ -37,7 +37,7 @@ import sys
 import os
 import unittest
 
-here = os.path.abspath(os.path.dirname(sys.argv[0]))
+here = os.path.dirname(os.path.realpath(__file__))
 root = os.path.join(here, os.pardir)
 sys.path.insert(0, root)
 
