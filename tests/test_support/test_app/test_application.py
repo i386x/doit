@@ -33,7 +33,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+import os
 import unittest
+
+from ...common import ModuleContext
 
 from doit.support.app.errors import \
     ApplicationError
@@ -103,6 +106,42 @@ Hi!
 Action invoked.
 <end>
 """
+
+class OsPathMock(ModuleContext):
+    __slots__ = [
+        '__old_realpath',
+        '__old_dirname',
+        '__old_relpath'
+    ]
+
+    def __init__(self, env):
+        ModuleContext.__init__(self, env)
+        self.__old_realpath = os.path.realpath
+        self.__old_dirname = os.path.dirname
+        self.__old_relpath = os.path.relpath
+    #-def
+
+    def replace(self, env):
+        def _realpath(x):
+            return env[0]
+        def _dirname(x):
+            return env[1]
+        def _relpath(x):
+            return env[2]
+        self.__old_realpath = os.path.realpath
+        self.__old_dirname = os.path.dirname
+        self.__old_relpath = os.path.relpath
+        os.path.realpath = _realpath
+        os.path.dirname = _dirname
+        os.path.relpath = _relpath
+    #-def
+
+    def restore(self):
+        os.path.realpath = self.__old_realpath
+        os.path.dirname = self.__old_dirname
+        os.path.relpath = self.__old_relpath
+    #-def
+#-class
 
 class Log(object):
     __slots__ = [ 'content' ]
@@ -241,6 +280,38 @@ class TestApplicationCase(unittest.TestCase):
         self.assertEqual(app_.get_output().content, "1+B")
         self.assertEqual(app_.get_log().content, "3*C")
         self.assertEqual(app_.get_error_log().content, "2-A")
+    #-def
+
+    def test_custom_app_path1(self):
+        app = CustomApp()
+        app.set_name(None)
+
+        with OsPathMock(('C:\\X\\Y\\t.py', 'C:\\X\\Y', 'Y\\t.py')):
+            app.set_path("t.py")
+        self.assertEqual(app.get_name(), 'Y\\t.py')
+        self.assertEqual(app.get_path(), 'C:\\X\\Y\\t.py')
+        self.assertEqual(app.get_dir(), 'C:\\X\\Y')
+    #-def
+
+    def test_custom_app_path2(self):
+        app = CustomApp()
+
+        with OsPathMock(('C:\\X\\Y\\t.py', 'C:\\X\\Y', 'Y\\t.py')):
+            app.set_path("t.py")
+        self.assertEqual(app.get_name(), 'testapp')
+        self.assertEqual(app.get_path(), 'C:\\X\\Y\\t.py')
+        self.assertEqual(app.get_dir(), 'C:\\X\\Y')
+    #-def
+
+    def test_custom_app_path3(self):
+        app = CustomApp()
+        app.set_dir('D:\\data\\temp\\testapp')
+
+        with OsPathMock(('C:\\X\\Y\\t.py', 'C:\\X\\Y', 'Y\\t.py')):
+            app.set_path("t.py")
+        self.assertEqual(app.get_name(), 'testapp')
+        self.assertEqual(app.get_path(), 'C:\\X\\Y\\t.py')
+        self.assertEqual(app.get_dir(), 'D:\\data\\temp\\testapp')
     #-def
 
     def test_custom_app_no_args(self):

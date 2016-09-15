@@ -34,6 +34,7 @@ IN THE SOFTWARE.\
 """
 
 import sys
+import os
 
 from doit.support.app.errors import \
     ApplicationError, ApplicationExit
@@ -48,7 +49,7 @@ class Application(object):
     """
     """
     __slots__ = [
-        '__owner', '__name',
+        '__owner', '__name', '__path', '__dir',
         '__option_processor_class', '__table_class',
         '__option_processor', '__pending_args',
         '__exitcode',
@@ -61,6 +62,8 @@ class Application(object):
 
         self.__owner = owner
         self.__name = None
+        self.__path = None
+        self.__dir = None
         self.__option_processor_class = kwargs.get(
             'option_processor_class', OptionProcessor
         )
@@ -92,6 +95,38 @@ class Application(object):
         """
 
         return self.__name
+    #-def
+
+    def set_path(self, path):
+        """
+        """
+
+        self.__path = os.path.realpath(path)
+        if self.__dir is None:
+            self.__dir = os.path.dirname(self.__path)
+        if self.__name is None:
+            self.__name = os.path.relpath(self.__path)
+    #-def
+
+    def get_path(self):
+        """
+        """
+
+        return self.__path
+    #-def
+
+    def set_dir(self, dir):
+        """
+        """
+
+        self.__dir = dir
+    #-def
+
+    def get_dir(self):
+        """
+        """
+
+        return self.__dir
     #-def
 
     def get_option_processor_class(self):

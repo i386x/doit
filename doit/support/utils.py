@@ -33,6 +33,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+import time
+
 from doit.support.errors import doit_assert
 
 _assert = doit_assert
@@ -52,6 +54,55 @@ def ordinal_suffix(n):
         "rd" if (n % 10) == 3 and (n % 100) != 13 else \
         "th"
     )
+#-def
+
+def timestamp():
+    """Returns a dictionary filled with local time items.
+
+    :returns: Local time items (:class:`dict`).
+
+    When called, it records the actual value of local time and fills a
+    :class:`dict` with these items:
+
+    * `year` -- year (:class:`int`)
+    * `month` -- month (1 to 12, :class:`int`)
+    * `day` -- day (1 to 31, :class:`int`)
+    * `hour` -- hour (0 to 23, :class:`int`)
+    * `min` -- minute (0 to 59, :class:`int`)
+    * `sec` -- second (0 to 59, :class:`int`)
+    * `utcsign` -- `+` means east from Greenwich, `-` means west form Greenwich
+                   (:class:`str`)
+    * `utchour` -- absolute value of UTC offset (hour part, :class:`int`)
+    * `utcmin` -- absolute value of UTC offset (minute part, :class:`int`)
+    * `utcsec` -- absolute value of UTC offset (second part, :class:`int`)
+    * `dsthour` -- DST shift value (hour part, :class:`int`)
+    * `dstmin` -- DST shift value (minute part, :class:`int`)
+    * `dstsec` -- DST shift value (second part, :class:`int`)
+    """
+
+    hour = (lambda x: x // 3600)
+    minute = (lambda x: x // 60 - hour(x) * 60)
+    second = (lambda x: x - hour(x) * 3600 - minute(x) * 60)
+
+    ts = time.localtime()
+    stamp = {}
+    stamp['year'] = ts.tm_year
+    stamp['month'] = ts.tm_mon
+    stamp['day'] = ts.tm_mday
+    stamp['hour'] = ts.tm_hour
+    stamp['min'] = ts.tm_min
+    stamp['sec'] = ts.tm_sec
+    utcoffs = -time.timezone
+    dstoffs = 3600 if ts.tm_isdst > 0 else 0
+    stamp['utcsign'] = '-' if utcoffs < 0 else '+'
+    utcoffs = abs(utcoffs)
+    stamp['utchour'] = hour(utcoffs)
+    stamp['utcmin'] = minute(utcoffs)
+    stamp['utcsec'] = second(utcoffs)
+    stamp['dsthour'] = hour(dstoffs)
+    stamp['dstmin'] = minute(dstoffs)
+    stamp['dstsec'] = second(dstoffs)
+    return stamp
 #-def
 
 class WithStatementExceptionHandler(object):

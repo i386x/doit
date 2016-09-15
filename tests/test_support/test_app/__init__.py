@@ -35,13 +35,14 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_errors, test_io, test_printer, test_options, \
+from . import test_errors, test_io, test_logging, test_printer, test_options, \
               test_application
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(test_errors.suite())
     suite.addTest(test_io.suite())
+    suite.addTest(test_logging.suite())
     suite.addTest(test_printer.suite())
     suite.addTest(test_options.suite())
     suite.addTest(test_application.suite())

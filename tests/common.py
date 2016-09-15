@@ -70,30 +70,54 @@ class ContextManagerMock(object):
 
 class FileMock(object):
     __slots__ = [
-        '__behaviour', 'closed', 'name', 'mode', 'encoding', 'data'
+        '__old_way', '__behaviour',
+        'closed', 'name', 'mode', 'encoding', 'newline', 'data'
     ]
 
-    def __init__(self, behaviour, name, mode, encoding, data):
+    def __init__(self, behaviour, name, mode, encoding, newline, data):
+        self.__old_way = False
         self.__behaviour = behaviour
         self.closed = True
         self.name = name
         self.mode = mode
         self.encoding = encoding
+        self.newline = newline
         self.data = data
     #-def
 
     def __enter__(self):
         if (self.__behaviour & OPEN_FAIL) == OPEN_FAIL:
             raise FileNotFoundError(\
-                "[Errno 2] No such file or directory: '%s'" % self.name\
+                "[Errno 2] No such file or directory: '%s'" % self.name \
             )
+        self.__old_way = False
         self.closed = False
         return self
     #-def
 
     def __exit__(self, et, ev, tb):
+        assert not self.__old_way
         self.closed = True
         return False
+    #-def
+
+    def __call__(self, name, mode, encoding, newline):
+        assert name == self.name
+        assert mode == self.mode
+        assert encoding == self.encoding
+        assert newline == self.newline
+        if (self.__behaviour & OPEN_FAIL) == OPEN_FAIL:
+            raise FileNotFoundError(\
+                "[Errno 2] No such file or directory: '%s'" % self.name\
+            )
+        self.__old_way = True
+        self.closed = False
+        return self
+    #-def
+
+    def close(self):
+        assert self.__old_way
+        self.closed = True
     #-def
 
     def read(self):
@@ -147,23 +171,29 @@ class StdoutMock(FileMock):
     #-def
 #-class
 
-def make_open(behaviour, data):
-    def open_mock(name, mode, encoding):
-        return FileMock(behaviour, name, mode, encoding, data)
+def make_open(behaviour, data, old_way = False):
+    def open_mock(name, mode, encoding, newline):
+        f = FileMock(behaviour, name, mode, encoding, newline, data)
+        if old_way:
+            f(name, mode, encoding, newline)
+        return f
     return open_mock
 #-def
 
 class OpenContext(object):
-    __slots__ = [ '__old_open', '__behaviour', '__data' ]
+    __slots__ = [ '__old_open', '__behaviour', '__data', '__old_way' ]
 
-    def __init__(self, behaviour, data):
+    def __init__(self, behaviour, data, old_way = False):
         self.__old_open = __builtins__['open']
         self.__behaviour = behaviour
         self.__data = data
+        self.__old_way = old_way
     #-def
 
     def __enter__(self):
-        __builtins__['open'] = make_open(self.__behaviour, self.__data)
+        __builtins__['open'] = make_open(
+            self.__behaviour, self.__data, self.__old_way
+        )
         return self
     #-def
 

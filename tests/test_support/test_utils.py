@@ -33,14 +33,72 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+import time
 import unittest
 
-from ..common import RAISE_FROM_ENTER, SUPRESS, ContextManagerMock
+from ..common import RAISE_FROM_ENTER, SUPRESS, ContextManagerMock, \
+                     ModuleContext
 
 from doit.support.errors import DoItAssertionError
 
 from doit.support.utils import \
-    ordinal_suffix, WithStatementExceptionHandler, Collection
+    ordinal_suffix, timestamp, WithStatementExceptionHandler, Collection
+
+class Struct(object):
+    __slots__ = [ '__kwargs' ]
+
+    def __init__(self, **kwargs):
+        cls = object.__getattribute__(self, '__class__')
+        clsname = cls.__name__
+        _ = lambda x: x.startswith('__') and '_%s%s' % (clsname, x) or x
+        setattr(self, _('__kwargs'), kwargs)
+    #-def
+
+    def __getattr__(self, value):
+        cls = object.__getattribute__(self, '__class__')
+        clsname = cls.__name__
+        _ = lambda x: x.startswith('__') and '_%s%s' % (clsname, x) or x
+        kwargs = object.__getattribute__(self, _('__kwargs'))
+        if value in kwargs:
+            return kwargs[value]
+        object.__getattribute__(self, value)
+    #-def
+#-class
+
+class TimeModuleMock(ModuleContext):
+    __slots__ = [
+        '__old_localtime',
+        '__old_timezone'
+    ]
+
+    def __init__(self, env):
+        ModuleContext.__init__(self, env)
+        self.__old_localtime = time.localtime
+        self.__old_timezone = time.timezone
+    #-def
+
+    def replace(self, env):
+        def _localtime():
+            return Struct(
+                tm_year = env['year'],
+                tm_mon = env['month'],
+                tm_mday = env['day'],
+                tm_hour = env['hour'],
+                tm_min = env['min'],
+                tm_sec = env['sec'],
+                tm_isdst = env['isdst']
+            )
+        self.__old_localtime = time.localtime
+        self.__old_timezone = time.timezone
+        time.localtime = _localtime
+        time.timezone = env['tz']
+    #-def
+
+    def restore(self):
+        time.localtime = self.__old_localtime
+        time.timezone = self.__old_timezone
+    #-def
+#-class
 
 class TestOrdinalSuffixCase(unittest.TestCase):
 
@@ -89,6 +147,78 @@ class TestOrdinalSuffixCase(unittest.TestCase):
             for c in cases:
                 self.assertEqual(ordinal_suffix(b + c[0]), c[1])
                 self.assertEqual(ordinal_suffix(-(b + c[0])), c[1])
+    #-def
+#-class
+
+class TestTimeStampCase(unittest.TestCase):
+
+    def test_dst(self):
+        env = dict(
+            year = 2008, month = 7, day = 11,
+            hour = 13, min = 15, sec = 34,
+            isdst = 1, tz = -5378
+        )
+        with TimeModuleMock(env):
+            t = timestamp()
+        self.assertEqual(t['year'], 2008)
+        self.assertEqual(t['month'], 7)
+        self.assertEqual(t['day'], 11)
+        self.assertEqual(t['hour'], 13)
+        self.assertEqual(t['min'], 15)
+        self.assertEqual(t['sec'], 34)
+        self.assertEqual(t['utcsign'], '+')
+        self.assertEqual(t['utchour'], 1)
+        self.assertEqual(t['utcmin'], 29)
+        self.assertEqual(t['utcsec'], 38)
+        self.assertEqual(t['dsthour'], 1)
+        self.assertEqual(t['dstmin'], 0)
+        self.assertEqual(t['dstsec'], 0)
+    #-def
+
+    def test_nodst(self):
+        env = dict(
+            year = 2008, month = 11, day = 11,
+            hour = 13, min = 15, sec = 34,
+            isdst = 0, tz = 5378
+        )
+        with TimeModuleMock(env):
+            t = timestamp()
+        self.assertEqual(t['year'], 2008)
+        self.assertEqual(t['month'], 11)
+        self.assertEqual(t['day'], 11)
+        self.assertEqual(t['hour'], 13)
+        self.assertEqual(t['min'], 15)
+        self.assertEqual(t['sec'], 34)
+        self.assertEqual(t['utcsign'], '-')
+        self.assertEqual(t['utchour'], 1)
+        self.assertEqual(t['utcmin'], 29)
+        self.assertEqual(t['utcsec'], 38)
+        self.assertEqual(t['dsthour'], 0)
+        self.assertEqual(t['dstmin'], 0)
+        self.assertEqual(t['dstsec'], 0)
+    #-def
+
+    def test_dst_not_avail(self):
+        env = dict(
+            year = 2008, month = 7, day = 11,
+            hour = 13, min = 15, sec = 34,
+            isdst = -1, tz = 14400
+        )
+        with TimeModuleMock(env):
+            t = timestamp()
+        self.assertEqual(t['year'], 2008)
+        self.assertEqual(t['month'], 7)
+        self.assertEqual(t['day'], 11)
+        self.assertEqual(t['hour'], 13)
+        self.assertEqual(t['min'], 15)
+        self.assertEqual(t['sec'], 34)
+        self.assertEqual(t['utcsign'], '-')
+        self.assertEqual(t['utchour'], 4)
+        self.assertEqual(t['utcmin'], 0)
+        self.assertEqual(t['utcsec'], 0)
+        self.assertEqual(t['dsthour'], 0)
+        self.assertEqual(t['dstmin'], 0)
+        self.assertEqual(t['dstsec'], 0)
     #-def
 #-class
 
@@ -315,6 +445,7 @@ class TestCollectionCase(unittest.TestCase):
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestOrdinalSuffixCase))
+    suite.addTest(unittest.makeSuite(TestTimeStampCase))
     suite.addTest(unittest.makeSuite(TestWithStatementExceptionHandlerCase))
     suite.addTest(unittest.makeSuite(TestCollectionCase))
     return suite
