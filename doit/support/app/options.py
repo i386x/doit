@@ -139,6 +139,13 @@ class Option(object):
 
         return "%s%s" % (cls.LONG_PREFIX, optname)
     #-def
+
+    def __str__(self):
+        """
+        """
+
+        return self.repr_long(self.name)
+    #-def
 #-class
 
 class OptionDispatcher(object):

@@ -45,6 +45,10 @@ from doit.support.app.printer import \
 from doit.support.app.options import \
     OptionProcessor
 
+EXIT_SUCCESS = 0
+EXIT_FAILURE = 1
+INTERNAL_ERROR = 2
+
 class Application(object):
     """
     """
@@ -234,7 +238,7 @@ class Application(object):
         """
         """
 
-        return 0
+        return EXIT_SUCCESS
     #-def
 
     def define_option(self, name,
@@ -332,5 +336,22 @@ class Application(object):
 
         self.set_exitcode(ec)
         raise ApplicationExit()
+    #-def
+
+    def on_help_option(self, opt):
+        """
+        """
+
+        op = self.get_option_processor()
+        op.get_dispatcher().halt()
+        op.get_options().disable_check()
+    #-def
+
+    def werr_nolog(self, s):
+        """
+        """
+
+        with self.get_error_log().nolog():
+            self.werr(s)
     #-def
 #-class

@@ -43,7 +43,10 @@ from doit.support.app.io import CharBuffer
 class StreamWrapper(object):
     """
     """
-    __slots__ = [ '__log', '__stream', '__logging_on' ]
+    __slots__ = [
+        '__log', '__stream',
+        '__logging_on', '__old_logging_on', '__contextual_logging_on'
+    ]
 
     def __init__(self, log, stream):
         """
@@ -52,6 +55,41 @@ class StreamWrapper(object):
         self.__log = log
         self.__stream = stream
         self.__logging_on = True
+        self.__old_logging_on = self.__logging_on
+        self.__contextual_logging_on = self.__logging_on
+    #-def
+
+    def __enter__(self):
+        """
+        """
+
+        self.__old_logging_on = self.__logging_on
+        self.logging_on(self.__contextual_logging_on)
+        return self
+    #-def
+
+    def __exit__(self, et, ev, etb):
+        """
+        """
+
+        self.__logging_on = self.__old_logging_on
+        return False
+    #-def
+
+    def log(self):
+        """
+        """
+
+        self.__contextual_logging_on = True
+        return self
+    #-def
+
+    def nolog(self):
+        """
+        """
+
+        self.__contextual_logging_on = False
+        return self
     #-def
 
     def logging_on(self, logging_on = True):

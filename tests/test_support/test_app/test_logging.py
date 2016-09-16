@@ -228,9 +228,15 @@ class TestStreamWrapperCase(unittest.TestCase):
         wrapper.write("B")
         wrapper.logging_on()
         wrapper.write("C")
+        with wrapper.nolog():
+            wrapper.write("D")
+        wrapper.write("E")
+        with wrapper.log():
+            wrapper.write("F")
+        wrapper.write("G")
 
-        self.assertEqual(str(stream), "ABC")
-        self.assertEqual(str(log), "AC")
+        self.assertEqual(str(stream), "ABCDEFG")
+        self.assertEqual(str(log), "ACEFG")
     #-def
 #-class
 

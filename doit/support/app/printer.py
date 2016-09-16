@@ -54,6 +54,13 @@ TROW_2_UTROW = 0
 UTROW_2_UWORDS_UTROW = 0
 UTROW_2_UWORDS = 1
 
+def escape(s):
+    """
+    """
+
+    return s.replace('\\', "\\\\").replace(' ', "\\ ")
+#-def
+
 class BreakToLines(TextCommand):
     """
     """

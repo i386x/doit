@@ -1,14 +1,14 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/text/pgen/builders/builder.py
+#! \file    ./pgen.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
-#! \stamp   2016-02-10 21:13:02 (UTC+01:00, DST+00:00)
+#! \stamp   2016-09-06 13:49:00 (UTC+01:00, DST+01:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
-Parser generator output builder interface.\
+Parser generator.\
 """
 
 __license__ = """\
@@ -33,25 +33,30 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from doit.support.app.application import Application
+import sys
+import os
 
-class Builder(Application):
-    """
-    """
+here = os.path.dirname(os.path.realpath(__file__))
+root = os.path.join(here, os.pardir)
+
+sys.path.insert(0, root)
+
+from doit.support.app.logging import Log
+from doit.text.pgen import ParserGenerator
+
+class PGen(ParserGenerator):
     __slots__ = []
 
-    def __init__(self, owner = None, **kwargs):
-        """
-        """
-
-        Application.__init__(self, owner, **kwargs)
-    #-def
-
-    @classmethod
-    def name(cls):
-        """
-        """
-
-        return cls.__name__.lower()
+    def __init__(self, path):
+        ParserGenerator.__init__(self)
+        self.set_path(path)
+        log = Log(self).wrap(stdout = sys.stdout, stderr = sys.stderr)
+        self.set_output(log.stdout)
+        self.set_log(log)
+        self.set_error_log(log.stderr)
     #-def
 #-class
+
+if __name__ == '__main__':
+    exit(PGen(__file__).run(sys.argv[1:]))
+#-if
