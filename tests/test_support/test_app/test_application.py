@@ -74,6 +74,11 @@ where options are:
   --action=<action>,
   -a<action>                performs `action'
 
+and commands are:
+
+  cmda              cmda description
+  cmdb              cmdb description
+
 <end>
 """
 
@@ -143,6 +148,24 @@ class OsPathMock(ModuleContext):
     #-def
 #-class
 
+class RealpathMock(ModuleContext):
+    __slots__ = [ '__old_realpath' ]
+
+    def __init__(self, f):
+        ModuleContext.__init__(self, f)
+        self.__old_realpath = os.path.realpath
+    #-def
+
+    def replace(self, f):
+        self.__old_realpath = os.path.realpath
+        os.path.realpath = f
+    #-def
+
+    def restore(self):
+        os.path.realpath = self.__old_realpath
+    #-def
+#-class
+
 class Log(object):
     __slots__ = [ 'content' ]
 
@@ -152,6 +175,30 @@ class Log(object):
 
     def write(self, s):
         self.content += s
+    #-def
+#-class
+
+class CmdA(Application):
+
+    def __init__(self):
+        Application.__init__(self)
+    #-def
+
+    @staticmethod
+    def description():
+        return "cmda description"
+    #-def
+#-class
+
+class CmdB(Application):
+
+    def __init__(self):
+        Application.__init__(self)
+    #-def
+
+    @staticmethod
+    def description():
+        return "cmdb description"
     #-def
 #-class
 
@@ -202,6 +249,11 @@ class CustomApp(Application):
         where options are:
         """)
         helppage.table(self.list_options())
+        helppage.paragraph("""
+        and commands are:
+        """)
+        cmds = dict([(x.__name__.lower(), x) for x in (CmdA, CmdB)])
+        helppage.table(self.list_commands(cmds))
         PageFormatter().format(helppage.page, self.__helppage)
         self.wlog("<start>\n")
     #-def
@@ -312,6 +364,15 @@ class TestApplicationCase(unittest.TestCase):
         self.assertEqual(app.get_name(), 'testapp')
         self.assertEqual(app.get_path(), 'C:\\X\\Y\\t.py')
         self.assertEqual(app.get_dir(), 'D:\\data\\temp\\testapp')
+    #-def
+
+    def test_custom_app_cwd(self):
+        app = CustomApp()
+        self.assertIsNone(app.get_cwd())
+
+        with RealpathMock(lambda p: p):
+            app.set_cwd('D:\\projects\\zasm')
+        self.assertEqual(app.get_cwd(), 'D:\\projects\\zasm')
     #-def
 
     def test_custom_app_no_args(self):

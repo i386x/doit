@@ -48,6 +48,19 @@ SUPRESS = 2
 
 OPEN_FAIL = 1
 
+class DataBuffer(object):
+    __slots__ = [ 'data' ]
+
+    def __init__(self):
+        self.data = ""
+    #-def
+
+    def __iadd__(self, rhs):
+        self.data = "%s%s" % (self.data, rhs)
+        return self
+    #-def
+#-class
+
 class ContextManagerMock(object):
     __slots__ = [ '__raising_strategy' ]
 
@@ -180,18 +193,34 @@ def make_open(behaviour, data, old_way = False):
     return open_mock
 #-def
 
-class OpenContext(object):
-    __slots__ = [ '__old_open', '__behaviour', '__data', '__old_way' ]
+def make_rwopen(behaviour, data, old_way = False):
+    def rwopen_mock(name, mode, encoding, newline):
+        f = FileMock(
+            behaviour[mode], name, mode, encoding, newline, data[mode]
+        )
+        if old_way:
+            f(name, mode, encoding, newline)
+        return f
+    return rwopen_mock
+#-def
 
-    def __init__(self, behaviour, data, old_way = False):
+class OpenContext(object):
+    __slots__ = [
+        '__old_open', '__behaviour', '__data', '__old_way', '__open_factory'
+    ]
+
+    def __init__(
+        self, behaviour, data, old_way = False, open_factory = make_open
+    ):
         self.__old_open = __builtins__['open']
         self.__behaviour = behaviour
         self.__data = data
         self.__old_way = old_way
+        self.__open_factory = open_factory
     #-def
 
     def __enter__(self):
-        __builtins__['open'] = make_open(
+        __builtins__['open'] = self.__open_factory(
             self.__behaviour, self.__data, self.__old_way
         )
         return self

@@ -1,7 +1,13 @@
 # Python:
 *.py[co]
 __pycache__/
+
+# Garbage:
 /objects.txt
+/stdout.txt
+
+# Logs:
+scripts/log/
 
 # Obsolete files:
 /C/

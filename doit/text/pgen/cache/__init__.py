@@ -37,7 +37,7 @@ import sys
 import os
 import importlib
 
-from doit.support.utils import WithStatementExceptionHandler
+from doit.support.app.io import read_all, write_items
 from doit.text.pgen.builders.builder import Builder
 
 CACHE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -50,35 +50,11 @@ COMMANDS_BASE = '.'.join(Builder.__module__.split('.')[:-1])
 del Builder
 del sys
 
-def read_cache(path):
-    """
-    """
-
-    wseh = WithStatementExceptionHandler()
-    content = ""
-    with wseh, open(path, 'r') as f:
-        content = f.read()
-    if wseh.etype:
-        return None
-    return content
-#-def
-
-def write_cache(path, cache):
-    """
-    """
-
-    wseh = WithStatementExceptionHandler()
-    with wseh, open(path, 'w', encoding = 'utf-8', newline = '\n') as f:
-        for x in cache:
-            f.write("%s %s\n" % x)
-    return wseh.etype is None
-#-def
-
 def get_commands(dont_import = False):
     """
     """
 
-    cache_raw_data = read_cache(COMMANDS_CACHE)
+    cache_raw_data = read_all(COMMANDS_CACHE)
     if cache_raw_data is None:
         return None
     cache_data = cache_raw_data.split('\n')
@@ -120,7 +96,7 @@ def add_command(name):
     if name in [x[1] for x in cache_data]:
         return False, "Command/Builder `%s` has been already added" % name
     cache_data.append((COMMANDS_BASE, name))
-    if not write_cache(COMMANDS_CACHE, cache_data):
+    if not write_items(COMMANDS_CACHE, cache_data, (lambda x: "%s %s\n" % x)):
         return False, "Can't write to cache <%s>" % COMMANDS_CACHE
     return True, ""
 #-def

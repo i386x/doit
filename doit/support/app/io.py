@@ -34,6 +34,7 @@ IN THE SOFTWARE.\
 """
 
 from doit.support.errors import not_implemented
+from doit.support.utils import WithStatementExceptionHandler
 
 class AbstractStream(object):
     """
@@ -197,3 +198,27 @@ class OutputProxy(AbstractStream):
         self.__outfunc(data)
     #-def
 #-class
+
+def read_all(path):
+    """
+    """
+
+    wseh = WithStatementExceptionHandler()
+    content = ""
+    with wseh, open(path, 'r', encoding = None, newline = None) as f:
+        content = f.read()
+    if wseh.etype:
+        return None
+    return content
+#-def
+
+def write_items(path, items, p):
+    """
+    """
+
+    wseh = WithStatementExceptionHandler()
+    with wseh, open(path, 'w', encoding = 'utf-8', newline = '\n') as f:
+        for x in items:
+            f.write(p(x))
+    return wseh.etype is None
+#-def

@@ -35,13 +35,15 @@ IN THE SOFTWARE.\
 
 import unittest
 
+from ...common import OPEN_FAIL, DataBuffer, OpenContext
 from doit.support.errors import DoItNotImplementedError
 
 from doit.support.app.application import \
     Application
 
 from doit.support.app.io import \
-    AbstractStream, CharBuffer, OutputProxy
+    AbstractStream, CharBuffer, OutputProxy, \
+    read_all, write_items
 
 class TestAbstractStreamCase(unittest.TestCase):
 
@@ -126,10 +128,68 @@ class TestOutputProxyCase(unittest.TestCase):
     #-def
 #-class
 
+class TestReadAllCase(unittest.TestCase):
+
+    def test_read_all_empty(self):
+        data = ""
+
+        with OpenContext(0, data, False):
+            v = read_all("abc")
+        self.assertEqual(v, "")
+    #-def
+
+    def test_read_all_nonempty(self):
+        data = "abc"
+
+        with OpenContext(0, data, False):
+            v = read_all("f")
+        self.assertEqual(v, data)
+    #-def
+
+    def test_read_all_error(self):
+        data = "abc"
+
+        with OpenContext(OPEN_FAIL, data, False):
+            v = read_all("f")
+        self.assertIsNone(v)
+    #-def
+#-class
+
+class TestWriteItemsCase(unittest.TestCase):
+
+    def test_write_items_empty(self):
+        b = DataBuffer()
+
+        with OpenContext(0, b, False):
+            r = write_items("f", [], (lambda x: x))
+        self.assertTrue(r)
+        self.assertEqual(b.data, "")
+    #-def
+
+    def test_write_items_nonempty(self):
+        b = DataBuffer()
+
+        with OpenContext(0, b, False):
+            r = write_items("f", [ 'a', 'b', "cd" ], (lambda x: x))
+        self.assertTrue(r)
+        self.assertEqual(b.data, "abcd")
+    #-def
+
+    def test_write_items_error(self):
+        b = DataBuffer()
+
+        with OpenContext(OPEN_FAIL, b, False):
+            r = write_items("f", [ 'a', 'b', "cd" ], (lambda x: x))
+        self.assertFalse(r)
+    #-def
+#-class
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestAbstractStreamCase))
     suite.addTest(unittest.makeSuite(TestCharBufferCase))
     suite.addTest(unittest.makeSuite(TestOutputProxyCase))
+    suite.addTest(unittest.makeSuite(TestReadAllCase))
+    suite.addTest(unittest.makeSuite(TestWriteItemsCase))
     return suite
 #-def

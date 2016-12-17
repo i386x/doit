@@ -40,7 +40,7 @@ from doit.support.app.errors import \
     ApplicationError, ApplicationExit
 
 from doit.support.app.printer import \
-    TableBuilder
+    TableBuilder, PageBuilder
 
 from doit.support.app.options import \
     OptionProcessor
@@ -53,7 +53,7 @@ class Application(object):
     """
     """
     __slots__ = [
-        '__owner', '__name', '__path', '__dir',
+        '__owner', '__name', '__path', '__dir', '__cwd',
         '__option_processor_class', '__table_class',
         '__option_processor', '__pending_args',
         '__exitcode',
@@ -68,6 +68,7 @@ class Application(object):
         self.__name = None
         self.__path = None
         self.__dir = None
+        self.__cwd = None
         self.__option_processor_class = kwargs.get(
             'option_processor_class', OptionProcessor
         )
@@ -131,6 +132,20 @@ class Application(object):
         """
 
         return self.__dir
+    #-def
+
+    def set_cwd(self, cwd):
+        """
+        """
+
+        self.__cwd = os.path.realpath(cwd)
+    #-def
+
+    def get_cwd(self):
+        """
+        """
+
+        return self.__cwd
     #-def
 
     def get_option_processor_class(self):
@@ -282,6 +297,25 @@ class Application(object):
         table = self.__table_class(**tspec)
         for opt in options:
             table.row(*(opt.helprow()))
+        return table
+    #-def
+
+    def list_commands(self, cmds, **tspec):
+        """
+        """
+
+        if not tspec:
+            tspec['col0'] = 10
+            tspec['sep0'] = 8
+            tspec['col1'] = 60
+        table = self.__table_class(**tspec)
+        cs = list(cmds.keys())
+        cs.sort()
+        for c in cs:
+            table.row(
+                PageBuilder.to_words(c),
+                PageBuilder.to_words(cmds[c].description())
+            )
         return table
     #-def
 

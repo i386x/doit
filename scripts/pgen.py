@@ -38,6 +38,7 @@ import os
 
 here = os.path.dirname(os.path.realpath(__file__))
 root = os.path.join(here, os.pardir)
+cwd = os.getcwd()
 
 sys.path.insert(0, root)
 
@@ -47,9 +48,10 @@ from doit.text.pgen import ParserGenerator
 class PGen(ParserGenerator):
     __slots__ = []
 
-    def __init__(self, path):
+    def __init__(self, path, cwd):
         ParserGenerator.__init__(self)
         self.set_path(path)
+        self.set_cwd(cwd)
         log = Log(self).wrap(stdout = sys.stdout, stderr = sys.stderr)
         self.set_output(log.stdout)
         self.set_log(log)
@@ -58,5 +60,5 @@ class PGen(ParserGenerator):
 #-class
 
 if __name__ == '__main__':
-    exit(PGen(__file__).run(sys.argv[1:]))
+    exit(PGen(__file__, cwd).run(sys.argv[1:]))
 #-if
