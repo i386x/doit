@@ -1,14 +1,14 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/text/pgen/builders/builder.py
+#! \file    ./doit/text/pgen/readers/glap/bootstrap/__init__.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
-#! \stamp   2016-02-10 21:13:02 (UTC+01:00, DST+00:00)
+#! \stamp   2016-12-19 02:04:45 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
-Parser generator output builder interface.\
+GLAP bootstrap.\
 """
 
 __license__ = """\
@@ -33,59 +33,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-import sys
-import os
-import re
-import importlib
-
-from doit.support.app.application import Application
-
-class Builder(Application):
+def get_source():
     """
     """
-    PY_DOTTED_NAME = re.compile(r"^[.a-zA-Z0-9_]+$")
-    __slots__ = []
 
-    def __init__(self, owner = None, **kwargs):
-        """
-        """
-
-        Application.__init__(self, owner, **kwargs)
-    #-def
-
-    @classmethod
-    def name(cls):
-        """
-        """
-
-        return cls.__name__.lower()
-    #-def
-
-    def load_module(self, path, name, attr = None):
-        """
-        """
-
-        if re.match(self.PY_DOTTED_NAME, path):
-            return self.__load_module("%s.%s" % (path, name), attr)
-        if not path:
-            path = self.get_cwd()
-        path = os.path.realpath(path)
-        if path not in sys.path:
-            sys.path.insert(0, path)
-        return self.__load_module(name, attr)
-    #-def
-
-    def __load_module(self, name, attr = None):
-        """
-        """
-
-        importlib.invalidate_caches()
-        try:
-            m = importlib.import_module(name)
-            if not m or (attr and not hasattr(m, attr)):
-                return None
-            return m
-        except ImportError:
-            return None
-    #-def
-#-class
+    return "foo"
+#-def

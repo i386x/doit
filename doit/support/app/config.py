@@ -181,6 +181,7 @@ def unset_config_option(cmd, path, key, verbose):
     return EXIT_SUCCESS
 #-def
 
+# Note: tested manualy
 def make_config_helppage(cmd, hp):
     """
     """

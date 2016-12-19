@@ -41,7 +41,7 @@ from doit.support.utils import WithStatementExceptionHandler
 from doit.support.app.io import CharBuffer
 from doit.support.app.config import \
     load_config, \
-    merge_items, \
+    merge_items, config_to_kvmap, \
     set_config_option, unset_config_option, \
     make_config_helppage
 from doit.support.app.printer import \
@@ -133,7 +133,7 @@ class Help(Builder):
         """
         """
 
-        return "prints the detailed help information about selected command"
+        return "provides the detailed help information about selected command"
     #-def
 #-class
 
@@ -618,7 +618,10 @@ class ConfigUnset(Builder):
 class ParserGenerator(Application):
     """
     """
-    __slots__ = [ '__helppage', '__noargs', '__commands', '__quite_mode' ]
+    COMMANDS = (Help, Add, Config)
+    __slots__ = [
+        '__helppage', '__noargs', '__commands', '__quite_mode', '__config'
+    ]
 
     def __init__(self, owner = None, **kwargs):
         """
@@ -627,8 +630,9 @@ class ParserGenerator(Application):
         Application.__init__(self, owner, **kwargs)
         self.__helppage = CharBuffer(self)
         self.__noargs = CharBuffer(self)
-        self.__commands = dict([(x.name(), x) for x in [Help, Add, Config]])
+        self.__commands = dict([(x.name(), x) for x in self.COMMANDS])
         self.__quite_mode = False
+        self.__config = {}
     #-def
 
     def at_start(self):
@@ -680,6 +684,20 @@ class ParserGenerator(Application):
             longprefix = oc.LONG_PREFIX
         ))
         PageFormatter().format(noargs.page, self.__noargs)
+
+        gconf, _ = load_config(CONFIG_CACHE)
+        if gconf is None:
+            gconf = []
+        lconf, _ = load_config(os.path.join(self.get_cwd(), CONFIG_NAME))
+        if lconf is None:
+            lconf = []
+        conf = config_to_kvmap(*merge_items(gconf, lconf))
+        prefix = "%s." % os.path.splitext(os.path.basename(self.get_name()))[0]
+        nprefix = len(prefix)
+        self.__config = dict([
+            (key[nprefix:], conf[key]) \
+            for key in conf if key.startswith(prefix)
+        ])
     #-def
 
     def load_commands(self):

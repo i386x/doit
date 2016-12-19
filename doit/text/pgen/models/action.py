@@ -415,7 +415,7 @@ class NegExpr(UnaryExpr):
     #-def
 #-class
 
-class BitNegExpr(UnaryExpr):
+class InvExpr(UnaryExpr):
     """
     """
     __slots__ = []

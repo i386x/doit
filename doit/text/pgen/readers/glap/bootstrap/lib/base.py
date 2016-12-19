@@ -125,48 +125,6 @@ class Grammar(Module, CFGrammar):
     #-def
 #-class
 
-"""
-Generated output (Python):
-    class ALexer(Lexer):
-        __slots__ = []
-
-        def __init__(self, input):
-            Lexer.__init__(self, input)
-
-        def peek(self):
-            if self.peeked:
-                return self.peeked
-            return self.next()
-
-        def next(self):
-            while self.get_scanner(self.input.peek())() == LEX_SKIP:
-                pass
-
-        def skip(self):
-            while self.skip_whitespace() or self.skip_comment():
-                pass
-
-        def skip_whitespace(self):
-            if not self.input.peek() in WHITESPACE:
-                return False
-            while self.input.peek() in WHITESPACE:
-                self.input.next()
-            return True
-
-        def skip_comment(self):
-            if not self.input.match("--"):
-                return False
-            while self.input.peak() not in [ '\n', EOF ]:
-                self.input.next()
-            return True
-
-        def scan_identifier(self):
-            s = self.input.matchset(LETTER)
-            while isletter(self.input.peek()):
-                s += self.input.peeked
-                self.input.next()
-            self.peeked = Token(IDENTIFIER, s)
-"""
 class Lexer(Grammar):
     """
     """
@@ -341,8 +299,8 @@ class Base(Module):
                 NewPair("%", "PERC"),
                 NewPair("&", "AMP"),
                 NewPair("'", "SQ"),
-                NewPair("(", "LPAR"),
-                NewPair(")", "RPAR"),
+                NewPair("(", "LPAREN"),
+                NewPair(")", "RPAREN"),
                 NewPair("*", "AST"),
                 NewPair("+", "PLUS"),
                 NewPair(",", "COMMA"),
@@ -356,15 +314,15 @@ class Base(Module):
                 NewPair(">", "GT"),
                 NewPair("?", "QM"),
                 NewPair("@", "AT"),
-                NewPair("[", "LBRK"),
+                NewPair("[", "LBRACK"),
                 NewPair("\\", "BSLASH"),
-                NewPair("]", "RBRK"),
+                NewPair("]", "RBRACK"),
                 NewPair("^", "CIRC"),
                 NewPair("_", "USCORE"),
                 NewPair("`", "BQ"),
-                NewPair("{", "LCBR"),
+                NewPair("{", "LBRACE"),
                 NewPair("|", "VBAR"),
-                NewPair("}", "RCBR"),
+                NewPair("}", "RBRACE"),
                 NewPair("~", "TILDE")
             ),
 

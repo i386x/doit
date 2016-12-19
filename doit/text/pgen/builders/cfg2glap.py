@@ -33,22 +33,39 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+import os
+
+from doit.support.app.io import CharBuffer
+from doit.support.app.printer import PageFormatter, PageBuilder
+from doit.support.app.application import EXIT_SUCCESS, EXIT_FAILURE
+
+from doit.text.pgen.builders.builder import Builder
+
 class Cfg2Glap(Builder):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__helppage', '__v' ]
 
-    def __init__(self, owner):
+    def __init__(self, owner, **kwargs):
         """
         """
 
-        Builder.__init__(self, owner)
-        self.set_name(self.__class__.__name__.lower())
+        Builder.__init__(self, owner, **kwargs)
+        self.set_name(self.name())
+        self.set_output(owner.get_output())
+        self.set_log(owner.get_log())
+        self.set_error_log(owner.get_error_log())
+        self.set_cwd(owner.get_cwd())
+
+        self.__helppage = CharBuffer(self)
+        self.__v = not kwargs.get('quite', False)
     #-def
 
-    def define_options(self):
+    def at_start(self):
         """
         """
+
+        oc = self.get_option_processor().get_option_class()
 
         self.define_option(
             "help", ['h', '?'],
@@ -57,93 +74,137 @@ class Cfg2Glap(Builder):
         )
         self.define_kwoption(
             "input", ['i'],
-            about = "directory representing Python package from which the\n" \
-            "module containing context-free grammar is imported; this\n" \
-            "option is required",
-            flags = Option.MANDATORY
+            about = """"
+            path to or dotted name of a Python package with context-free
+            grammar; this option is required
+            """,
+            flags = oc.REQUIRED
         )
         self.define_kwoption(
             "output", ['o'],
-            about = "directory to which the result should be dumped; this\n" \
-            "option is required",
-            flags = Option.MANDATORY
+            about = """
+            directory to which the result should be dumped; this option is
+            required
+            """,
+            flags = oc.REQUIRED
         )
         self.define_kwoption(
             "format", ['f'],
-            about = "directory containing a formatting rules for output;\n" \
-            "a directory is viewed as Python package; the default\n" \
-            "directory is given by config value"
+            about = """
+            path to or dottet name of a Python package with formatting rules;
+            the default is given by config value
+            """
         )
+
+        helppage = PageBuilder()
+        helppage.paragraph("""
+        %s\\ [options]
+        """ % self.get_name())
+        helppage.paragraph("""
+        Dumps module with context-free grammar to GLAP source file.
+        """)
+        helppage.paragraph("""
+        The module that contains one or more context-free grammars and
+        submodules is loaded as a regular Python package and it contains also
+        informations about how it should be dumped, which files and directories
+        should be created etc. The final structure containing generated source
+        files in GLAP language and directories is dumped to the prespecified
+        source directory.
+        """)
+        helppage.paragraph("""
+        Options:
+        """)
+        helppage.table(self.list_options())
+        PageFormatter().format(helppage.page, self.__helppage)
     #-def
 
-    def short_help(self):
+    def main(self):
+        """
+        """
+
+        options = self.get_option_processor().get_options()
+        if options['help'].when_given >= 0:
+            self.werr_nolog(self.__helppage)
+            return EXIT_FAILURE
+        srcobj = self.load_source(options['input'].value)
+        if not srcobj:
+            return EXIT_FAILURE
+        output_dir = os.path.realpath(options['output'].value)
+        if not os.path.exists(output_dir) or not os.path.isdir(output_dir):
+            self.werr_nolog(
+                "%s: Invalid output directory.\n" % self.get_name()
+            )
+            return EXIT_FAILURE
+        fmtpath = options['format'].value
+        if not fmtpath:
+            fmtpath = self.get_owner().get_config_value('fmtdir')
+        fmtmod = self.load_formatter(fmtpath)
+        return EXIT_SUCCESS
+    #-def
+
+    def handle_error(self, e):
+        """
+        """
+
+        self.werr_nolog("%s.\n" % e.detail)
+        self.set_exitcode(EXIT_FAILURE)
+    #-def
+
+    @staticmethod
+    def description():
         """
         """
 
         return "dumps module with context-free grammar to GLAP source file"
     #-def
 
-    def print_help(self):
+    def load_source(self, path):
         """
         """
 
-        self.werr(self.strip_block("""\
-        %(cmdname)s [options]
-
-        Dumps module with context-free grammar to GLAP source file. The module
-        that contains one or more context-free grammars and submodules is
-        loaded as a regular Python package and it contains also informations
-        about how it should be dumped, which files and directories should be
-        created etc. The final structure containing generated source files in
-        GLAP language and directories is dumped to the prespecified source
-        directory.
-
-        Options:
-        %(options)s
-        """)
+        nm = self.get_name()
+        if not path:
+            self.werr("%s: No path to source package specified.\n" % nm)
+            return None
+        srcmod = self.load_module(path, 'bootstrap', 'get_source')
+        if not srcmod:
+            self.werr("%s: No source package found at <%s>.\n" % (nm, path))
+            return None
+        return srcmod.get_source()
     #-def
 
-    def build(self, **opts):
+    def load_formatter(self, path):
         """
         """
 
-        output_dir = opts.get('output_dir')
-        if not output_dir:
-            raise PgenError(
-                "Cfg2Glap.build: Output directory is not specified"
+        if not path:
+            self.nofmt("output files")
+            return None
+        fmtmod = self.load_module(path, 'fmt', 'get_formatter')
+        if not fmtmod:
+            self.werr(
+                "%s: Formatter package not found at <%s>.\n" % (
+                    self.get_name(), path
+                )
             )
-        self.check_opts(opts)
-        self.dump_files(opts)
+            self.nofmt("output files")
+            return None
+        return fmtmod
     #-def
 
-    def check_opts(self, opts):
+    def nofmt(self, what):
         """
         """
 
-        with OptionChecker(self, opts) as oc:
-            oc.mandatory('input', "Input is not specified")
-            oc.mandatory('target_dir', "Target directory is not specified")
-            oc.optional('log_dir')
-    #-def
-
-    def dump_files(self, opts):
-        """
-        """
-
-        for m in opts.get('modules'):
-            self.dump_module(m, opts)
-    #-def
-
-    def dump_module(self, m, opts):
-        """
-        """
-
-        with GlapWriter(self, m.fname, opts) as writer:
-            writer.write(m)
+        self.__v and self.wout(
+            "%s: No formatting for %s will be used.\n" % (
+                self.get_name(), what
+            )
+        )
     #-def
 #-class
 
-def load():
+def get_command_class():
     """
     """
 
