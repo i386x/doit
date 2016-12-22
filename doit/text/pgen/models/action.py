@@ -33,6 +33,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.support.errors import doit_assert as _assert
+from doit.support.visitnode import \
+    VisitableNode, VisitableLeaf, \
+    NullaryVisitableNode, UnaryVisitableNode, BinaryVisitableNode, \
+        TernaryVisitableNode
+
+from doit.text.pgen.models.ast import AbstractSyntaxTree
+
 class ActionNode(AbstractSyntaxTree):
     """
     """
@@ -139,7 +147,7 @@ class Expr(ActionNode):
         """
         """
 
-        return BitNegExpr(self)
+        return InvExpr(self)
     #-def
 
     def __eq__(self, rhs):
@@ -203,7 +211,7 @@ class Expr(ActionNode):
         """
 
         if attr[-1] == '_':
-            return AccessExpr(self, Id(attr[:-1])
+            return AccessExpr(self, Id(attr[:-1]))
         return object.__getattribute__(self, attr)
     #-def
 #-class
@@ -762,7 +770,7 @@ class AssignBase(Statement, BinaryVisitableNode):
             "Visitable expression expected"
         )
         Statement.__init__(self)
-        BinaryActionNode.__init__(self, lhs, rhs)
+        BinaryVisitableNode.__init__(self, lhs, rhs)
     #-def
 #-class
 

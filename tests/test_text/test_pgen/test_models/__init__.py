@@ -1,14 +1,14 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./tests/test_text/test_pgen/__init__.py
+#! \file    ./tests/test_text/test_pgen/test_models/__init__.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
-#! \stamp   2016-04-07 09:49:32 (UTC+01:00, DST+01:00)
+#! \stamp   2016-12-20 13:25:35 (UTC+01:00, DST+00:00)
 #! \project DoIt!: A Simple Extendable Command Language
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
 #
 """\
-DoIt! test_pgen package initialization file.\
+Parser generator formal models tests.\
 """
 
 __license__ = """\
@@ -35,11 +35,12 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_models, test_readers
+from . import test_ast, test_action, test_cfgram
 
 def suite():
     suite = unittest.TestSuite()
-    suite.addTest(test_models.suite())
-    suite.addTest(test_readers.suite())
+    suite.addTest(test_ast.suite())
+    suite.addTest(test_action.suite())
+    suite.addTest(test_cfgram.suite())
     return suite
 #-def

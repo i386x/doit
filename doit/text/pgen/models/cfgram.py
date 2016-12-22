@@ -33,6 +33,18 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+import collections
+
+from doit.support.errors import doit_assert as _assert
+from doit.support.visitnode import \
+    VisitableLeaf, UnaryVisitableNode, BinaryVisitableNode
+
+from doit.support.cmd.runtime import UserType
+from doit.support.cmd.commands import Call, ECall
+
+from doit.text.pgen.models.ast import AbstractSyntaxTree
+from doit.text.pgen.models.action import ActionNode
+
 class RuleNode(AbstractSyntaxTree):
     """
     """
@@ -167,7 +179,7 @@ class BinaryNode(RuleNode, BinaryVisitableNode):
         """
         """
 
-        n1, n2 = self.traverse(lambda _, n1, n2: n1, n2)
+        n1, n2 = self.traverse(lambda _, n1, n2: (n1, n2))
         processor.insertcode(
             Call(f, self,
                 ECall(n1.do_visit, processor, f, *args),
@@ -235,7 +247,7 @@ class Range(TerminalNode):
         """
 
         _assert(isinstance(a, Sym) and isinstance(b, Sym), "Symbol expected")
-        _assert(int(a) > int(b), "'a' must be greater than 'b'")
+        _assert(int(b) > int(a), "'b' must be greater than 'a'")
         TerminalNode.__init__(self, (int(a), int(b)))
     #-def
 #-class
@@ -392,7 +404,7 @@ class Grammar(UserType):
         """
 
         if key in self.__rules:
-            value = self[key] | value
+            value = self.__rules[key] | value
         self.__rules[key] = value
     #-def
 
