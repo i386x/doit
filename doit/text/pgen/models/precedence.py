@@ -32,3 +32,44 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
+
+class PrecedenceGraph(UserType):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, *spec):
+        """
+        """
+
+        UserType.__init__(self)
+        self.__name = spec[0] if spec and isinstance(spec[0], str) else "expr"
+        # level -> [(opspec, action)]
+        self.__table = {}
+        self.cache = {}
+        self.madd(*spec)
+    #-def
+
+    def add(self, level, opspec, action = None):
+        """
+        """
+
+        if level not in self.__table:
+            self.__table[level] = []
+        self.__table[level].append((opspec, action))
+    #-def
+
+    def madd(self, *spec):
+        """
+        """
+
+        for x in spec:
+            if isinstance(x, tuple):
+                if len(x) == 2:
+                    self.add(x[0], x[1], None)
+                elif len(x) == 3:
+                    self.add(x[0], x[1], x[2])
+                else:
+                    _assert(False, "Invalid argument")
+    #-def
+#-class
