@@ -33,15 +33,31 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-class Token(tuple):
+class Token(UserType):
     """
     """
     __slots__ = []
 
-    def __init__(self, name, *attrs):
+    def __init__(self, ttype, *data):
         """
         """
 
-        tuple.__init__(self, (name, attrs))
+        UserType.__init__(self)
+        self.__ttype = name
+        self.__data = data
+    #-def
+
+    def ttype(self):
+        """
+        """
+
+        return self.__ttype
+    #-def
+
+    def data(self):
+        """
+        """
+
+        return self.__data
     #-def
 #-class
