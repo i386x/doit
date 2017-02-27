@@ -33,19 +33,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.support.errors import doit_assert as _assert
+
+from doit.support.cmd.runtime import UserType
+
 class PrecedenceGraph(UserType):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__np', '__data', 'cache' ]
 
     def __init__(self, *spec):
         """
         """
 
         UserType.__init__(self)
-        self.__name = spec[0] if spec and isinstance(spec[0], str) else "expr"
+        self.__np = spec[0] if spec and isinstance(spec[0], str) else "expr"
         # level -> [(opspec, action)]
-        self.__table = {}
+        self.__data = {}
         self.cache = {}
         self.madd(*spec)
     #-def
@@ -54,9 +58,9 @@ class PrecedenceGraph(UserType):
         """
         """
 
-        if level not in self.__table:
-            self.__table[level] = []
-        self.__table[level].append((opspec, action))
+        if level not in self.__data:
+            self.__data[level] = []
+        self.__data[level].append((opspec, action))
     #-def
 
     def madd(self, *spec):
@@ -71,5 +75,19 @@ class PrecedenceGraph(UserType):
                     self.add(x[0], x[1], x[2])
                 else:
                     _assert(False, "Invalid argument")
+    #-def
+
+    def name_prefix(self):
+        """
+        """
+
+        return self.__np
+    #-def
+
+    def data(self):
+        """
+        """
+
+        return self.__data
     #-def
 #-class

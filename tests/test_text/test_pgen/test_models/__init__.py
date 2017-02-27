@@ -35,12 +35,13 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_ast, test_action, test_cfgram
+from . import test_ast, test_action, test_cfgram, test_precedence
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(test_ast.suite())
     suite.addTest(test_action.suite())
     suite.addTest(test_cfgram.suite())
+    suite.addTest(test_precedence.suite())
     return suite
 #-def
