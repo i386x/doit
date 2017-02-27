@@ -62,7 +62,21 @@ class TagAbstractInput(object):
         return None
     #-def
 
+    def peekn(self, n):
+        """
+        """
+
+        return None
+    #-def
+
     def next(self):
+        """
+        """
+
+        pass
+    #-def
+
+    def nextn(self, n):
         """
         """
 
@@ -113,11 +127,27 @@ class TagTextInput(TagAbstractInput):
         return None
     #-def
 
+    def peekn(self, n):
+        """
+        """
+
+        return self.__data[self.__index : self.__index + n]
+    #-def
+
     def next(self):
         """
         """
 
         self.__index += 1
+        if self.__index >= self.__nitems:
+            self.__index = self.__nitems
+    #-def
+
+    def nextn(self, n):
+        """
+        """
+
+        self.__index += n
         if self.__index >= self.__nitems:
             self.__index = self.__nitems
     #-def
@@ -161,7 +191,7 @@ class TagMatcher(object):
             self.__last_match = w
             self.__input.nextn(n)
             return True
-        if len(w) < n:
+        if w is None or len(w) < n:
             self.__last_error_detail = \
                 "Unexpected end of input (%r matched, %r needed)" % (w, word)
         else:
@@ -1524,12 +1554,16 @@ class JTrue(TagCommand):
         """
         """
 
-        TagCommand.__init__(self)
+        TagCommand.__init__(self, dest)
+        self.__dest = dest - 1
     #-def
 
     def __call__(self, tag_engine):
         """
         """
+
+        if tag_engine.match_flag():
+            tag_engine.set_ip(self.__dest)
     #-def
 #-class
 
@@ -1538,16 +1572,20 @@ class JFalse(TagCommand):
     """
     __slots__ = []
 
-    def __init__(self):
+    def __init__(self, dest):
         """
         """
 
         TagCommand.__init__(self)
+        self.__dest = dest - 1
     #-def
 
     def __call__(self, tag_engine):
         """
         """
+
+        if not tag_engine.match_flag():
+            tag_engine.set_ip(self.__dest)
     #-def
 #-class
 
@@ -1556,16 +1594,19 @@ class Jump(TagCommand):
     """
     __slots__ = []
 
-    def __init__(self):
+    def __init__(self, dest):
         """
         """
 
         TagCommand.__init__(self)
+        self.__dest = dest - 1
     #-def
 
     def __call__(self, tag_engine):
         """
         """
+
+        tag_engine.set_ip(self.__dest)
     #-def
 #-class
 
@@ -1574,16 +1615,19 @@ class Call(TagCommand):
     """
     __slots__ = []
 
-    def __init__(self):
+    def __init__(self, f):
         """
         """
 
         TagCommand.__init__(self)
+        self.__f = f
     #-def
 
     def __call__(self, tag_engine):
         """
         """
+
+        self.__f(tag_engine)
     #-def
 #-class
 
@@ -1602,6 +1646,8 @@ class Pause(TagCommand):
     def __call__(self, tag_engine):
         """
         """
+
+        tag_engine.set_state(TES_PAUSED)
     #-def
 #-class
 
@@ -1822,6 +1868,19 @@ class TagEngine(object):
             self.__state = TES_ERROR
             return None
         return self.__valstack[-1]
+    #-def
+
+    def swap(self):
+        """
+        """
+
+        if self.nvals() < 2:
+            self.__last_error_detail = "Swap needs at least two items on stack"
+            self.__state = TES_ERROR
+            return
+        t = self.__valstack[-1]
+        self.__valstack[-1] = self.__valstack[-2]
+        self.__valstack[-2] = t
     #-def
 
     def nvals(self):
