@@ -33,7 +33,59 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-class GlapLexer(Lexer):
+class GlapLexer(TagProgram):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, envclass):
+        """
+        """
+
+        TagProgram.__init__(self, 'glap_lexer', envclass)
+        self.compile([
+          L._start,
+            BRANCH       (L._switch_table, L._other),
+            HALT,
+          L._switch_table,
+            SYMBOL       ('-',     L._comment_or_other),
+            SYMBOL       (' ',     L._whitespace),
+            SYMBOL       ('\n',    L._newline),
+            SET          (LETTER,  L._identifier),
+            SET          (NZDIGIT, L._int_part),
+            SYMBOL       ('0',     L._octal_or_hex_int),
+            NULL,
+          L._comment_or_other,
+            MATCH_SYMBOL ('-'),
+            TEST_SYMBOL  ('-', UNUSED, L._other),
+            # Comment:
+            SKIP_TO      ('\n'),
+            JUMP         (L._start),
+          L._whitespace,
+            SKIP_MANY    (' '),
+            JUMP         (L._start),
+          L._newline,
+            SKIP_ANY,
+            CALL         (self.advance_lineno),
+            JUMP         (L._start),
+          L._identifier,
+            MATCH_SET    (LETTER),
+            PUSH_MATCH,
+            MATCH_MANY   (ALNUM),
+            CONCAT       (-1, MATCH),
+            CALL         (self.emit_identifier),
+            PAUSE,
+          L._int_part,
+            MATCH_SET    (NZDIGIT),
+            PUSH_MATCH,
+            MATCH_MANY
+          L._other,
+            MATCH_ANY,
+            CALL         (self.emit_other),
+            PAUSE
+        ])
+
+class __GlapLexer(Lexer):
     """
     """
     __slots__ = []
