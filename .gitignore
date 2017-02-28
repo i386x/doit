@@ -2,16 +2,8 @@
 *.py[co]
 __pycache__/
 
-# Garbage:
-/objects.txt
-/stdout.txt
-
 # Logs:
-scripts/log/
+/scripts/log/
 
-# Obsolete files:
-/C/
-/doit/GRAMMAR
-/doit/commands.py
-/doit/doit.py
-/doit/objects.py
+# Trash:
+/trash/
