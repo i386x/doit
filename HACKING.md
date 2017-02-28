@@ -12,7 +12,7 @@ Source file format
 #! \file    ./path/to/file.py
 #! \author  Name Surname, <email@server.com>
 #! \stamp   yyyy-mm-dd HH:MM:SS (UTC+HH:MM, DST+HH:MM)
-#! \project DoIt!: A Simple Extendable Command Language
+#! \project DoIt!: Tools and Libraries for Building DSLs
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
@@ -27,7 +27,7 @@ Source file format
 
 ```python
 __license__ = """\
-Copyright (c) 2014 - 2016 Name Surname.
+Copyright (c) 2014 - 2017 Name Surname.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ IN THE SOFTWARE.\
 """
 ```
 
-* license must be MIT with 2014 - 2016
+* license must be MIT with 2014 - 2017
 
 * standard Python library imports
 * 3rd party libraries imports

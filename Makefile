@@ -2,7 +2,7 @@
 #! \file    ./Makefile
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2015-05-26 18:54:31 (UTC+01:00, DST+01:00)
-#! \project DoIt!: A Simple Extendable Command Language
+#! \project DoIt!: Tools and Libraries for Building DSLs
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   Makefile for building DoIt!.

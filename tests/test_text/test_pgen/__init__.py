@@ -2,7 +2,7 @@
 #! \file    ./tests/test_text/test_pgen/__init__.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-04-07 09:49:32 (UTC+01:00, DST+01:00)
-#! \project DoIt!: A Simple Extendable Command Language
+#! \project DoIt!: Tools and Libraries for Building DSLs
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
@@ -12,7 +12,7 @@ DoIt! test_pgen package initialization file.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2016 Jiří Kučera.
+Copyright (c) 2014 - 2017 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -35,10 +35,12 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_models, test_readers
+from . import test_errors, test_utils, test_models, test_readers
 
 def suite():
     suite = unittest.TestSuite()
+    suite.addTest(test_errors.suite())
+    suite.addTest(test_utils.suite())
     suite.addTest(test_models.suite())
     suite.addTest(test_readers.suite())
     return suite

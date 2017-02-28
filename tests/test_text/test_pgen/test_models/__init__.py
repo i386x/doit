@@ -2,7 +2,7 @@
 #! \file    ./tests/test_text/test_pgen/test_models/__init__.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-12-20 13:25:35 (UTC+01:00, DST+00:00)
-#! \project DoIt!: A Simple Extendable Command Language
+#! \project DoIt!: Tools and Libraries for Building DSLs
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
@@ -12,7 +12,7 @@ Parser generator formal models tests.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2016 Jiří Kučera.
+Copyright (c) 2014 - 2017 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,7 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from . import test_ast, test_action, test_cfgram, test_precedence
+from . import test_ast, test_action, test_cfgram, test_precedence, test_token
 
 def suite():
     suite = unittest.TestSuite()
@@ -43,5 +43,6 @@ def suite():
     suite.addTest(test_action.suite())
     suite.addTest(test_cfgram.suite())
     suite.addTest(test_precedence.suite())
+    suite.addTest(test_token.suite())
     return suite
 #-def

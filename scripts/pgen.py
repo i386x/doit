@@ -2,7 +2,7 @@
 #! \file    ./pgen.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-09-06 13:49:00 (UTC+01:00, DST+01:00)
-#! \project DoIt!: A Simple Extendable Command Language
+#! \project DoIt!: Tools and Libraries for Building DSLs
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
@@ -12,7 +12,7 @@ Parser generator.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2016 Jiří Kučera.
+Copyright (c) 2014 - 2017 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

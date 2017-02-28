@@ -1,4 +1,4 @@
-*DoIt!*: A Simple Extendable Command Language
-=============================================
+*DoIt!*: Tools and Libraries for Building DSLs
+==============================================
 
 Currently under heavy development.

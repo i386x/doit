@@ -2,7 +2,7 @@
 #! \file    ./doit/text/pgen/readers/glap/bootstrap/grammar.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-02-11 10:19:52 (UTC+01:00, DST+00:00)
-#! \project DoIt!: A Simple Extendable Command Language
+#! \project DoIt!: Tools and Libraries for Building DSLs
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
@@ -12,7 +12,7 @@ GLAP lexers and parsers definitions.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2016 Jiří Kučera.
+Copyright (c) 2014 - 2017 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -134,7 +134,24 @@ class __GlapLexer(Lexer):
     #-def
 #-class
 
-class GlapParser(Parser):
+class GlapParser(TagProgram):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, envclass):
+        """
+        """
+
+        TagProgram.__init__(self, 'glap_parser', envclass)
+        self.compile([
+          L._start,
+            CALL (L._module),
+            RETURN,
+          L._module,
+            BRANCH ()
+
+class __GlapParser(Parser):
     """
     """
     __slots__ = []

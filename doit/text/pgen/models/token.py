@@ -2,7 +2,7 @@
 #! \file    ./doit/text/pgen/models/token.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-02-10 19:58:42 (UTC+01:00, DST+00:00)
-#! \project DoIt!: A Simple Extendable Command Language
+#! \project DoIt!: Tools and Libraries for Building DSLs
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
@@ -12,7 +12,7 @@ Token definition.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2016 Jiří Kučera.
+Copyright (c) 2014 - 2017 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -33,31 +33,26 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.support.cmd.runtime import UserType
+
 class Token(UserType):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'ttype', 'data' ]
 
     def __init__(self, ttype, *data):
         """
         """
 
         UserType.__init__(self)
-        self.__ttype = name
-        self.__data = data
+        self.ttype = ttype
+        self.data = data
     #-def
 
-    def ttype(self):
+    def __repr__(self):
         """
         """
 
-        return self.__ttype
-    #-def
-
-    def data(self):
-        """
-        """
-
-        return self.__data
+        return "Token(ttype = %r, data = %r)" % (self.ttype, self.data)
     #-def
 #-class

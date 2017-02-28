@@ -2,7 +2,7 @@
 #! \file    ./tests/test_text/test_pgen/test_models/test_cfgram.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-12-22 12:04:34 (UTC+01:00, DST+00:00)
-#! \project DoIt!: A Simple Extendable Command Language
+#! \project DoIt!: Tools and Libraries for Building DSLs
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
@@ -12,7 +12,7 @@ Context-free grammar tests.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2016 Jiří Kučera.
+Copyright (c) 2014 - 2017 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

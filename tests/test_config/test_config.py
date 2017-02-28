@@ -2,7 +2,7 @@
 #! \file    ./tests/test_config/test_config.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2015-09-12 00:26:49 (UTC+01:00, DST+01:00)
-#! \project DoIt!: A Simple Extendable Command Language
+#! \project DoIt!: Tools and Libraries for Building DSLs
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
@@ -12,7 +12,7 @@ DoIt! config module tests.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2015 Jiří Kučera.
+Copyright (c) 2014 - 2017 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
