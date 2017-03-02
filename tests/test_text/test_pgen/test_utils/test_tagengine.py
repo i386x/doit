@@ -56,6 +56,8 @@ from doit.text.pgen.utils.tagengine import \
         SkipAtLeastOne, \
     SkipAtMostOneSymbol, SkipAtMostOneFromSet, SkipAtMostOneFromRange, \
         SkipAtMostOne, \
+    SkipManySymbols, SkipManyFromSet, SkipManyFromRange, SkipAll, SkipMany, \
+    SkipTo, SkipToSet, SkipToRange, SkipUntilNot, \
     Halt, \
     TagProgramEnvironment, TagProgram, \
     TagEngine
@@ -1985,6 +1987,558 @@ class TestInstructionsCase(unittest.TestCase):
     def test_SkipAtMostOneSymbol_eof(self):
         te, ti = self.create_and_run_tag_engine("", [
             SkipAtMostOneSymbol('a'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipAtMostOneFromSet_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("_", [
+            SkipAtMostOneFromSet(['a', 'b']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipAtMostOneFromSet_ok_2(self):
+        te, ti = self.create_and_run_tag_engine("a_", [
+            SkipAtMostOneFromSet(['a', 'b']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipAtMostOneFromSet_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("b_", [
+            SkipAtMostOneFromSet(['a', 'b']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipAtMostOneFromSet_ok_4(self):
+        te, ti = self.create_and_run_tag_engine("ab_", [
+            SkipAtMostOneFromSet(['a', 'b']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, 'b')
+    #-def
+
+    def test_SkipAtMostOneFromSet_ok_5(self):
+        te, ti = self.create_and_run_tag_engine("ba_", [
+            SkipAtMostOneFromSet(['a', 'b']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, 'a')
+    #-def
+
+    def test_SkipAtMostOneFromSet_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipAtMostOneFromSet(['a', 'b']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipAtMostOneFromRange_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("1_", [
+            SkipAtMostOneFromRange('2', '5'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '1')
+    #-def
+
+    def test_SkipAtMostOneFromRange_ok_2(self):
+        te, ti = self.create_and_run_tag_engine("2_", [
+            SkipAtMostOneFromRange('2', '5'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipAtMostOneFromRange_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("4_", [
+            SkipAtMostOneFromRange('2', '5'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipAtMostOneFromRange_ok_4(self):
+        te, ti = self.create_and_run_tag_engine("5_", [
+            SkipAtMostOneFromRange('2', '5'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipAtMostOneFromRange_ok_5(self):
+        te, ti = self.create_and_run_tag_engine("7_", [
+            SkipAtMostOneFromRange('2', '5'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '7')
+    #-def
+
+    def test_SkipAtMostOneFromRange_ok_6(self):
+        te, ti = self.create_and_run_tag_engine("34_", [
+            SkipAtMostOneFromRange('2', '5'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '4')
+    #-def
+
+    def test_SkipAtMostOneFromRange_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipAtMostOneFromRange('2', '5'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipAtMostOne_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("5u", [
+            SkipAtMostOne(lambda c: c == '!'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '5')
+    #-def
+
+    def test_SkipAtMostOne_ok_2(self):
+        te, ti = self.create_and_run_tag_engine("!u", [
+            SkipAtMostOne(lambda c: c == '!'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, 'u')
+    #-def
+
+    def test_SkipAtMostOne_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("!!u", [
+            SkipAtMostOne(lambda c: c == '!'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '!')
+    #-def
+
+    def test_SkipAtMostOne_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipAtMostOne(lambda c: c == '!'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipManySymbols_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("_", [
+            SkipManySymbols('a'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManySymbols_ok_2(self):
+        te, ti = self.create_and_run_tag_engine("a_", [
+            SkipManySymbols('a'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManySymbols_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("aa_", [
+            SkipManySymbols('a'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManySymbols_ok_4(self):
+        te, ti = self.create_and_run_tag_engine("aaa_", [
+            SkipManySymbols('a'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManySymbols_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipManySymbols('a'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipManyFromSet_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("_", [
+            SkipManyFromSet(['e', 'q']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManyFromSet_ok_2(self):
+        te, ti = self.create_and_run_tag_engine("q_", [
+            SkipManyFromSet(['e', 'q']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManyFromSet_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("qe_", [
+            SkipManyFromSet(['e', 'q']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManyFromSet_ok_4(self):
+        te, ti = self.create_and_run_tag_engine("qeq_", [
+            SkipManyFromSet(['e', 'q']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManyFromSet_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipManyFromSet(['e', 'q']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipManyFromRange_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("_", [
+            SkipManyFromRange('2', '4'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManyFromRange_ok_2(self):
+        te, ti = self.create_and_run_tag_engine("1_", [
+            SkipManyFromRange('2', '4'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '1')
+    #-def
+
+    def test_SkipManyFromRange_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("2_", [
+            SkipManyFromRange('2', '4'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManyFromRange_ok_4(self):
+        te, ti = self.create_and_run_tag_engine("32_", [
+            SkipManyFromRange('2', '4'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManyFromRange_ok_5(self):
+        te, ti = self.create_and_run_tag_engine("342_", [
+            SkipManyFromRange('2', '4'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipManyFromRange_ok_6(self):
+        te, ti = self.create_and_run_tag_engine("3452_", [
+            SkipManyFromRange('2', '4'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '5')
+    #-def
+
+    def test_SkipManyFromRange_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipManyFromRange('2', '4'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipAll_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipAll(), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipAll_ok_2(self):
+        te, ti = self.create_and_run_tag_engine("$", [
+            SkipAll(), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipAll_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("$.", [
+            SkipAll(), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipAll_ok_4(self):
+        te, ti = self.create_and_run_tag_engine("$./><", [
+            SkipAll(), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipMany_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("_", [
+            SkipMany(lambda c: c == '+'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipMany_ok_2(self):
+        te, ti = self.create_and_run_tag_engine("+_", [
+            SkipMany(lambda c: c == '+'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipMany_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("++_", [
+            SkipMany(lambda c: c == '+'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipMany_ok_4(self):
+        te, ti = self.create_and_run_tag_engine("+++_", [
+            SkipMany(lambda c: c == '+'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '_')
+    #-def
+
+    def test_SkipMany_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipMany(lambda c: c == '+'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipTo_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("_", [
+            SkipTo(';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipTo_ok_2(self):
+        te, ti = self.create_and_run_tag_engine(";_", [
+            SkipTo(';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, ';')
+    #-def
+
+    def test_SkipTo_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("a;", [
+            SkipTo(';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, ';')
+    #-def
+
+    def test_SkipTo_ok_4(self):
+        te, ti = self.create_and_run_tag_engine("ab;_", [
+            SkipTo(';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, ';')
+    #-def
+
+    def test_SkipTo_ok_5(self):
+        te, ti = self.create_and_run_tag_engine("abc;", [
+            SkipTo(';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, ';')
+    #-def
+
+    def test_SkipTo_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipTo(';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipToSet_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("_", [
+            SkipToSet(['e', 't']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipToSet_ok_2(self):
+        te, ti = self.create_and_run_tag_engine("e_", [
+            SkipToSet(['e', 't']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, 'e')
+    #-def
+
+    def test_SkipToSet_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("t_", [
+            SkipToSet(['e', 't']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, 't')
+    #-def
+
+    def test_SkipToSet_ok_4(self):
+        te, ti = self.create_and_run_tag_engine("sdft_", [
+            SkipToSet(['e', 't']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, 't')
+    #-def
+
+    def test_SkipToSet_ok_5(self):
+        te, ti = self.create_and_run_tag_engine("sdeft_", [
+            SkipToSet(['e', 't']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, 'e')
+    #-def
+
+    def test_SkipToSet_ok_6(self):
+        te, ti = self.create_and_run_tag_engine("sdft", [
+            SkipToSet(['e', 't']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, 't')
+    #-def
+
+    def test_SkipToSet_ok_7(self):
+        te, ti = self.create_and_run_tag_engine("sdfe", [
+            SkipToSet(['e', 't']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, 'e')
+    #-def
+
+    def test_SkipToSet_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipToSet(['e', 't']), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipToRange_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("_", [
+            SkipToRange('1', '3'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipToRange_ok_2(self):
+        te, ti = self.create_and_run_tag_engine("1_", [
+            SkipToRange('1', '3'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '1')
+    #-def
+
+    def test_SkipToRange_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("2", [
+            SkipToRange('1', '3'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '2')
+    #-def
+
+    def test_SkipToRange_ok_4(self):
+        te, ti = self.create_and_run_tag_engine(".3", [
+            SkipToRange('1', '3'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '3')
+    #-def
+
+    def test_SkipToRange_ok_5(self):
+        te, ti = self.create_and_run_tag_engine("efg1.3_", [
+            SkipToRange('1', '3'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, '1')
+    #-def
+
+    def test_SkipToRange_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipToRange('1', '3'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipUntilNot_ok_1(self):
+        te, ti = self.create_and_run_tag_engine("_", [
+            SkipUntilNot(lambda c: c == ';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_SkipUntilNot_ok_2(self):
+        te, ti = self.create_and_run_tag_engine(";_", [
+            SkipUntilNot(lambda c: c == ';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, ';')
+    #-def
+
+    def test_SkipUntilNot_ok_3(self):
+        te, ti = self.create_and_run_tag_engine("a;", [
+            SkipUntilNot(lambda c: c == ';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, ';')
+    #-def
+
+    def test_SkipUntilNot_ok_4(self):
+        te, ti = self.create_and_run_tag_engine("ab;_", [
+            SkipUntilNot(lambda c: c == ';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, ';')
+    #-def
+
+    def test_SkipUntilNot_ok_5(self):
+        te, ti = self.create_and_run_tag_engine("abc;", [
+            SkipUntilNot(lambda c: c == ';'), Halt()
+        ])
+
+        self.check_skip_ok(te, ti, ';')
+    #-def
+
+    def test_SkipUntilNot_eof(self):
+        te, ti = self.create_and_run_tag_engine("", [
+            SkipUntilNot(lambda c: c == ';'), Halt()
         ])
 
         self.check_skip_ok(te, ti, None)
