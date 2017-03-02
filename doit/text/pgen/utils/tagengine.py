@@ -2,7 +2,7 @@
 #! \file    ./doit/text/pgen/utils/tagengine.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2017-02-25 01:17:26 (UTC+01:00, DST+00:00)
-#! \project DoIt!: A Simple Extendable Command Language
+#! \project DoIt!: Tools and Libraries for Building DSLs
 #! \license MIT
 #! \version 0.0.0
 #! \fdesc   @pyfile.docstr
@@ -12,7 +12,7 @@ Tag engine.\
 """
 
 __license__ = """\
-Copyright (c) 2014 - 2016 Jiří Kučera.
+Copyright (c) 2014 - 2017 Jiří Kučera.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
+
+from doit.support.app.io import read_all
 
 OT_IMM = 0
 OT_REG = 1
@@ -87,7 +89,7 @@ class TagAbstractInput(object):
 class TagTextInput(TagAbstractInput):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__index', '__nitems', '__data' ]
 
     def __init__(self):
         """
@@ -114,8 +116,9 @@ class TagTextInput(TagAbstractInput):
 
         s = read_all(path)
         if s is None:
-            s = ""
+            return False
         self.load_data_from_string(s)
+        return True
     #-def
 
     def peek(self):
@@ -156,7 +159,7 @@ class TagTextInput(TagAbstractInput):
 class TagMatcher(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__input', '__last_match', '__last_error_detail' ]
 
     def __init__(self, input):
         """
@@ -630,7 +633,7 @@ class TagCommand(object):
 class Fail(TagCommand):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__detail' ]
 
     def __init__(self, detail):
         """
@@ -653,7 +656,7 @@ class Fail(TagCommand):
 class MatchCommand(TagCommand):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__matcher_name', '__args' ]
 
     def __init__(self, matcher_name, *args):
         """
@@ -710,11 +713,11 @@ class MatchWord(MatchCommand):
     """
     __slots__ = []
 
-    def __init__(self):
+    def __init__(self, word):
         """
         """
 
-        MatchCommand.__init__(self, 'match_word')
+        MatchCommand.__init__(self, 'match_word', word)
     #-def
 #-class
 
@@ -929,7 +932,7 @@ class MatchMany(MatchCommand):
 class TestCommand(TagCommand):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__tester_name', '__args' ]
 
     def __init__(self, tester_name, *args):
         """
@@ -1018,7 +1021,7 @@ class TestIf(TestCommand):
 class Branch(TagCommand):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__args' ]
 
     def __init__(self, table, default, eof):
         """
@@ -1039,9 +1042,9 @@ class Branch(TagCommand):
 class SkipCommand(TagCommand):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__skipper_name', '__args' ]
 
-    def __init__(self, skiper_name, *args):
+    def __init__(self, skipper_name, *args):
         """
         """
 
@@ -1674,7 +1677,7 @@ class Halt(TagCommand):
 class TagProgramEnvironment(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__engine' ]
 
     def __init__(self, engine = None):
         """
@@ -1701,7 +1704,7 @@ class TagProgramEnvironment(object):
 class TagProgram(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__name', '__envclass', '__code' ]
 
     def __init__(self, name, envclass = TagProgramEnvironment, code = []):
         """
@@ -1737,7 +1740,12 @@ class TagProgram(object):
 class TagEngine(object):
     """
     """
-    __slots__ = []
+    __slots__ = [
+        '__program_name', '__env', '__matcher',
+        '__valstack', '__code', '__code_size',
+        '__ip', '__match', '__match_flag',
+        '__state', '__last_error_detail'
+    ]
 
     def __init__(self):
         """
@@ -1754,7 +1762,7 @@ class TagEngine(object):
         if program is None:
             return
         self.__program_name = program.name()
-        self.__env = program.envclass(self)
+        self.__env = program.envclass()(self)
         self.__code = program.code()
         self.__code_size = len(self.__code)
     #-def
@@ -1793,7 +1801,7 @@ class TagEngine(object):
         """
         """
 
-        if not self.initialize_run(self, input, program):
+        if not self.initialize_run(input, program):
             return
         while self.__state == TES_RUNNING:
             if self.ip_is_out_of_range():
@@ -1895,6 +1903,13 @@ class TagEngine(object):
         """
 
         return self.__code
+    #-def
+
+    def code_size(self):
+        """
+        """
+
+        return self.__code_size
     #-def
 
     def set_ip(self, ip):
