@@ -43,6 +43,7 @@ class GlapLexer(TagProgram):
         """
 
         TagProgram.__init__(self, 'glap_lexer', envclass)
+        L = self.new_label_factory()
         self.compile([
           L._start,
             BRANCH       (L._switch_table, L._other),

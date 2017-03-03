@@ -1985,3 +1985,92 @@ class TagEngine(object):
         self.__last_error_detail = ""
     #-def
 #-class
+
+TC_NULL = 0
+TC_DATA_BASE = 1
+TC_SYMBOL = TC_DATA_BASE + 1
+TC_SET = TC_DATA_BASE + 2
+TC_RANGE = TC_DATA_BASE + 3
+TC_INST_BASE = TC_RANGE + 1
+
+class TagCElement(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        pass
+    #-def
+#-class
+
+class TagCLabel(TagCElement):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, creator, name, position = -1):
+        """
+        """
+
+        self.__creator = creator
+        self.__name = name
+        self.__position = position
+    #-def
+#-class
+
+class TagCLabelFactory(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, container = {}):
+        """
+        """
+
+        self.__labels = container
+    #-def
+
+    def __getattr__(self, value):
+        """
+        """
+
+        if value[0] != '_':
+            return object.__getattribute__(self, value)
+        value = value[1:]
+        if value not in self.__labels:
+            self.__labels[value] = TagCLabel(self, value)
+        return self.__labels[value]
+    #-def
+
+    def labels(self):
+        """
+        """
+
+        return self.__labels
+    #-def
+#-class
+
+class TagCompiler(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        pass
+    #-def
+
+    def compile(self, ilist):
+        """
+        """
+
+    #-def
+#-class
+
+NULL = (TC_NULL,)
+SYMBOL = (lambda symbol, label: (TC_SYMBOL, symbol, label))
