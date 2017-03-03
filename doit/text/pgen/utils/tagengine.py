@@ -1356,7 +1356,7 @@ class SkipUntilNot(SkipCommand):
 class Push(TagCommand):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__v' ]
 
     def __init__(self, v):
         """
@@ -1437,8 +1437,7 @@ class Swap(TagCommand):
 class Operator(TagCommand):
     """
     """
-    OPERATORS = {}
-    __slots__ = []
+    __slots__ = [ '__name', '__op1', '__op2' ]
 
     def __init__(self, name, op1, op2):
         """
@@ -1460,7 +1459,7 @@ class Operator(TagCommand):
         op1 = self.load_operand(tag_engine, self.__op1)
         if tag_engine.state() == TES_ERROR:
             return
-        self.OPERATORS.get(self.__name, self.do_error)(tag_engine, op1, op2)
+        getattr(self, 'do_%s' % self.__name)(tag_engine, op1, op2)
     #-def
 
     @staticmethod
@@ -1474,8 +1473,6 @@ class Operator(TagCommand):
             op2 = ''.join(op2)
         tag_engine.pushval(op1 + op2)
     #-def
-
-    OPERATORS['concat'] = do_concat
 
     @staticmethod
     def do_join(tag_engine, op1, op2):
@@ -1491,17 +1488,6 @@ class Operator(TagCommand):
         if isinstance(op2, str):
             op2 = [op2]
         tag_engine.pushval(op1 + op2)
-    #-def
-
-    OPERATORS['join'] = do_join
-
-    @staticmethod
-    def do_error(tag_engine, op1, op2):
-        """
-        """
-
-        tag_engine.set_error_detail("Unknown operator")
-        tag_engine.set_state(TES_ERROR)
     #-def
 
     @staticmethod
@@ -1551,13 +1537,13 @@ class Join(Operator):
 class JTrue(TagCommand):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__dest' ]
 
-    def __init__(self):
+    def __init__(self, dest):
         """
         """
 
-        TagCommand.__init__(self, dest)
+        TagCommand.__init__(self)
         self.__dest = dest - 1
     #-def
 
@@ -1573,7 +1559,7 @@ class JTrue(TagCommand):
 class JFalse(TagCommand):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__dest' ]
 
     def __init__(self, dest):
         """
@@ -1595,7 +1581,7 @@ class JFalse(TagCommand):
 class Jump(TagCommand):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__dest' ]
 
     def __init__(self, dest):
         """
@@ -1616,7 +1602,7 @@ class Jump(TagCommand):
 class Call(TagCommand):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__f' ]
 
     def __init__(self, f):
         """

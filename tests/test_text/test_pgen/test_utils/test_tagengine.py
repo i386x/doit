@@ -38,6 +38,7 @@ import unittest
 from ....common import OPEN_FAIL, OpenContext
 
 from doit.text.pgen.utils.tagengine import \
+    OT_IMM, OT_REG, OT_STK, \
     TES_IDLE, TES_RUNNING, TES_PAUSED, TES_HALTED, TES_ERROR, \
     TagAbstractInput, TagTextInput, TagMatcher, \
     TagCommand, \
@@ -58,7 +59,10 @@ from doit.text.pgen.utils.tagengine import \
         SkipAtMostOne, \
     SkipManySymbols, SkipManyFromSet, SkipManyFromRange, SkipAll, SkipMany, \
     SkipTo, SkipToSet, SkipToRange, SkipUntilNot, \
-    Halt, \
+    Push, PushMatch, PopMatch, Swap, \
+    Operator, Concat, Join, \
+    JTrue, JFalse, Jump, Call, \
+    Pause, Halt, \
     TagProgramEnvironment, TagProgram, \
     TagEngine
 
@@ -2542,6 +2546,255 @@ class TestInstructionsCase(unittest.TestCase):
         ])
 
         self.check_skip_ok(te, ti, None)
+    #-def
+
+    def test_Push(self):
+        te, _ = self.create_and_run_tag_engine("", [
+            Push("12xy"), Halt()
+        ])
+
+        self.assertEqual(te.topval(), "12xy")
+    #-def
+
+    def test_PushMatch(self):
+        te, _ = self.create_and_run_tag_engine("12345_", [
+            MatchManyFromRange('1', '9'), PushMatch(), Halt()
+        ])
+
+        self.assertEqual(te.topval(), [ '1', '2', '3', '4', '5' ])
+    #-def
+
+    def test_PopMatch(self):
+        te, _ = self.create_and_run_tag_engine("", [
+            Push("ugxy"), PopMatch(), Halt()
+        ])
+
+        self.assertEqual(te.match(), "ugxy")
+    #-def
+
+    def test_Swap(self):
+        te, _ = self.create_and_run_tag_engine("", [
+            Push("a"), Push("b"), Swap(), Halt()
+        ])
+
+        self.assertEqual(te.popval(), "a")
+        self.assertEqual(te.popval(), "b")
+    #-def
+
+    def test_Operator_static_methods(self):
+        te = TagEngine()
+
+        te.reset()
+        Operator.do_concat(te, "12", "345")
+        self.assertEqual(te.topval(), "12345")
+
+        te.reset()
+        Operator.do_concat(te, "12", ["cd", "ef"])
+        self.assertEqual(te.topval(), "12cdef")
+
+        te.reset()
+        Operator.do_concat(te, "12", ("cd", "ef"))
+        self.assertEqual(te.topval(), "12cdef")
+
+        te.reset()
+        Operator.do_concat(te, ['a', 'b'], "cd")
+        self.assertEqual(te.topval(), "abcd")
+
+        te.reset()
+        Operator.do_concat(te, ['a', 'b'], ["cd", "ef"])
+        self.assertEqual(te.topval(), "abcdef")
+
+        te.reset()
+        Operator.do_concat(te, ['a', 'b'], ("cd", "ef"))
+        self.assertEqual(te.topval(), "abcdef")
+
+        te.reset()
+        Operator.do_concat(te, ('a', 'b'), "cd")
+        self.assertEqual(te.topval(), "abcd")
+
+        te.reset()
+        Operator.do_concat(te, ('a', 'b'), ["cd", "ef"])
+        self.assertEqual(te.topval(), "abcdef")
+
+        te.reset()
+        Operator.do_concat(te, ('a', 'b'), ("cd", "ef"))
+        self.assertEqual(te.topval(), "abcdef")
+
+        te.reset()
+        Operator.do_join(te, ['1'], ['2'])
+        self.assertEqual(te.topval(), [ '1', '2' ])
+
+        te.reset()
+        Operator.do_join(te, ['1'], ('2', '3'))
+        self.assertEqual(te.topval(), [ '1', '2', '3' ])
+
+        te.reset()
+        Operator.do_join(te, ['1'], "jhk")
+        self.assertEqual(te.topval(), [ '1', "jhk" ])
+
+        te.reset()
+        Operator.do_join(te, ("ab", '1'), ['2'])
+        self.assertEqual(te.topval(), [ "ab", '1', '2' ])
+
+        te.reset()
+        Operator.do_join(te, ("ab", '1'), ('2', 'a'))
+        self.assertEqual(te.topval(), [ "ab", '1', '2', 'a' ])
+
+        te.reset()
+        Operator.do_join(te, ("ab", '1'), "_er")
+        self.assertEqual(te.topval(), [ "ab", '1', "_er" ])
+
+        te.reset()
+        Operator.do_join(te, "xyz", ['2'])
+        self.assertEqual(te.topval(), [ "xyz", '2' ])
+
+        te.reset()
+        Operator.do_join(te, "xyz", ('2', "$%"))
+        self.assertEqual(te.topval(), [ "xyz", '2', "$%" ])
+
+        te.reset()
+        Operator.do_join(te, "xyz", "___")
+        self.assertEqual(te.topval(), [ "xyz", "___" ])
+
+        te.reset()
+        self.assertEqual(Operator.load_operand(te, (OT_IMM, 42)), 42)
+        self.assertEqual(te.state(), TES_IDLE)
+
+        te.reset()
+        te.set_match("abrakadabra")
+        self.assertEqual(
+            Operator.load_operand(te, (OT_REG, None)), "abrakadabra"
+        )
+        self.assertEqual(te.state(), TES_IDLE)
+
+        te.reset()
+        te.pushval("nut")
+        self.assertEqual(Operator.load_operand(te, (OT_STK, None)), "nut")
+        self.assertEqual(te.state(), TES_IDLE)
+
+        te.reset()
+        self.assertIsNone(Operator.load_operand(te, (-1, None)))
+        self.assertEqual(te.state(), TES_ERROR)
+        self.assertEqual(
+            te.last_error_detail(), "Invalid type of instruction operand"
+        )
+    #-def
+
+    def test_Concat_ko_1(self):
+        te, _ = self.create_and_run_tag_engine("", [
+            Concat((OT_STK, None), (OT_STK, None)), Halt()
+        ])
+
+        self.assertEqual(te.state(), TES_ERROR)
+        self.assertEqual(te.last_error_detail(), "Pop applied on empty stack")
+    #-def
+
+    def test_Concat_ko_2(self):
+        te, _ = self.create_and_run_tag_engine("", [
+            Concat((OT_IMM, "abraka"), (OT_STK, None)), Halt()
+        ])
+
+        self.assertEqual(te.state(), TES_ERROR)
+        self.assertEqual(te.last_error_detail(), "Pop applied on empty stack")
+    #-def
+
+    def test_Concat_ko_3(self):
+        te, _ = self.create_and_run_tag_engine("", [
+            Concat((OT_STK, None), (OT_IMM, "dabra")), Halt()
+        ])
+
+        self.assertEqual(te.state(), TES_ERROR)
+        self.assertEqual(te.last_error_detail(), "Pop applied on empty stack")
+    #-def
+
+    def test_Concat_ok(self):
+        te, _ = self.create_and_run_tag_engine("", [
+            Concat((OT_IMM, "abraka"), (OT_IMM, "dabra")), Halt()
+        ])
+
+        self.assertEqual(te.topval(), "abrakadabra")
+    #-def
+
+    def test_Join_ok(self):
+        te, _ = self.create_and_run_tag_engine("", [
+            Push("abraka"), Push("dabra"),
+            Join((OT_STK, None), (OT_STK, None)),
+            Halt()
+        ])
+
+        self.assertEqual(te.topval(), [ "abraka", "dabra" ])
+    #-def
+
+    def test_JTrue_1(self):
+        te, _ = self.create_and_run_tag_engine("x", [
+            TestSymbol('_'), JTrue(5), Halt(), Halt(), Halt(), Halt(), Halt()
+        ])
+
+        self.assertEqual(te.ip(), 3)
+        self.assertEqual(te.state(), TES_HALTED)
+    #-def
+
+    def test_JTrue_2(self):
+        te, _ = self.create_and_run_tag_engine("x", [
+            TestSymbol('x'), JTrue(5), Halt(), Halt(), Halt(), Halt(), Halt()
+        ])
+
+        self.assertEqual(te.ip(), 6)
+        self.assertEqual(te.state(), TES_HALTED)
+    #-def
+
+    def test_JFalse_1(self):
+        te, _ = self.create_and_run_tag_engine("x", [
+            TestSymbol('_'), JFalse(5), Halt(), Halt(), Halt(), Halt(), Halt()
+        ])
+
+        self.assertEqual(te.ip(), 6)
+        self.assertEqual(te.state(), TES_HALTED)
+    #-def
+
+    def test_JFalse_2(self):
+        te, _ = self.create_and_run_tag_engine("x", [
+            TestSymbol('x'), JFalse(5), Halt(), Halt(), Halt(), Halt(), Halt()
+        ])
+
+        self.assertEqual(te.ip(), 3)
+        self.assertEqual(te.state(), TES_HALTED)
+    #-def
+
+    def test_Jump(self):
+        te, _ = self.create_and_run_tag_engine("x", [
+            Jump(5), Halt(), Halt(), Halt(), Halt(), Halt()
+        ])
+
+        self.assertEqual(te.ip(), 6)
+        self.assertEqual(te.state(), TES_HALTED)
+    #-def
+
+    def test_Call(self):
+        def f(te):
+            te.set_match("Yipeee!")
+        te, _ = self.create_and_run_tag_engine("x", [
+            Call(f), Halt()
+        ])
+
+        self.assertEqual(te.match(), "Yipeee!")
+        self.assertEqual(te.state(), TES_HALTED)
+    #-def
+
+    def test_Pause(self):
+        te, _ = self.create_and_run_tag_engine("x", [
+            Pause(), Halt()
+        ])
+
+        self.assertEqual(te.state(), TES_PAUSED)
+    #-def
+
+    def test_Halt(self):
+        te, _ = self.create_and_run_tag_engine("x", [
+            Halt()
+        ])
+
+        self.assertEqual(te.state(), TES_HALTED)
     #-def
 #-class
 
