@@ -1986,14 +1986,47 @@ class TagEngine(object):
     #-def
 #-class
 
-TC_NULL = 0
-TC_DATA_BASE = 1
-TC_SYMBOL = TC_DATA_BASE + 1
-TC_SET = TC_DATA_BASE + 2
-TC_RANGE = TC_DATA_BASE + 3
-TC_INST_BASE = TC_RANGE + 1
+# General opcodes:
+TIC_UNUSED = -1
+TIC_NULL   = 0
 
-class TagCElement(object):
+# Operand types:
+TIC_EOF     = 1
+TIC_SYMBOL  = 2
+TIC_WORD    = 3
+TIC_SET     = 4
+TIC_RANGE   = 5
+TIC_PRED    = 6
+TIC_ANY     = 7
+TIC_DEFAULT = 8
+
+# Quantifiers:
+TIC_1N = 1
+TIC_01 = 2
+TIC_0N = 3
+
+# Instruction opcodes:
+TIC_META       = 1
+TIC_FAIL       = 2
+TIC_MATCH      = 3
+TIC_TEST       = 4
+TIC_BRANCH     = 5
+TIC_SKIP       = 6
+TIC_SKIPTO     = 7
+TIC_PUSH       = 8
+TIC_PUSH_MATCH = 9
+TIC_POP_MATCH  = 10
+TIC_SWAP       = 11
+TIC_CONCAT     = 12
+TIC_JOIN       = 13
+TIC_JTRUE      = 14
+TIC_JFALSE     = 15
+TIC_JUMP       = 16
+TIC_CALL       = 17
+TIC_PAUSE      = 18
+TIC_HALT       = 19
+
+class TagICElement(object):
     """
     """
     __slots__ = []
@@ -2006,54 +2039,106 @@ class TagCElement(object):
     #-def
 #-class
 
-class TagCLabel(TagCElement):
+class TagICMacro(TagICElement):
     """
     """
     __slots__ = []
 
-    def __init__(self, creator, name, position = -1):
+    def __init__(self, symbol_table, name, body = []):
         """
         """
 
-        self.__creator = creator
+        TagICElement.__init__(self)
+        self.__symbol_table = symbol_table
+        self.__name = name
+        self.__body = body
+    #-def
+#-class
+
+class TagICLabel(TagICElement):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, symbol_table, name, position = -1):
+        """
+        """
+
+        TagICElement.__init__(self)
+        self.__symbol_table = symbol_table
         self.__name = name
         self.__position = position
     #-def
 #-class
 
-class TagCLabelFactory(object):
+class TagICSymbolFactory(object):
     """
     """
     __slots__ = []
 
-    def __init__(self, container = {}):
+    def __init__(self, container, symbol_class):
         """
         """
 
-        self.__labels = container
+        self.__container = container
+        self.__symbol_class = symbol_class
     #-def
 
     def __getattr__(self, value):
         """
         """
 
-        if value[0] != '_':
+        if value.startswith("__") \
+        or (value[0] != '_' and not value[0].isupper()):
             return object.__getattribute__(self, value)
-        value = value[1:]
-        if value not in self.__labels:
-            self.__labels[value] = TagCLabel(self, value)
-        return self.__labels[value]
+        _assert(value[0] == '_' or value in self.__container,
+            "Undefined symbol %s" % value
+        )
+        if value[0] == '_':
+            value = value[1:]
+        if value not in self.__container:
+            self.__container[value] = self.__symbol_class(self, value)
+        return self.__container[value]
     #-def
 
-    def labels(self):
+    def symbols(self):
         """
         """
 
-        return self.__labels
+        return self.__container
     #-def
 #-class
 
-class TagCompiler(object):
+class TagICSymbolTable(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, compiler):
+        """
+        """
+
+        self.__compiler = compiler
+        self.__macro_factory = TagICSymbolFactory({}, TagICMacro)
+        self.__label_factory = TagICSymbolFactory({}, TagICLabel)
+    #-def
+
+    def macro_factory(self):
+        """
+        """
+
+        return self.__macro_factory
+    #-def
+
+    def label_factory(self):
+        """
+        """
+
+        return self.__label_factory
+    #-def
+#-class
+
+class TagICCompiler(object):
     """
     """
     __slots__ = []
@@ -2062,15 +2147,274 @@ class TagCompiler(object):
         """
         """
 
-        pass
+        self.__symbol_table = TagICSymbolTable(self)
     #-def
 
-    def compile(self, ilist):
+    def define(self, name, *body):
         """
         """
 
+        _assert(name and name[0].isupper(),
+            "Macro name must start with upper case letter"
+        )
+        macros = self.__symbol_table.macro_factory().symbols()
+        macros[name] = TagICMacro(
+            self.__symbol_table, name, self.makecset(body)
+        )
+        return macros[name]
+    #-def
+
+    def compile(self, iclist):
+        """
+        """
+
+        bt = {}
+        self.__compile_compute_addresses(iclist)
+        self.__compile_inspect_branches(bt, iclist)
+        self.__compile_make_branch_tables(bt, iclist)
+    #-def
+
+    def __compile_compute_addresses(self, iclist):
+        """
+        """
+
+        i = 0
+        for inst in iclist:
+            if isinstance(inst, TagICLabel):
+                inst.set_address(i)
+            elif isinstance(inst, tuple):
+                if inst[0] != TIC_META:
+                    i += 1
+    #-def
+
+    def __compile_inspect_branches(self, bt, iclist):
+        """
+        """
+
+        for inst in iclist:
+            if isinstance(inst, tuple) and inst[0] == TIC_BRANCH:
+                bt[inst[3]] = {'table': {}, 'default': None, 'eof': None}
+    #-def
+
+    def __compile_make_branch_tables(self, bt, iclist):
+        """
+        """
+
+        i = 0
+        while i < len(iclist):
+            if iclist[i] in bt:
+                i = self.__compile_make_one_branch_table(bt, iclist, i)
+                continue
+            i += 1
+    #-def
+
+    def __compile_make_one_branch_table(self, bt, iclist, i):
+        """
+        """
+
+        k = iclist[i]
+        while i < len(iclist):
+            if isinstance(iclist[i], tuple):
+                if iclist[i][0] == TIC_NULL:
+                    return i + 1
+                _assert(iclist[i][0] == TIC_META,
+                    "Invalid branch table definition"
+                )
+                if iclist[i][1] == TIC_SYMBOL:
+                    _assert(iclist[i][3] not in bt[k]['table'],
+                        "Ambiguous branch table definition"
+                    )
+                    bt[k]['table'][iclist[i][3]] = iclist[i][2]
+                elif iclist[i][1] == TIC_SET:
+                    for sym in iclist[i][3]:
+                        _assert(sym not in bt[k]['table'],
+                            "Ambiguous branch table definition"
+                        )
+                        bt[k]['table'][sym] = iclist[i][2]
+                elif iclist[i][1] == TIC_RANGE:
+                    _assert(ord(iclist[i][3][0]) <= ord(iclist[i][3][1]),
+                        "%r > %r" % iclist[i][3]
+                    )
+                    for x in range(
+                        ord(iclist[i][3][0]), ord(iclist[i][3][1]) + 1
+                    ):
+                        _assert(chr(x) not in bt[k]['table'],
+                            "Ambiguous branch table definition"
+                        )
+                        bt[k]['table'][chr(x)] = iclist[i][2]
+                elif iclist[i][1] == TIC_DEFAULT:
+                    _assert(bt[k]['default'] is None,
+                        "Ambiguous branch table definition"
+                    )
+                    bt[k]['default'] = iclist[i][2]
+                elif iclist[i][1] == TIC_EOF:
+                    _assert(bt[k]['eof'] is None,
+                        "Ambiguous branch table definition"
+                    )
+                    bt[k]['eof'] = iclist[i][2]
+                else:
+                    _assert(False, "Invalid item in branch table definition")
+            i += 1
+        _assert(False, "End reached while processing branch table definition")
+    #-def
+
+    def symbol_table(self):
+        """
+        """
+
+        return self.__symbol_table
+    #-def
+
+    @staticmethod
+    def makecset(spec):
+        """
+        """
+
+        cset = []
+        for x in spec:
+            if isinstance(x, (str, list)):
+                for c in x:
+                    if c not in cset:
+                        _assert(isinstance(c, str) and len(c) == 1,
+                            "Character expected"
+                        )
+                        cset.append(c)
+            elif isinstance(x, tuple):
+                _assert(ord(x[0]) <= ord(x[1]), "%r > %r" % x)
+                for c in range(ord(x[0]), ord(x[1]) + 1):
+                    if chr(c) not in cset:
+                        cset.append(chr(c))
+            elif isinstance(x, TagICMacro):
+                for c in x.body():
+                    if c not in cset:
+                        cset.append(c)
+            else:
+                _assert(False, "Ill-formed spec")
+        return cset
     #-def
 #-class
 
-NULL = (TC_NULL,)
-SYMBOL = (lambda symbol, label: (TC_SYMBOL, symbol, label))
+# Translation table for matching instructions:
+TTT_MATCH = {
+    (TIC_MATCH, TIC_SYMBOL, TIC_UNUSED): MatchSymbol,
+    (TIC_MATCH, TIC_ANY, TIC_UNUSED): MatchAny,
+    (TIC_MATCH, TIC_WORD, TIC_UNUSED): MatchWord,
+    (TIC_MATCH, TIC_SET, TIC_UNUSED): MatchSet,
+    (TIC_MATCH, TIC_RANGE, TIC_UNUSED): MatchRange,
+    (TIC_MATCH, TIC_PRED, TIC_UNUSED): MatchIf,
+    (TIC_MATCH, TIC_SYMBOL, TIC_1N): MatchAtLeastOneSymbol,
+    (TIC_MATCH, TIC_SET, TIC_1N): MatchAtLeastOneFromSet,
+    (TIC_MATCH, TIC_RANGE, TIC_1N): MatchAtLeastOneFromRange,
+    (TIC_MATCH, TIC_PRED, TIC_1N): MatchAtLeastOne,
+    (TIC_MATCH, TIC_SYMBOL, TIC_01): MatchAtMostOneSymbol,
+    (TIC_MATCH, TIC_SET, TIC_01): MatchAtMostOneFromSet,
+    (TIC_MATCH, TIC_RANGE, TIC_01): MatchAtMostOneFromRange,
+    (TIC_MATCH, TIC_PRED, TIC_01): MatchAtMostOne,
+    (TIC_MATCH, TIC_SYMBOL, TIC_0N): MatchManySymbols,
+    (TIC_MATCH, TIC_SET, TIC_0N): MatchManyFromSet,
+    (TIC_MATCH, TIC_RANGE, TIC_0N): MatchManyFromRange,
+    (TIC_MATCH, TIC_ANY, TIC_0N): MatchAll,
+    (TIC_MATCH, TIC_PRED, TIC_0N): MatchMany,
+    (TIC_TEST, TIC_EOF, TIC_UNUSED): TestEof,
+    (TIC_TEST, TIC_SYMBOL, TIC_UNUSED): TestSymbol,
+    (TIC_TEST, TIC_SET, TIC_UNUSED): TestSet,
+    (TIC_TEST, TIC_RANGE, TIC_UNUSED): TestRange,
+    (TIC_TEST, TIC_PRED, TIC_UNUSED): TestIf,
+    (TIC_SKIP, TIC_SYMBOL, TIC_UNUSED): SkipSymbol,
+    (TIC_SKIP, TIC_ANY, TIC_UNUSED): SkipAny,
+    (TIC_SKIP, TIC_SET, TIC_UNUSED): SkipSet,
+    (TIC_SKIP, TIC_RANGE, TIC_UNUSED): SkipRange,
+    (TIC_SKIP, TIC_PRED, TIC_UNUSED): SkipIf,
+    (TIC_SKIP, TIC_SYMBOL, TIC_1N): SkipAtLeastOneSymbol,
+    (TIC_SKIP, TIC_SET, TIC_1N): SkipAtLeastOneFromSet,
+    (TIC_SKIP, TIC_RANGE, TIC_1N): SkipAtLeastOneFromRange,
+    (TIC_SKIP, TIC_PRED, TIC_1N): SkipAtLeastOne,
+    (TIC_SKIP, TIC_SYMBOL, TIC_01): SkipAtMostOneSymbol,
+    (TIC_SKIP, TIC_SET, TIC_01): SkipAtMostOneFromSet,
+    (TIC_SKIP, TIC_RANGE, TIC_01): SkipAtMostOneFromRange,
+    (TIC_SKIP, TIC_PRED, TIC_01): SkipAtMostOne,
+    (TIC_SKIP, TIC_SYMBOL, TIC_0N): SkipManySymbols,
+    (TIC_SKIP, TIC_SET, TIC_0N): SkipManyFromSet,
+    (TIC_SKIP, TIC_RANGE, TIC_0N): SkipManyFromRange,
+    (TIC_SKIP, TIC_ANY, TIC_0N): SkipAll,
+    (TIC_SKIP, TIC_PRED, TIC_0N): SkipMany,
+    (TIC_SKIPTO, TIC_SYMBOL, TIC_UNUSED): SkipTo,
+    (TIC_SKIPTO, TIC_SET, TIC_UNUSED): SkipToSet,
+    (TIC_SKIPTO, TIC_RANGE, TIC_UNUSED): SkipToRange,
+    (TIC_SKIPTO, TIC_PRED, TIC_UNUSED): SkipUntilNot
+}
+
+try:
+    callable
+except NameError:
+    callable = lambda f: hasattr(f, '__call__')
+#-try
+
+def makeinst(opcode, qtype, arg):
+    """
+    """
+
+    if arg in (TIC_EOF, TIC_ANY):
+        return (opcode, arg, qtype, TIC_UNUSED)
+    elif isinstance(arg, str):
+        _assert(len(arg) > 0, "Empty word")
+        if len(arg) == 1:
+            return (opcode, TIC_SYMBOL, qtype, arg)
+        return (opcode, TIC_WORD, qtype, arg)
+    elif isinstance(arg, list):
+        _assert(len(arg) > 0, "Empty set")
+        return (opcode, TIC_SET, qtype, TagICCompiler.makecset(arg))
+    elif isinstance(arg, tuple):
+        _assert(ord(arg[0]) <= ord(arg[1]), "%r > %r" % arg)
+        return (opcode, TIC_RANGE, qtype, arg)
+    elif callable(arg):
+        return (opcode, TIC_PRED, qtype, arg)
+    else:
+        _assert(False, "Invalid type of argument")
+#-def
+
+# Instruction encoding format:
+#
+#   (opcode,  operand type,  quantifier/address/extra argument,  argument)
+#
+SYMBOL     = lambda x, y: (TIC_META, TIC_SYMBOL, y, x)
+SET        = lambda x, y: (TIC_META, TIC_SET, y, x)
+RANGE      = lambda x, y: (TIC_META, TIC_RANGE, y, x)
+DEFAULT    = lambda x: (TIC_META, TIC_DEFAULT, x, TIC_UNUSED)
+EOF        = lambda x: (TIC_META, TIC_EOF, x, TIC_UNUSED)
+NULL       = (TIC_NULL, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
+FAIL       = (TIC_FAIL, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
+MATCH      = lambda x: makeinst(TIC_MATCH, TIC_UNUSED, x)
+MATCH_ANY  = (TIC_MATCH, TIC_ANY, TIC_UNUSED, TIC_UNUSED)
+MATCH_1N   = lambda x: makeinst(TIC_MATCH, TIC_1N, x)
+MATCH_PLUS = MATCH_1N
+MATCH_01   = lambda x: makeinst(TIC_MATCH, TIC_01, x)
+MATCH_OPT  = MATCH_01
+MATCH_0N   = lambda x: makeinst(TIC_MATCH, TIC_0N, x)
+MATCH_MANY = MATCH_0N
+MATCH_ALL  = (TIC_MATCH, TIC_ANY, TIC_0N, TIC_UNUSED)
+TEST_EOF   = (TIC_TEST, TIC_EOF, TIC_UNUSED, TIC_UNUSED)
+TEST       = lambda x: makeinst(TIC_TEST, TIC_UNUSED, x)
+BRANCH     = lambda x: (TIC_BRANCH, TIC_UNUSED, TIC_UNUSED, x)
+SKIP       = lambda x: makeinst(TIC_SKIP, TIC_UNUSED, x)
+SKIP_ANY   = (TIC_SKIP, TIC_ANY, TIC_UNUSED, TIC_UNUSED)
+SKIP_1N    = lambda x: makeinst(TIC_SKIP, TIC_1N, x)
+SKIP_PLUS  = SKIP_1N
+SKIP_01    = lambda x: makeinst(TIC_SKIP, TIC_01, x)
+SKIP_OPT   = SKIP_01
+SKIP_0N    = lambda x: makeinst(TIC_SKIP, TIC_0N, x)
+SKIP_MANY  = SKIP_0N
+SKIP_ALL   = (TIC_SKIP, TIC_ANY, TIC_0N, TIC_UNUSED)
+SKIP_TO    = lambda x: makeinst(TIC_SKIPTO, TIC_UNUSED, x)
+PUSH       = lambda x: (TIC_PUSH, TIC_UNUSED, TIC_UNUSED, x)
+PUSH_MATCH = lambda x: (TIC_PUSH_MATCH, TIC_UNUSED, TIC_UNUSED, x)
+POP_MATCH  = lambda x: (TIC_POP_MATCH, TIC_UNUSED, TIC_UNUSED, x)
+SWAP       = (TIC_SWAP, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
+CONCAT     = lambda x, y: (TIC_CONCAT, TIC_UNUSED, y, x)
+JOIN       = lambda x, y: (TIC_JOIN, TIC_UNUSED, y, x)
+JTRUE      = lambda x: (TIC_JTRUE, TIC_UNUSED, TIC_UNUSED, x)
+JFALSE     = lambda x: (TIC_JFALSE, TIC_UNUSED, TIC_UNUSED, x)
+JUMP       = lambda x: (TIC_JUMP, TIC_UNUSED, TIC_UNUSED, x)
+CALL       = lambda x: (TIC_CALL, TIC_UNUSED, TIC_UNUSED, x)
+PAUSE      = (TIC_PAUSE, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
+HALT       = (TIC_HALT, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)

@@ -43,22 +43,25 @@ class GlapLexer(TagProgram):
         """
 
         TagProgram.__init__(self, 'glap_lexer', envclass)
+        tic = TagIntermediateCompiler()
+        ODIGIT = tic.define("ODIGIT", ('1', '7'))
+        NZDIGIT = tic.define("NZDIGIT", ('1', '9'))
         L = self.new_label_factory()
         self.compile([
           L._start,
             BRANCH       (L._switch_table, L._other),
             HALT,
           L._switch_table,
-            SYMBOL       ('-',     L._comment_or_other),
-            SYMBOL       (' ',     L._whitespace),
-            SYMBOL       ('\n',    L._newline),
-            SET          (LETTER,  L._identifier),
-            SET          (NZDIGIT, L._int_part),
-            SYMBOL       ('0',     L._octal_or_hex_int),
+            SYMBOL       ('-',       L._comment_or_other),
+            SYMBOL       (' ',       L._whitespace),
+            SYMBOL       ('\n',      L._newline),
+            SET          (M.LETTER,  L._identifier),
+            SET          (M.NZDIGIT, L._int_part),
+            SYMBOL       ('0',       L._octal_or_hex_int),
             NULL,
           L._comment_or_other,
-            MATCH_SYMBOL ('-'),
-            TEST_SYMBOL  ('-', UNUSED, L._other),
+            MATCH        ('-'),
+            TEST         ('-', UNUSED, L._other),
             # Comment:
             SKIP_TO      ('\n'),
             JUMP         (L._start),
