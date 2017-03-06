@@ -45,6 +45,14 @@ TES_PAUSED = 2
 TES_HALTED = 3
 TES_ERROR = 4
 
+try:
+    callable
+except NameError:
+    callable = lambda f: hasattr(f, '__call__')
+#-try
+
+iscallable = callable
+
 class TagAbstractInput(object):
     """
     """
@@ -2169,9 +2177,11 @@ class TagICCompiler(object):
         """
 
         bt = {}
+        code = []
         self.__compile_compute_addresses(iclist)
         self.__compile_inspect_branches(bt, iclist)
         self.__compile_make_branch_tables(bt, iclist)
+        self.__compile_assemble(bt, code, iclist)
     #-def
 
     def __compile_compute_addresses(self, iclist):
@@ -2258,6 +2268,62 @@ class TagICCompiler(object):
         _assert(False, "End reached while processing branch table definition")
     #-def
 
+    def __compile_assemble(self, bt, code, iclist):
+        """
+        """
+
+        for inst in iclist:
+            if not isinstance(inst, tuple):
+                continue
+            opcode, optype, qae, arg = inst
+            if opcode == TIC_META:
+                continue
+            elif opcode == TIC_FAIL:
+                code.append(Fail())
+            elif opcode in (TIC_MATCH, TIC_TEST, TIC_SKIP, TIC_SKIPTO):
+                icls = TTT_MATCHER.get((opcode, optype, qae))
+                # Fails if `icls' is None.
+                if arg == TIC_UNUSED:
+                    code.append(icls())
+                else:
+                    _assert(isinstance(arg, (str, list)) or iscallable(arg),
+                        "Invalid instruction operand type"
+                    )
+                    code.append(icls(arg))
+            elif opcode == TIC_BRANCH:
+                t = bt.get(arg)
+                # Fails if `t' is None.
+                swt = {}
+                for k in t['table']:
+                    _assert(t['table'][k].position() >= 0,
+                        "Unused label %s" % t['table'][k].name()
+                    )
+                    swt[k] = t['table'][k].position()
+                d = t['default']
+                if d is None:
+                    d = len(code) + 1
+                else:
+                    _assert(d.position() >= 0, "Unused label %s" % d.name())
+                    d = d.position()
+                e = t['eof']
+                if e is None:
+                    e = len(code) + 1
+                else:
+                    _assert(e.position() >= 0, "Unused label %s" % e.name())
+                    e = e.position()
+                code.append(Branch(swt, d, e))
+            elif opcode == TIC_PUSH:
+                _assert(isinstance(arg, (str, list)),
+                    "Invalid instruction operand type"
+                )
+                code.append(Push(arg))
+            elif opcode == TIC_PUSH_MATCH:
+                code.append(PushMatch())
+            elif opcode == TIC_POP_MATCH:
+                code.append(PopMatch())
+            elif opcode == TIC_SWAP:
+                code.append(Swap())
+
     def symbol_table(self):
         """
         """
@@ -2295,7 +2361,7 @@ class TagICCompiler(object):
 #-class
 
 # Translation table for matching instructions:
-TTT_MATCH = {
+TTT_MATCHER = {
     (TIC_MATCH, TIC_SYMBOL, TIC_UNUSED): MatchSymbol,
     (TIC_MATCH, TIC_ANY, TIC_UNUSED): MatchAny,
     (TIC_MATCH, TIC_WORD, TIC_UNUSED): MatchWord,
@@ -2344,12 +2410,6 @@ TTT_MATCH = {
     (TIC_SKIPTO, TIC_PRED, TIC_UNUSED): SkipUntilNot
 }
 
-try:
-    callable
-except NameError:
-    callable = lambda f: hasattr(f, '__call__')
-#-try
-
 def makeinst(opcode, qtype, arg):
     """
     """
@@ -2367,7 +2427,7 @@ def makeinst(opcode, qtype, arg):
     elif isinstance(arg, tuple):
         _assert(ord(arg[0]) <= ord(arg[1]), "%r > %r" % arg)
         return (opcode, TIC_RANGE, qtype, arg)
-    elif callable(arg):
+    elif iscallable(arg):
         return (opcode, TIC_PRED, qtype, arg)
     else:
         _assert(False, "Invalid type of argument")
@@ -2407,8 +2467,8 @@ SKIP_MANY  = SKIP_0N
 SKIP_ALL   = (TIC_SKIP, TIC_ANY, TIC_0N, TIC_UNUSED)
 SKIP_TO    = lambda x: makeinst(TIC_SKIPTO, TIC_UNUSED, x)
 PUSH       = lambda x: (TIC_PUSH, TIC_UNUSED, TIC_UNUSED, x)
-PUSH_MATCH = lambda x: (TIC_PUSH_MATCH, TIC_UNUSED, TIC_UNUSED, x)
-POP_MATCH  = lambda x: (TIC_POP_MATCH, TIC_UNUSED, TIC_UNUSED, x)
+PUSH_MATCH = (TIC_PUSH_MATCH, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
+POP_MATCH  = (TIC_POP_MATCH, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
 SWAP       = (TIC_SWAP, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
 CONCAT     = lambda x, y: (TIC_CONCAT, TIC_UNUSED, y, x)
 JOIN       = lambda x, y: (TIC_JOIN, TIC_UNUSED, y, x)
