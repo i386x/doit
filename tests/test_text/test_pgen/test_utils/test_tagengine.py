@@ -37,6 +37,8 @@ import unittest
 
 from ....common import OPEN_FAIL, OpenContext
 
+from doit.support.errors import DoItAssertionError
+
 from doit.text.pgen.utils.tagengine import \
     OT_IMM, OT_REG, OT_STK, \
     TES_IDLE, TES_RUNNING, TES_PAUSED, TES_HALTED, TES_ERROR, \
@@ -64,7 +66,22 @@ from doit.text.pgen.utils.tagengine import \
     JTrue, JFalse, Jump, Call, \
     Pause, Halt, \
     TagProgramEnvironment, TagProgram, \
-    TagEngine
+    TagEngine, \
+    TagICElement, TagICMacro, TagICLabel, \
+    TagICSymbolFactory, TagICSymbolTable, \
+    TagICCompiler, \
+    ACC, STK, \
+    SYMBOL, SET, RANGE, DEFAULT, EOF, NULL, \
+    FAIL, \
+    MATCH, MATCH_ANY, MATCH_1N, MATCH_PLUS, MATCH_01, MATCH_OPT, MATCH_0N, \
+        MATCH_MANY, MATCH_ALL, \
+    TEST_EOF, TEST, BRANCH, \
+    SKIP, SKIP_ANY, SKIP_1N, SKIP_PLUS, SKIP_01, SKIP_OPT, SKIP_0N, \
+        SKIP_MANY, SKIP_ALL, SKIP_TO, \
+    PUSH, PUSH_MATCH, POP_MATCH, SWAP, \
+    CONCAT, JOIN, \
+    JTRUE, JFALSE, JUMP, CALL, \
+    PAUSE, HALT
 
 class TestTagAbstractInputCase(unittest.TestCase):
 
@@ -2798,6 +2815,293 @@ class TestInstructionsCase(unittest.TestCase):
     #-def
 #-class
 
+class TestTagICElementsCase(unittest.TestCase):
+
+    def test_TagICElement(self):
+        TagICElement()
+    #-def
+
+    def test_TagICMacro(self):
+        f = {}
+        b = [1]
+
+        m = TagICMacro(f, "m")
+        self.assertIs(m.factory(), f)
+        self.assertEqual(m.name(), "m")
+        self.assertEqual(m.body(), [])
+        m.set_body(b)
+        self.assertIs(m.body(), b)
+
+        m = TagICMacro(f, "m", b)
+        self.assertIs(m.factory(), f)
+        self.assertEqual(m.name(), "m")
+        self.assertIs(m.body(), b)
+    #-def
+
+    def test_TagICLabel(self):
+        f = {}
+
+        l = TagICLabel(f, "l")
+        self.assertIs(l.factory(), f)
+        self.assertEqual(l.name(), "l")
+        self.assertEqual(l.position(), -1)
+        l.set_position(3)
+        self.assertEqual(l.position(), 3)
+
+        l = TagICLabel(f, "l", 2)
+        self.assertIs(l.factory(), f)
+        self.assertEqual(l.name(), "l")
+        self.assertEqual(l.position(), 2)
+    #-def
+#-class
+
+class TestTagICSymbolFactoryCase(unittest.TestCase):
+
+    def test_object_creating(self):
+        c = {}
+        f = TagICSymbolFactory(c, TagICLabel)
+
+        self.assertIs(f.symbols(), c)
+        with self.assertRaises(DoItAssertionError):
+            f.LETTER
+        f._label
+        self.assertIs(c['label'].factory(), f)
+        self.assertEqual(c['label'].name(), 'label')
+        self.assertEqual(c['label'].position(), -1)
+    #-def
+#-class
+
+class TestTagICSymbolTableCase(unittest.TestCase):
+
+    def test_symbol_table_initialization(self):
+        c = ()
+        t = TagICSymbolTable(c)
+
+        self.assertIs(t.compiler(), c)
+        self.assertIsInstance(t.macro_factory(), TagICSymbolFactory)
+        self.assertIsInstance(t.label_factory(), TagICSymbolFactory)
+    #-def
+#-class
+
+class ResultHolderEnvironment(TagProgramEnvironment):
+    __slots__ = [ 'result' ]
+
+    def __init__(self, engine):
+        TagProgramEnvironment.__init__(self, engine)
+        self.result = 0
+    #-def
+#-class
+
+class TestTagICCompilerCase(unittest.TestCase):
+
+    def test_initialization(self):
+        c = TagICCompiler()
+
+        self.assertIsInstance(c.symbol_table(), TagICSymbolTable)
+    #-def
+
+    def test_define(self):
+        c = TagICCompiler()
+        M = c.symbol_table().macro_factory()
+
+        with self.assertRaises(DoItAssertionError):
+            c.define("mAcRo", "abc")
+
+        c.define("X1")
+        self.assertEqual(M.X1.body(), [])
+        c.define("X2", "")
+        self.assertEqual(M.X2.body(), [])
+        c.define("X3", 'a')
+        self.assertEqual(M.X3.body(), ['a'])
+        c.define("X4", "bab")
+        self.assertEqual(M.X4.body(), ['b', 'a'])
+
+        c.define("Y1", [])
+        self.assertEqual(M.Y1.body(), [])
+        with self.assertRaises(DoItAssertionError):
+            c.define("Y2", [1])
+        with self.assertRaises(DoItAssertionError):
+            c.define("Y3", [""])
+        c.define("Y4", ['c'])
+        self.assertEqual(M.Y4.body(), ['c'])
+        with self.assertRaises(DoItAssertionError):
+            c.define("Y5", ["abc"])
+
+        c.define("X3", 'b')
+        self.assertEqual(M.X3.body(), ['b'])
+
+        c.define("Z1", ('a', 'a'))
+        self.assertEqual(M.Z1.body(), ['a'])
+        c.define("Z2", ('a', 'b'))
+        self.assertEqual(M.Z2.body(), ['a', 'b'])
+        with self.assertRaises(DoItAssertionError):
+            c.define("Z3", ('b', 'a'))
+
+        c.define("ODIGIT", ('0', '7'))
+        self.assertEqual(M.ODIGIT.body(),
+            ['0', '1', '2', '3', '4', '5', '6', '7']
+        )
+        c.define("DIGIT", M.ODIGIT, '8', '9')
+        self.assertEqual(M.DIGIT.body(),
+            ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+        )
+
+        c.define("A1", "ab")
+        c.define("A2", M.A1, 'c')
+        c.define("A1", "_")
+        self.assertEqual(M.A1.body(), ['_'])
+        self.assertEqual(M.A2.body(), ['a', 'b', 'c'])
+
+        with self.assertRaises(DoItAssertionError):
+            c.define("XX", 1)
+    #-def
+
+    def tcac_emit_1(self, te):
+        te.env().result = 1
+    #-def
+
+    def tcac_emit_2(self, te):
+        te.env().result = 2
+    #-def
+
+    def tcac_emit_3(self, te):
+        te.env().result = 3
+    #-def
+
+    def tcac_emit_4(self, te):
+        te.env().result = 4
+    #-def
+
+    def tcac_emit_5(self, te):
+        te.env().result = 5
+    #-def
+
+    def tcac_run(self, p, s):
+        i = TagTextInput()
+        i.load_data_from_string(s)
+        e = TagEngine()
+        e.run(i, p)
+        return e, i
+    #-def
+
+    def test_compile_address_computing(self):
+        icc = TagICCompiler()
+        L = icc.symbol_table().label_factory()
+        p = TagProgram("test", ResultHolderEnvironment, icc.compile([
+          L._start,
+            JUMP    (L._main),
+          L._switch_table,
+            SYMBOL  ('a', L._a),
+            RANGE   ('b', 'd', L._b_to_d),
+            SET     ("_;", L._score_semicolon),
+            EOF     (L._eof),
+            DEFAULT (L._default),
+            NULL,
+          L._main,
+            BRANCH  (L._switch_table),
+          L._exit,
+            HALT,
+          L._a,
+            CALL    (self.tcac_emit_1),
+            JUMP    (L._exit),
+          L._b_to_d,
+            CALL    (self.tcac_emit_2),
+            JUMP    (L._exit),
+          L._score_semicolon,
+            CALL    (self.tcac_emit_3),
+            JUMP    (L._exit),
+          L._default,
+            CALL    (self.tcac_emit_4),
+            JUMP    (L._exit),
+          L._eof,
+            CALL    (self.tcac_emit_5),
+            JUMP    (L._exit)
+        ]))
+
+        e, _ = self.tcac_run(p, "")
+        self.assertEqual(e.env().result, 5)
+
+        e, _ = self.tcac_run(p, "a")
+        self.assertEqual(e.env().result, 1)
+
+        e, _ = self.tcac_run(p, "b")
+        self.assertEqual(e.env().result, 2)
+
+        e, _ = self.tcac_run(p, "c")
+        self.assertEqual(e.env().result, 2)
+
+        e, _ = self.tcac_run(p, "d")
+        self.assertEqual(e.env().result, 2)
+
+        e, _ = self.tcac_run(p, "e")
+        self.assertEqual(e.env().result, 4)
+
+        e, _ = self.tcac_run(p, "_")
+        self.assertEqual(e.env().result, 3)
+
+        e, _ = self.tcac_run(p, ";")
+        self.assertEqual(e.env().result, 3)
+    #-def
+
+    def test_compile_branch_tables_1(self):
+        icc = TagICCompiler()
+        L = icc.symbol_table().label_factory()
+        p = TagProgram("test", ResultHolderEnvironment, icc.compile([
+          L._start,
+            BRANCH (L._t1),
+            HALT,
+          L._t1,
+            SYMBOL ('a', L._a),
+            NULL,
+          L._a,
+            SKIP   ('a'),
+            BRANCH (L._t2),
+            HALT,
+          L._t2,
+            SYMBOL ('x', L._x),
+            NULL,
+          L._x,
+            SKIP   ('x'),
+            CALL   (self.tcac_emit_3),
+            HALT
+        ]))
+
+        e, _ = self.tcac_run(p, "ax")
+        self.assertEqual(e.env().result, 3)
+    #-def
+
+    def test_compile_branch_tables_2(self):
+        icc = TagICCompiler()
+        L = icc.symbol_table().label_factory()
+        p = TagProgram("test", ResultHolderEnvironment, icc.compile([
+          L._start,
+            JUMP   (L._main),
+          L._t1,
+            SYMBOL ('a', L._1),
+          L._t2,
+          L._t3,
+            SYMBOL ('v', L._2),
+            NULL,
+          L._main,
+            BRANCH (L._t1),
+            HALT,
+          L._1,
+            SKIP   (['a', 'v']),
+            BRANCH (L._t2),
+            CALL   (self.tcac_emit_2),
+            HALT,
+          L._2,
+            SKIP   ('v'),
+            CALL   (self.tcac_emit_4),
+            HALT
+        ]))
+
+        e, i = self.tcac_run(p, "av")
+        self.assertEqual(e.env().result, 2)
+        self.assertIsNone(i.peek())
+    #-def
+#-class
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestTagAbstractInputCase))
@@ -2806,5 +3110,9 @@ def suite():
     suite.addTest(unittest.makeSuite(TestTagProgramCase))
     suite.addTest(unittest.makeSuite(TestTagEngineCase))
     suite.addTest(unittest.makeSuite(TestInstructionsCase))
+    suite.addTest(unittest.makeSuite(TestTagICElementsCase))
+    suite.addTest(unittest.makeSuite(TestTagICSymbolFactoryCase))
+    suite.addTest(unittest.makeSuite(TestTagICSymbolTableCase))
+    suite.addTest(unittest.makeSuite(TestTagICCompilerCase))
     return suite
 #-def

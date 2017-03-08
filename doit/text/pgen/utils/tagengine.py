@@ -33,6 +33,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.support.errors import doit_assert as _assert
+
 from doit.support.app.io import read_all
 
 OT_IMM = 0
@@ -2050,39 +2052,95 @@ class TagICElement(object):
 class TagICMacro(TagICElement):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__factory', '__name', '__body' ]
 
-    def __init__(self, symbol_table, name, body = []):
+    def __init__(self, factory, name, body = []):
         """
         """
 
         TagICElement.__init__(self)
-        self.__symbol_table = symbol_table
+        self.__factory = factory
         self.__name = name
         self.__body = body
+    #-def
+
+    def factory(self):
+        """
+        """
+
+        return self.__factory
+    #-def
+
+    def name(self):
+        """
+        """
+
+        return self.__name
+    #-def
+
+    def set_body(self, body):
+        """
+        """
+
+        self.__body = body
+    #-def
+
+    def body(self):
+        """
+        """
+
+        return self.__body
     #-def
 #-class
 
 class TagICLabel(TagICElement):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__factory', '__name', '__position' ]
 
-    def __init__(self, symbol_table, name, position = -1):
+    def __init__(self, factory, name, position = -1):
         """
         """
 
         TagICElement.__init__(self)
-        self.__symbol_table = symbol_table
+        self.__factory = factory
         self.__name = name
         self.__position = position
+    #-def
+
+    def factory(self):
+        """
+        """
+
+        return self.__factory
+    #-def
+
+    def name(self):
+        """
+        """
+
+        return self.__name
+    #-def
+
+    def set_position(self, position):
+        """
+        """
+
+        self.__position = position
+    #-def
+
+    def position(self):
+        """
+        """
+
+        return self.__position
     #-def
 #-class
 
 class TagICSymbolFactory(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__container', '__symbol_class' ]
 
     def __init__(self, container, symbol_class):
         """
@@ -2120,7 +2178,7 @@ class TagICSymbolFactory(object):
 class TagICSymbolTable(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__compiler', '__macro_factory', '__label_factory' ]
 
     def __init__(self, compiler):
         """
@@ -2129,6 +2187,13 @@ class TagICSymbolTable(object):
         self.__compiler = compiler
         self.__macro_factory = TagICSymbolFactory({}, TagICMacro)
         self.__label_factory = TagICSymbolFactory({}, TagICLabel)
+    #-def
+
+    def compiler(self):
+        """
+        """
+
+        return self.__compiler
     #-def
 
     def macro_factory(self):
@@ -2149,7 +2214,7 @@ class TagICSymbolTable(object):
 class TagICCompiler(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ '__symbol_table' ]
 
     def __init__(self):
         """
@@ -2162,7 +2227,7 @@ class TagICCompiler(object):
         """
         """
 
-        _assert(name and name[0].isupper(),
+        _assert(name[0].isupper(),
             "Macro name must start with upper case letter"
         )
         macros = self.__symbol_table.macro_factory().symbols()
@@ -2182,6 +2247,7 @@ class TagICCompiler(object):
         self.__compile_inspect_branches(bt, iclist)
         self.__compile_make_branch_tables(bt, iclist)
         self.__compile_assemble(bt, code, iclist)
+        return code
     #-def
 
     def __compile_compute_addresses(self, iclist):
@@ -2191,9 +2257,9 @@ class TagICCompiler(object):
         i = 0
         for inst in iclist:
             if isinstance(inst, TagICLabel):
-                inst.set_address(i)
+                inst.set_position(i)
             elif isinstance(inst, tuple):
-                if inst[0] != TIC_META:
+                if inst[0] > TIC_META:
                     i += 1
     #-def
 
@@ -2276,7 +2342,7 @@ class TagICCompiler(object):
             if not isinstance(inst, tuple):
                 continue
             opcode, optype, qae, arg = inst
-            if opcode == TIC_META:
+            if opcode <= TIC_META:
                 continue
             elif opcode == TIC_FAIL:
                 code.append(Fail())
@@ -2323,6 +2389,41 @@ class TagICCompiler(object):
                 code.append(PopMatch())
             elif opcode == TIC_SWAP:
                 code.append(Swap())
+            elif opcode in (TIC_CONCAT, TIC_JOIN):
+                if arg in (OT_REG, OT_STK):
+                    arg = (arg, None)
+                elif isinstance(arg, (str, list)):
+                    arg = (OT_IMM, arg)
+                else:
+                    _assert(False, "Invalid instruction operand type")
+                if qae in (OT_REG, OT_STK):
+                    qae = (qae, None)
+                elif isinstance(qae, (str, list)):
+                    qae = (OT_IMM, qae)
+                else:
+                    _assert(False, "Invalid instruction operand type")
+                if opcode == TIC_CONCAT:
+                    code.append(Concat(arg, qae))
+                else:
+                    code.append(Join(arg, qae))
+            elif opcode in (TIC_JTRUE, TIC_JFALSE, TIC_JUMP):
+                _assert(arg.position() >= 0, "Unused label %s" % arg.name())
+                if opcode == TIC_JTRUE:
+                    code.append(JTrue(arg.position()))
+                elif opcode == TIC_JFALSE:
+                    code.append(JFalse(arg.position()))
+                else:
+                    code.append(Jump(arg.position()))
+            elif opcode == TIC_CALL:
+                _assert(iscallable(arg), "Invalid instruction operand type")
+                code.append(Call(arg))
+            elif opcode == TIC_PAUSE:
+                code.append(Pause())
+            elif opcode == TIC_HALT:
+                code.append(Halt())
+            else:
+                _assert(False, "Invalid opcode %r" % opcode)
+    #-def
 
     def symbol_table(self):
         """
@@ -2437,9 +2538,11 @@ def makeinst(opcode, qtype, arg):
 #
 #   (opcode,  operand type,  quantifier/address/extra argument,  argument)
 #
+ACC        = OT_REG
+STK        = OT_STK
 SYMBOL     = lambda x, y: (TIC_META, TIC_SYMBOL, y, x)
 SET        = lambda x, y: (TIC_META, TIC_SET, y, x)
-RANGE      = lambda x, y: (TIC_META, TIC_RANGE, y, x)
+RANGE      = lambda x, y, z: (TIC_META, TIC_RANGE, z, (x, y))
 DEFAULT    = lambda x: (TIC_META, TIC_DEFAULT, x, TIC_UNUSED)
 EOF        = lambda x: (TIC_META, TIC_EOF, x, TIC_UNUSED)
 NULL       = (TIC_NULL, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)

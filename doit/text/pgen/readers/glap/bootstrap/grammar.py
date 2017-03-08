@@ -42,14 +42,25 @@ class GlapLexer(TagProgram):
         """
         """
 
-        TagProgram.__init__(self, 'glap_lexer', envclass)
         tic = TagIntermediateCompiler()
-        ODIGIT = tic.define("ODIGIT", ('1', '7'))
-        NZDIGIT = tic.define("NZDIGIT", ('1', '9'))
-        L = self.new_label_factory()
-        self.compile([
+
+        M = tic.symbol_table().macro_factory()
+        L = tic.symbol_table().label_factory()
+
+        tic.define("ODIGIT", ('1', '7'))
+        tic.define("NZDIGIT", ('1', '9'))
+        tic.define("DIGIT", '0', M.NZDIGIT)
+        tic.define("XDIGIT", M.DIGIT, ('a', 'f'), ('A', 'F'))
+        tic.deifne("UPPER", ('A', 'Z'))
+        tic.define("LOWER", ('a', 'z'))
+        tic.define("ALPHA", M.UPPER, M.LOWER)
+        tic.define("LETTER", '_', M.ALPHA)
+        tic.define("ALNUM", M.DIGIT, M.ALPHA)
+        tic.define("LTRNUM", '_', M.ALNUM)
+
+        TagProgram.__init__(self, 'glap_lexer', envclass, tic.compile([
           L._start,
-            BRANCH       (L._switch_table, L._other),
+            BRANCH       (L._switch_table),
             HALT,
           L._switch_table,
             SYMBOL       ('-',       L._comment_or_other),
@@ -58,10 +69,12 @@ class GlapLexer(TagProgram):
             SET          (M.LETTER,  L._identifier),
             SET          (M.NZDIGIT, L._int_part),
             SYMBOL       ('0',       L._octal_or_hex_int),
+            DEFAULT      (L._other),
             NULL,
           L._comment_or_other,
             MATCH        ('-'),
-            TEST         ('-', UNUSED, L._other),
+            TEST         ('-'),
+            JFALSE       (L._other),
             # Comment:
             SKIP_TO      ('\n'),
             JUMP         (L._start),
@@ -69,20 +82,41 @@ class GlapLexer(TagProgram):
             SKIP_MANY    (' '),
             JUMP         (L._start),
           L._newline,
-            SKIP_ANY,
+            SKIP         ('\n'),
             CALL         (self.advance_lineno),
             JUMP         (L._start),
           L._identifier,
-            MATCH_SET    (LETTER),
+            MATCH        (M.LETTER),
             PUSH_MATCH,
-            MATCH_MANY   (ALNUM),
-            CONCAT       (-1, MATCH),
+            MATCH_MANY   (M.LTRNUM),
+            CONCAT       (STK, ACC),
             CALL         (self.emit_identifier),
             PAUSE,
           L._int_part,
-            MATCH_SET    (NZDIGIT),
+            MATCH        (M.NZDIGIT),
             PUSH_MATCH,
-            MATCH_MANY
+            MATCH_MANY   (M.DIGIT),
+            CONCAT       (STK, ACC),
+            TEST         ('.'),
+            JTRUE        (L._float_part),
+            CALL         (self.emit_integer),
+            PAUSE,
+          L._float_part,
+            SKIP         ('.'),
+            MATCH_PLUS   (M.DIGIT),
+            PUSH_MATCH,
+            TEST         (['e', 'E']),
+            JTRUE        (L._exp_part),
+            PUSH         ([]), # no sign
+            PUSH         (""), # no exp
+            CALL         (self.emit_float),
+            PAUSE,
+          L._exp_part,
+            SKIP         (['e', 'E']),
+            MATCH_OPT    (['+', '-']),
+            MATCH_PLUS   (M.DIGIT),
+            CALL         (self.emit_float),
+            PAUSE,
           L._other,
             MATCH_ANY,
             CALL         (self.emit_other),
