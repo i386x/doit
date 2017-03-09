@@ -2241,13 +2241,30 @@ class TagICCompiler(object):
         """
         """
 
+        l2i = {}
         bt = {}
         code = []
+        self.__compile_gather_and_reset_labels(l2i, iclist)
         self.__compile_compute_addresses(iclist)
         self.__compile_inspect_branches(bt, iclist)
-        self.__compile_make_branch_tables(bt, iclist)
+        self.__compile_make_branch_tables(l2i, bt, iclist)
         self.__compile_assemble(bt, code, iclist)
         return code
+    #-def
+
+    def __compile_gather_and_reset_labels(self, l2i, iclist):
+        """
+        """
+
+        i = 0
+        for inst in iclist:
+            if isinstance(inst, TagICLabel):
+                _assert(inst not in l2i, "Duplicit label %s" % inst.name())
+                l2i[inst] = i
+            i += 1
+        labels = self.__symbol_table.label_factory().symbols()
+        for l in labels:
+            labels[l].set_position(-1)
     #-def
 
     def __compile_compute_addresses(self, iclist):
@@ -2272,16 +2289,13 @@ class TagICCompiler(object):
                 bt[inst[3]] = {'table': {}, 'default': None, 'eof': None}
     #-def
 
-    def __compile_make_branch_tables(self, bt, iclist):
+    def __compile_make_branch_tables(self, l2i, bt, iclist):
         """
         """
 
-        i = 0
-        while i < len(iclist):
-            if iclist[i] in bt:
-                i = self.__compile_make_one_branch_table(bt, iclist, i)
-                continue
-            i += 1
+        for l in l2i:
+            if l in bt:
+                self.__compile_make_one_branch_table(bt, iclist, l2i[l])
     #-def
 
     def __compile_make_one_branch_table(self, bt, iclist, i):
@@ -2302,7 +2316,10 @@ class TagICCompiler(object):
                     )
                     bt[k]['table'][iclist[i][3]] = iclist[i][2]
                 elif iclist[i][1] == TIC_SET:
-                    for sym in iclist[i][3]:
+                    it = iclist[i][3]
+                    if isinstance(it, TagICMacro):
+                        it = it.body()
+                    for sym in it:
                         _assert(sym not in bt[k]['table'],
                             "Ambiguous branch table definition"
                         )
@@ -2345,37 +2362,44 @@ class TagICCompiler(object):
             if opcode <= TIC_META:
                 continue
             elif opcode == TIC_FAIL:
-                code.append(Fail())
+                _assert(isinstance(arg, str),
+                    "Invalid instruction operand type"
+                )
+                code.append(Fail(arg))
             elif opcode in (TIC_MATCH, TIC_TEST, TIC_SKIP, TIC_SKIPTO):
                 icls = TTT_MATCHER.get((opcode, optype, qae))
                 # Fails if `icls' is None.
                 if arg == TIC_UNUSED:
                     code.append(icls())
                 else:
-                    _assert(isinstance(arg, (str, list)) or iscallable(arg),
+                    _assert(
+                        isinstance(arg, (str, list, tuple)) or iscallable(arg),
                         "Invalid instruction operand type"
                     )
-                    code.append(icls(arg))
+                    if isinstance(arg, tuple):
+                        code.append(icls(arg[0], arg[1]))
+                    else:
+                        code.append(icls(arg))
             elif opcode == TIC_BRANCH:
                 t = bt.get(arg)
                 # Fails if `t' is None.
                 swt = {}
                 for k in t['table']:
                     _assert(t['table'][k].position() >= 0,
-                        "Unused label %s" % t['table'][k].name()
+                        "Undefined label %s" % t['table'][k].name()
                     )
                     swt[k] = t['table'][k].position()
                 d = t['default']
                 if d is None:
                     d = len(code) + 1
                 else:
-                    _assert(d.position() >= 0, "Unused label %s" % d.name())
+                    _assert(d.position() >= 0, "Undefined label %s" % d.name())
                     d = d.position()
                 e = t['eof']
                 if e is None:
                     e = len(code) + 1
                 else:
-                    _assert(e.position() >= 0, "Unused label %s" % e.name())
+                    _assert(e.position() >= 0, "Undefined label %s" % e.name())
                     e = e.position()
                 code.append(Branch(swt, d, e))
             elif opcode == TIC_PUSH:
@@ -2407,7 +2431,7 @@ class TagICCompiler(object):
                 else:
                     code.append(Join(arg, qae))
             elif opcode in (TIC_JTRUE, TIC_JFALSE, TIC_JUMP):
-                _assert(arg.position() >= 0, "Unused label %s" % arg.name())
+                _assert(arg.position() >= 0, "Undefined label %s" % arg.name())
                 if opcode == TIC_JTRUE:
                     code.append(JTrue(arg.position()))
                 elif opcode == TIC_JFALSE:
@@ -2522,7 +2546,9 @@ def makeinst(opcode, qtype, arg):
         if len(arg) == 1:
             return (opcode, TIC_SYMBOL, qtype, arg)
         return (opcode, TIC_WORD, qtype, arg)
-    elif isinstance(arg, list):
+    elif isinstance(arg, (list, TagICMacro)):
+        if isinstance(arg, TagICMacro):
+            arg = arg.body()
         _assert(len(arg) > 0, "Empty set")
         return (opcode, TIC_SET, qtype, TagICCompiler.makecset(arg))
     elif isinstance(arg, tuple):
@@ -2546,7 +2572,7 @@ RANGE      = lambda x, y, z: (TIC_META, TIC_RANGE, z, (x, y))
 DEFAULT    = lambda x: (TIC_META, TIC_DEFAULT, x, TIC_UNUSED)
 EOF        = lambda x: (TIC_META, TIC_EOF, x, TIC_UNUSED)
 NULL       = (TIC_NULL, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
-FAIL       = (TIC_FAIL, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
+FAIL       = lambda x: (TIC_FAIL, TIC_UNUSED, TIC_UNUSED, x)
 MATCH      = lambda x: makeinst(TIC_MATCH, TIC_UNUSED, x)
 MATCH_ANY  = (TIC_MATCH, TIC_ANY, TIC_UNUSED, TIC_UNUSED)
 MATCH_1N   = lambda x: makeinst(TIC_MATCH, TIC_1N, x)
