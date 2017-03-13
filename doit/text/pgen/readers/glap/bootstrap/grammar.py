@@ -42,42 +42,58 @@ class GlapLexer(TagProgram):
         """
         """
 
-        tic = TagIntermediateCompiler()
+        icc = TagICCompiler()
 
-        M = tic.symbol_table().macro_factory()
-        L = tic.symbol_table().label_factory()
+        M = icc.symbol_table().macro_factory()
+        L = icc.symbol_table().label_factory()
 
-        tic.define("ODIGIT", ('1', '7'))
-        tic.define("NZDIGIT", ('1', '9'))
-        tic.define("DIGIT", '0', M.NZDIGIT)
-        tic.define("XDIGIT", M.DIGIT, ('a', 'f'), ('A', 'F'))
-        tic.deifne("UPPER", ('A', 'Z'))
-        tic.define("LOWER", ('a', 'z'))
-        tic.define("ALPHA", M.UPPER, M.LOWER)
-        tic.define("LETTER", '_', M.ALPHA)
-        tic.define("ALNUM", M.DIGIT, M.ALPHA)
-        tic.define("LTRNUM", '_', M.ALNUM)
+        NOTEOF = lambda c: c is not None
+        ASCIICHAR = lambda c: ord(' ') <= ord(c) and ord(c) <= ord('~')
+        COMMENTCHAR = lambda c: NOTEOF(c) and (ASCIICHAR(c) or ord(c) >= 128)
+        SOURCECHAR = lambda c: c == '\n' or COMMENTCHAR(c)
+        icc.define('ODIGIT', ('1', '7'))
+        icc.define('NZ_DIGIT', ('1', '9'))
+        icc.define('DIGIT', '0', M.NZ_DIGIT)
+        icc.define('XDIGIT', M.DIGIT, ('a', 'f'), ('A', 'F'))
+        icc.define('LETTER_', ('A', 'Z'), ('a', 'z'), '_')
+        icc.define('ALNUM_', M.DIGIT, M.LETTER_)
+        CHARCHAR = lambda c: COMMENTCHAR(c) and c not in ("'", "\\")
+        STRCHAR = lambda c: COMMENTCHAR(c) and c not in ('"', '\\')
+        icc.define('ESCAPECHAR', "abtnvfr\"'\\")
 
-        TagProgram.__init__(self, 'glap_lexer', envclass, tic.compile([
+        TagProgram.__init__(self, 'glap_lexer', envclass, icc.compile([
+          # Start state:
           L._start,
             BRANCH       (L._switch_table),
+          L._eof,
             HALT,
           L._switch_table,
-            SYMBOL       ('-',       L._comment_or_other),
-            SYMBOL       (' ',       L._whitespace),
-            SYMBOL       ('\n',      L._newline),
-            SET          (M.LETTER,  L._identifier),
-            SET          (M.NZDIGIT, L._int_part),
-            SYMBOL       ('0',       L._octal_or_hex_int),
+            SYMBOL       ('-',        L._comment_or_minus),
+            SYMBOL       (' ',        L._whitespace),
+            SYMBOL       ('\n',       L._newline),
+            SET          (M.LETTER_,  L._id),
+            SET          (M.NZ_DIGIT, L._int_part),
+            SYMBOL       ('0',        L._oct_or_hex_int),
+            SYMBOL       ("'",        L._char),
+            SYMBOL       ('"',        L._str),
             DEFAULT      (L._other),
+            EOF          (L._eof),
             NULL,
-          L._comment_or_other,
-            MATCH        ('-'),
-            TEST         ('-'),
-            JFALSE       (L._other),
-            # Comment:
-            SKIP_TO      ('\n'),
+          L._restart,
+            PAUSE,
             JUMP         (L._start),
+          # COMMENT -> "--" COMMENTCHAR*
+          L._comment_or_minus,
+            SKIP         ('-'),
+            TEST         ('-'),
+            JFALSE       (L._minus),
+            SKIP         ('-'),
+            SKIP_MANY    (COMMENTCHAR),
+            JUMP         (L._start),
+          L._minus,
+            CALL         (self.emit_minus),
+            JUMP         (L._restart),
+          # WS -> (' ' | '\n')*
           L._whitespace,
             SKIP_MANY    (' '),
             JUMP         (L._start),
@@ -85,22 +101,48 @@ class GlapLexer(TagProgram):
             SKIP         ('\n'),
             CALL         (self.advance_lineno),
             JUMP         (L._start),
-          L._identifier,
-            MATCH        (M.LETTER),
+          # ID -> LETTER_ ALNUM_*
+          L._id,
+            MATCH        (M.LETTER_),
             PUSH_MATCH,
-            MATCH_MANY   (M.LTRNUM),
+            MATCH_MANY   (M.ALNUM_),
             CONCAT       (STK, ACC),
-            CALL         (self.emit_identifier),
-            PAUSE,
+            CALL         (self.emit_id),
+            JUMP         (L._restart),
+          # INT -> INT_PART
+          # INT -> "0" ODIGIT*
+          # INT -> "0" [Xx] XDIGIT+
+          # FLOAT -> INT_PART FLOAT_PART
+          #
+          # INT -> "0" (ODIGIT* | [Xx] XDIGIT+)
+          L._oct_or_hex_int,
+            MATCH        ('0'),
+            TEST         (['X', 'x']),
+            JTRUE        (L._hex_int),
+            PUSH_MATCH,
+            MATCH_MANY   (M.ODIGIT),
+            CONCAT       (STK, ACC),
+            CALL         (self.emit_oct_int),
+            JUMP         (L._restart),
+          L._hex_int,
+            SKIP         (['X', 'x']),
+            MATCH_PLUS   (M.XDIGIT),
+            CALL         (self.emit_hex_int),
+            JUMP         (L._restart),
+          # INT_PART -> NZ_DIGIT DIGIT*
           L._int_part,
-            MATCH        (M.NZDIGIT),
+            MATCH        (M.NZ_DIGIT),
             PUSH_MATCH,
             MATCH_MANY   (M.DIGIT),
             CONCAT       (STK, ACC),
             TEST         ('.'),
             JTRUE        (L._float_part),
-            CALL         (self.emit_integer),
-            PAUSE,
+            CALL         (self.emit_int),
+            JUMP         (L._restart),
+          # FLOAT_PART -> FRAC_PART EXP_PART?
+          # FLOAR_PART -> EXP_PART
+          #
+          # FRAC_PART -> "." DIGIT+
           L._float_part,
             SKIP         ('.'),
             MATCH_PLUS   (M.DIGIT),
@@ -108,69 +150,107 @@ class GlapLexer(TagProgram):
             TEST         (['e', 'E']),
             JTRUE        (L._exp_part),
             PUSH         ([]), # no sign
-            PUSH         (""), # no exp
+            PUSH         ([]), # no exp
             CALL         (self.emit_float),
-            PAUSE,
+            JUMP         (L._restart),
+          # EXP_PART -> [Ee] [+-]? DIGIT+
           L._exp_part,
             SKIP         (['e', 'E']),
             MATCH_OPT    (['+', '-']),
+            PUSH_MATCH,
             MATCH_PLUS   (M.DIGIT),
+            PUSH_MATCH,
             CALL         (self.emit_float),
-            PAUSE,
+            JUMP         (L._restart),
+          # CHAR -> "'" ("\\" ESCAPE_SEQUENCE | CHARCHAR) "'"
+          L._char,
+            SKIP         ("'"),
+            TEST         ('\\'),
+            JFALSE       (L._charchar),
+            SKIP         ('\\'),
+            CALL         (L._escape_sequence),
+            JUMP         (L._char_finish),
+          L._charchar,
+            MATCH        (CHARCHAR),
+            PUSH_MATCH,
+          L._char_finish,
+            SKIP         ("'"),
+            CALL         (self.emit_char),
+            JUMP         (L._restart),
+          # STR -> '"' ('\\' ESCAPE_SEQUENCE | STRCHAR)* '"'
+          L._str,
+            SKIP         ('"'),
+            PUSH         (""),
+          L._str_loop,
+            TEST         ('"'),
+            JTRUE        (L._str_finish),
+            TEST         ('\\'),
+            JFALSE       (L._strchar),
+            SKIP         ('\\'),
+            CALL         (L._escape_sequence),
+            JUMP         (L._str_addchar),
+          L._strchar,
+            MATCH        (STRCHAR),
+            PUSH_MATCH,
+          L._str_addchar,
+            CONCAT       (STK, STK),
+            JUMP         (L._str_loop),
+          L._str_finish,
+            SKIP         ('"'),
+            CALL         (self.emit_str),
+            JUMP         (L._restart),
+          # ESCAPE_SEQUENCE -> ESCAPE_CHAR
+          # ESCAPE_SEQUENCE -> ODIGIT+
+          # ESCAPE_SEQUENCE -> "x" XDIGIT+
+          # ESCAPE_SEQUENCE -> "u" XDIGIT XDIGIT XDIGIT XDIGIT
+          L._escape_sequence,
+            BRANCH       (L._escape_swt),
+            FAIL         ("One of [abtnvfr'\"\\0-7xu] was expected"),
+          L._escape_swt,
+            SET          (M.ESCAPECHAR, L._escape_char),
+            SET          (M.ODIGIT, L._oct_escape),
+            SYMBOL       ('x', L._hex_escape),
+            SYMBOL       ('u', L._unicode_escape),
+            NULL,
+          L._escape_char,
+            MATCH        (M.ESCAPECHAR),
+            CALL         (self.contribute_escapechar),
+            RETURN,
+          L._oct_escape,
+            MATCH_PLUS   (M.ODIGIT),
+            CALL         (self.contribute_oct_char),
+            RETURN,
+          L._hex_escape,
+            SKIP         ('x'),
+            MATCH_PLUS   (M.XDIGIT),
+            CALL         (self.contribute_hex_char),
+            RETURN,
+          L._unicode_escape,
+            SKIP         ('u'),
+            MATCH        (M.XDIGIT),
+            PUSH_MATCH,
+            MATCH        (M.XDIGIT),
+            PUSH_MATCH,
+            MATCH        (M.XDIGIT),
+            PUSH_MATCH,
+            MATCH        (M.XDIGIT),
+            PUSH_MATCH,
+            CALL         (self.contribute_unicode_char),
+            RETURN,
+          # OTHER -> SOURCECHAR
           L._other,
-            MATCH_ANY,
+            MATCH        (SOURCECHAR),
             CALL         (self.emit_other),
-            PAUSE
-        ])
+            JUMP         (L._restart)
+        ]))
+    #-def
 
-class __GlapLexer(Lexer):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self):
+    def advance_lineno(self, te):
         """
         """
-
-        Lexer.__init__(self)
-
-        self['COMMENT']    = S('-') + S('-') + V('COMMENTCHAR')['*']
-        self['WS']         = V('WHITESPACE')['+']
-        self['ID']         = V('LETTER_') + V('ALNUM_')['*']
-        self['INT']        = V('INT_PART')
-                           | (S('0') + V('ODIGIT')['*'])
-                           | S('0') + (S('x') | S('X'))
-                             + V('XDIGIT')['+']
-        self['FLOAT']      = V('INT_PART') + V('FLOAT_PART')
-        self['INT_PART']   = V('NZ_DIGIT') + V('DIGIT')['*']
-        self['FLOAT_PART'] = V('FRAC_PART') + V('EXP_PART')['?']
-                           | V('EXP_PART')
-        self['FRAC_PART']  = S('.') + V('DIGIT')['+']
-        self['EXP_PART']   = (S('E') | S('e'))
-                             + (S('+') | S('-'))['?']
-                             + V('DIGIT')['+']
-
-        self['ALNUM_']      = A(  V('LETTER_') | V('DIGIT')           )
-        self['LETTER_']     = A(  R('A', 'Z') | R('a', 'z') | S('_')  )
-        self['DIGIT']       = A(  S('0') | V('NZDIGIT')               )
-        self['NZ_DIGIT']    = A(  R('1', '9')                         )
-        self['WHITESPACE']  = A(  S(' ') | S('\n')                    )
-        self['COMMENTCHAR'] = A(  V('SOURCECHAR') - S('\n')           )
-        self['SOURCECHAR']  = A(  ~(R('\0', '\37') | S('\177'))       )
-
-        self.set_code([
-            Call(GetLocal('tokens'),
-                Call(GetLocal('lexskip'), 'COMMENT'),
-                Call(GetLocal('lexskip'), 'WS'),
-                'ID',
-                'INT',
-                'FLOAT',
-                Expand(GetLocal('str2tok')),
-                Expand(GetLocal('other'))
-            )
-        ])
     #-def
 #-class
+
 
 class GlapParser(TagProgram):
     """
@@ -183,11 +263,40 @@ class GlapParser(TagProgram):
 
         TagProgram.__init__(self, 'glap_parser', envclass)
         self.compile([
+          # start -> module
           L._start,
-            CALL (L._module),
-            RETURN,
+            PARSE (L._module),
+            HALT,
+          # module -> "module" ID module_unit* "end"
           L._module,
-            BRANCH ()
+            SKIP  (GLAP_KW_MODULE),
+            MATCH (GLAP_ID),
+            PUSH_MATCH,
+            PUSH  ([]),
+          L._module_1,
+            TEST  (GLAP_KW_END),
+            JTRUE (L._module_2),
+            PARSE_MANY  (L._module_unit),
+            JOIN  (STK, STK),
+            JUMP  (L._module_1),
+          L._module_2,
+            SKIP  (GLAP_KW_END),
+            CALL  (self.make_module),
+            RETURN
+
+    def parse(self):
+        """
+        """
+
+        self.parse_module()
+    #-def
+
+    def parse_module(self):
+        """
+        """
+
+        t = self.__input.peek()
+        if t.ttype != "module":
 
 class __GlapParser(Parser):
     """
