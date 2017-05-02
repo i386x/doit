@@ -8,7 +8,7 @@
 #! \fdesc   @pyfile.docstr
 #
 """\
-GLAP lexers and parsers definitions.\
+GLAP lexer and parser (bootstrap version).\
 """
 
 __license__ = """\
@@ -33,7 +33,252 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-class GlapLexer(TagProgram):
+GLAP_UNKNOWN = -1
+GLAP_NULL    = 0
+GLAP_ID      = 1
+GLAP_INT     = 2
+GLAP_FLOAT   = 3
+GLAP_CHAR    = 4
+GLAP_STR     = 5
+
+class GlapStream(object):
+    """
+    """
+    __slots__ = [ 'name', 'data', 'pos', 'size' ]
+
+    def __init__(self, name, s):
+        """
+        """
+
+        self.name = name
+        self.data = s
+        self.pos = 0
+        self.size = len(s)
+    #-def
+
+    def peek(self, n):
+        """
+        """
+
+        return self.data[self.pos : self.pos + n]
+    #-def
+
+    def next(self, n = 1):
+        """
+        """
+
+        self.pos += n
+    #-def
+
+    def match(self, p):
+        """
+        """
+
+        if self.peek(len(p)) != p:
+            raise GlapLexError(self, "Expected %r" % p)
+        self.pos += len(p)
+        return p
+    #-def
+
+    def matchset(self, set):
+        """
+        """
+
+        if self.pos < self.size and self.data[self.pos] in set:
+            self.pos += 1
+            return self.data[self.pos - 1]
+        raise GlapLexError(self, "Expected one of [%s]" % repr(set)[1:-1])
+    #-def
+
+    def matchif(self, f, fname):
+        """
+        """
+
+        if self.pos < self.size and f(self.data[self.pos]):
+            self.pos += 1
+            return self.data[self.pos - 1]
+        raise GlapLexError(self, "Expected %s" % fname)
+    #-def
+
+    def matchmany(self, set):
+        """
+        """
+
+        p = self.pos
+        while self.pos < self.size and self.data[self.pos] in set:
+            self.pos += 1
+        return self.data[p : self.pos]
+    #-def
+
+    def matchmanyif(self, f):
+        """
+        """
+
+        p = self.pos
+        while self.pos < self.size and f(self.data[self.pos]):
+            self.pos += 1
+        return self.data[p : self.pos]
+    #-def
+
+    def matchplus(self, set):
+        """
+        """
+
+        m = self.matchset(set)
+        return "%s%s" % (m, self.matchmany(set))
+    #-def
+
+    def matchplusif(self, f, fname):
+        """
+        """
+
+        m = self.matchif(f, fname)
+        return "%s%s" % (m, self.matchmanyif(f))
+    #-def
+
+    def matchopt(self, set, default):
+        """
+        """
+
+        if self.pos < self.size and self.data[self.pos] in set:
+            self.pos += 1
+            return self.data[self.pos - 1]
+        return default
+    #-def
+
+    def matchoptif(self, f, default):
+        """
+        """
+
+        if self.pos < self.size and f(self.data[self.pos]):
+            self.pos += 1
+            return self.data[self.pos - 1]
+        return default
+    #-def
+#-class
+
+class GlapToken(Token):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, ttype, location, *data):
+        """
+        """
+
+        Token.__init__(self, ttype, location, data)
+    #-def
+#-class
+
+class GlapLexer(object):
+    """
+    """
+    crange = lambda a, b: [ chr(c) for c in range(ord(a), ord(b) + 1) ]
+    WS = [ '\n', ' ' ]
+    ASCIICHAR = lambda c: ord(' ') <= ord(c) and ord(c) <= ord('~')
+    COMMENTCHAR = lambda c: ASCIICHAR(c) or ord(c) >= 128
+    SOURCECHAR = lambda c: c == '\n' or COMMENTCHAR(c)
+    ODIGIT = crange('0', '7')
+    DIGIT = crange('0', '9')
+    XDIGIT = DIGIT + crange('A', 'F') + crange('a', 'f')
+    IDCHAR = crange('A', 'Z') + crange('a', 'z') + ['_']
+    IDCHARNUM = IDCHAR + DIGIT
+    __slots__ = []
+
+    def __init__(self, istream):
+        """
+        """
+
+        self.istream = istream
+        self.token = None
+    #-def
+
+    def next(self):
+        """
+        """
+
+        istream = self.istream
+        self.skip_spaces(istream)
+        c = istream.peek(1)
+        if c == "":
+            self.token = None
+        elif c in self.IDCHAR:
+            self.token = self.scan_ID(c, istream)
+        elif c in self.DIGIT:
+            self.token = self.scan_NUMBER(c, istream)
+        else:
+            raise GlapLexError(istream, "Unexpected symbol %r" % c)
+    #-def
+
+    def skip_spaces(self, istream):
+        """
+        """
+
+        while True:
+            p = istream.pos
+            istream.matchset(self.WS)
+            self.skip_comment(istream)
+            if p < istream.pos:
+                continue
+            break
+    #-def
+
+    def skip_comment(self, istream):
+        """
+        """
+
+        if istream.peek(2) != "--":
+            return
+        istream.next(2)
+        istream.matchmanyif(self.COMMENTCHAR)
+    #-def
+
+    def scan_ID(self, c, istream):
+        """
+        """
+
+        p = istream.pos
+        return GlapToken(GLAP_ID, p, istream.matchmany(self.IDCHARNUM))
+    #-def
+
+    def scan_NUMBER(self, c, istream):
+        """
+        """
+
+        p = istream.pos
+        if c != '0':
+            # Non-zero digit case - match integral part:
+            ipart = istream.matchmany(self.DIGIT)
+            c = istream.peek(1)
+            if c not in [ '.', 'E', 'e' ]:
+                return GlapToken(GLAP_INT, p, GLAP_INT_DEC, ipart)
+            # Floating-point number - try match fraction part:
+            fpart, epart = "", ""
+            if c == '.':
+                istream.next()
+                fpart = istream.matchplus(self.DIGIT)
+                # Repeek:
+                c = istream.peek(1)
+            # Try match exponent part:
+            if c in [ 'E', 'e' ]:
+                istream.next()
+                epart = istream.matchopt(['+', '-'], '+')
+                epart += istream.matchplus(self.DIGIT)
+            return GlapToken(GLAP_FLOAT, p, ipart, fpart, epart)
+        # '0' - octal or hexadecimal number:
+        istream.next()
+        if istream.peek(1) in [ 'X', 'x' ]:
+            istream.next()
+            return GlapToken(
+                GLAP_INT, p, GLAP_INT_HEX, istream.matchplus(self.XDIGIT)
+            )
+        return GlapToken(
+            GLAP_INT, p, GLAP_INT_OCT, "0" + istream.matchmany(self.ODIGIT)
+        )
+    #-def
+#-class
+
+class _GlapLexer(TagProgram):
     """
     """
     __slots__ = []
@@ -69,8 +314,7 @@ class GlapLexer(TagProgram):
             HALT,
           L._switch_table,
             SYMBOL       ('-',        L._comment_or_minus),
-            SYMBOL       (' ',        L._whitespace),
-            SYMBOL       ('\n',       L._newline),
+            SET          ("\n ",      L._whitespace),
             SET          (M.LETTER_,  L._id),
             SET          (M.NZ_DIGIT, L._int_part),
             SYMBOL       ('0',        L._oct_or_hex_int),
@@ -95,11 +339,7 @@ class GlapLexer(TagProgram):
             JUMP         (L._restart),
           # WS -> (' ' | '\n')*
           L._whitespace,
-            SKIP_MANY    (' '),
-            JUMP         (L._start),
-          L._newline,
-            SKIP         ('\n'),
-            CALL         (self.advance_lineno),
+            SKIP_MANY    ("\n "),
             JUMP         (L._start),
           # ID -> LETTER_ ALNUM_*
           L._id,
@@ -243,11 +483,14 @@ class GlapLexer(TagProgram):
             CALL         (self.emit_other),
             JUMP         (L._restart)
         ]))
+        self.reset()
     #-def
 
-    def advance_lineno(self, te):
+    def emit_minus(self, te):
         """
         """
+
+        self.__token = GlapToken(ord('-')
     #-def
 #-class
 
@@ -265,38 +508,119 @@ class GlapParser(TagProgram):
         self.compile([
           # start -> module
           L._start,
-            PARSE (L._module),
+            CALL        (L._module),
             HALT,
           # module -> "module" ID module_unit* "end"
           L._module,
-            SKIP  (GLAP_KW_MODULE),
-            MATCH (GLAP_ID),
+            SKIP        (s2t["module"]),
+            MATCH       (GLAP_ID),
             PUSH_MATCH,
-            PUSH  ([]),
+            PUSH        ([]),
           L._module_1,
-            TEST  (GLAP_KW_END),
-            JTRUE (L._module_2),
-            PARSE_MANY  (L._module_unit),
-            JOIN  (STK, STK),
-            JUMP  (L._module_1),
+            TEST_EOF,
+            JTRUE       (L._module_2),
+            TEST        (s2t["end"]),
+            JTRUE       (L._module_2),
+            CALL        (L._module_unit),
+            JUMP        (L._module_1),
           L._module_2,
-            SKIP  (GLAP_KW_END),
-            CALL  (self.make_module),
-            RETURN
+            SKIP        (s2t["end"]),
+            ECALL       (self.make_module),
+            RETURN,
+          # module_unit -> module | grammar | command
+          L._module_unit,
+            BRANCH      (L._module_unit_sw),
+            FAIL        ("Unexpected end of input"),
+          L._module_unit_sw,
+            SYMBOL      (s2t["module"], L._module_unit_1),
+            SYMBOL      (s2t["grammar"], L._module_unit_2),
+            DEFAULT     (L._module_unit_3),
+            NULL,
+          L._module_unit_1,
+            CALL        (L._module),
+            RETURN,
+          L._module_unit_2,
+            CALL        (L._grammar),
+            RETURN,
+          L._module_unit_3,
+            CALL        (L._command),
+            RETURN,
+          # grammar -> "grammar" ID grammar_type_spec?
+          #              ( rule | "." command )*
+          #            "end"
+          L._grammar,
+            SKIP        (s2t["grammar"]),
+            MATCH       (GLAP_ID),
+            PUSH_MATCH,
+            PUSH        ([]),
+            TEST        (s2t['(']),
+            JFALSE      (L._grammar_1),
+            CALL        (L._grammar_type_spec),
+          L._grammar_1,
+            PUSH        ([]),
+          L._grammar_2,
+            TEST_EOF,
+            JTRUE       (L._grammar_4),
+            TEST        (s2t["end"]),
+            JTRUE       (L._grammar_4),
+            TEST        (s2t['.']),
+            JFALSE      (L._grammar_3),
+            SKIP        (s2t['.']),
+            CALL        (L._command),
+            JUMP        (L._grammar_2),
+          L._grammar_3,
+            CALL        (L._rule),
+            JUMP        (L._grammar_2),
+          L._grammar_4,
+            SKIP        (s2t["end"]),
+            ECALL       (self.make_grammar),
+            RETURN,
+          # grammar_type_spec -> "(" ( ID ( "," ID )* )? ")"
+          L._grammar_type_spec,
+            SKIP (s2t['(']),
+            PUSH ([]),
+            TEST (GLAP_ID),
+            JFALSE (L._grammar_type_spec_),
+            MATCH (GLAP_ID),
 
     def parse(self):
         """
         """
 
-        self.parse_module()
+        lexer = self.lexer
+        module = self.parse_module(lexer)
+        lexer.asserteof()
+        return module
     #-def
 
-    def parse_module(self):
+    def parse_module(self, lexer):
         """
         """
 
-        t = self.__input.peek()
-        if t.ttype != "module":
+        lexer.match("module")
+        t_ID = lexer.match(GLAP_ID)
+        module_units = []
+        while lexer.peek() and not lexer.test("end"):
+            module_units.append(self.parse_module_unit(self, lexer))
+        lexer.match("end")
+        return self.make_module(t_ID, module_units)
+    #-def
+
+    def parse_module_unit(self, lexer):
+        """
+        """
+
+        t = lexer.peek()
+        if not t:
+            raise GlapSyntaxError(lexer, "Unexpected end of input")
+        t = t.ttype
+        if t == "module":
+            return self.parse_module(lexer)
+        elif t == "grammar":
+            return self.parse_grammar(lexer)
+        return self.parse_command(lexer)
+    #-def
+#-class
 
 class __GlapParser(Parser):
     """

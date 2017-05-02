@@ -33,6 +33,26 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+class GlapLexError(ParsingError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, istream, detail):
+        """
+        """
+
+        s = istream.data[0 : istream.pos]
+        lineno = s.count('\n') + 1
+        if lineno > 1:
+            s = s.split('\n')[-1]
+        colno = len(s) + 1
+        ParsingError.__init__(self,
+            "In <%s> at [%d:%d]: %s" % (istream.name, lineno, colno, detail)
+        )
+    #-def
+#-class
+
 def get_source():
     """
     """
