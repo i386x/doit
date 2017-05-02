@@ -63,7 +63,7 @@ from doit.text.pgen.utils.tagengine import \
     SkipTo, SkipToSet, SkipToRange, SkipUntilNot, \
     Push, PushMatch, PopMatch, Swap, \
     Operator, Concat, Join, \
-    JTrue, JFalse, Jump, Call, \
+    JTrue, JFalse, Jump, Call, ECall, Return, \
     Pause, Halt, \
     TagProgramEnvironment, TagProgram, \
     TagEngine, \
@@ -81,7 +81,7 @@ from doit.text.pgen.utils.tagengine import \
         SKIP_MANY, SKIP_ALL, SKIP_TO, \
     PUSH, PUSH_MATCH, POP_MATCH, SWAP, \
     CONCAT, JOIN, \
-    JTRUE, JFALSE, JUMP, CALL, \
+    JTRUE, JFALSE, JUMP, CALL, ECALL, RETURN, \
     PAUSE, HALT
 
 class TestTagAbstractInputCase(unittest.TestCase):
@@ -102,11 +102,11 @@ class TestTagTextInputCase(unittest.TestCase):
         ti1 = TagTextInput()
         ti2 = TagTextInput()
 
-        self.assertIsNone(ti1.peek())
+        self.assertEqual(ti1.peek(), (None, None))
         self.assertEqual(ti2.peekn(3), [])
         ti1.next()
         ti2.nextn(3)
-        self.assertIsNone(ti1.peek())
+        self.assertEqual(ti1.peek(), (None, None))
         self.assertEqual(ti2.peekn(3), [])
     #-def
 
@@ -114,39 +114,39 @@ class TestTagTextInputCase(unittest.TestCase):
         ti = TagTextInput()
 
         ti.load_data_from_string("")
-        self.assertIsNone(ti.peek())
+        self.assertEqual(ti.peek(), (None, None))
         ti.next()
-        self.assertIsNone(ti.peek())
+        self.assertEqual(ti.peek(), (None, None))
 
         ti.load_data_from_string("")
         self.assertEqual(ti.peekn(2), "")
         ti.nextn(2)
         self.assertEqual(ti.peekn(2), "")
         self.assertEqual(ti.peekn(1), "")
-        self.assertIsNone(ti.peek())
+        self.assertEqual(ti.peek(), (None, None))
 
         ti.load_data_from_string("abc")
-        self.assertEqual(ti.peek(), 'a')
-        self.assertEqual(ti.peek(), 'a')
+        self.assertEqual(ti.peek(), ('a', 'a'))
+        self.assertEqual(ti.peek(), ('a', 'a'))
         ti.next()
-        self.assertEqual(ti.peek(), 'b')
-        self.assertEqual(ti.peek(), 'b')
-        self.assertEqual(ti.peek(), 'b')
+        self.assertEqual(ti.peek(), ('b', 'b'))
+        self.assertEqual(ti.peek(), ('b', 'b'))
+        self.assertEqual(ti.peek(), ('b', 'b'))
         ti.next()
-        self.assertEqual(ti.peek(), 'c')
-        self.assertEqual(ti.peek(), 'c')
-        self.assertEqual(ti.peek(), 'c')
-        self.assertEqual(ti.peek(), 'c')
+        self.assertEqual(ti.peek(), ('c', 'c'))
+        self.assertEqual(ti.peek(), ('c', 'c'))
+        self.assertEqual(ti.peek(), ('c', 'c'))
+        self.assertEqual(ti.peek(), ('c', 'c'))
         ti.next()
-        self.assertIsNone(ti.peek())
-        self.assertIsNone(ti.peek())
-        self.assertIsNone(ti.peek())
-        self.assertIsNone(ti.peek())
+        self.assertEqual(ti.peek(), (None, None))
+        self.assertEqual(ti.peek(), (None, None))
+        self.assertEqual(ti.peek(), (None, None))
+        self.assertEqual(ti.peek(), (None, None))
         ti.next()
-        self.assertIsNone(ti.peek())
-        self.assertIsNone(ti.peek())
-        self.assertIsNone(ti.peek())
-        self.assertIsNone(ti.peek())
+        self.assertEqual(ti.peek(), (None, None))
+        self.assertEqual(ti.peek(), (None, None))
+        self.assertEqual(ti.peek(), (None, None))
+        self.assertEqual(ti.peek(), (None, None))
 
         ti.load_data_from_string("abcdef")
         self.assertEqual(ti.peekn(4), "abcd")
@@ -155,7 +155,7 @@ class TestTagTextInputCase(unittest.TestCase):
         self.assertEqual(ti.peekn(7), "abcdef")
         self.assertEqual(ti.peekn(8), "abcdef")
         self.assertEqual(ti.peekn(16), "abcdef")
-        self.assertEqual(ti.peek(), "a")
+        self.assertEqual(ti.peek(), ("a", "a"))
         ti.nextn(2)
         self.assertEqual(ti.peekn(4), "cdef")
         self.assertEqual(ti.peekn(3), "cde")
@@ -163,7 +163,7 @@ class TestTagTextInputCase(unittest.TestCase):
         self.assertEqual(ti.peekn(7), "cdef")
         self.assertEqual(ti.peekn(8), "cdef")
         self.assertEqual(ti.peekn(16), "cdef")
-        self.assertEqual(ti.peek(), "c")
+        self.assertEqual(ti.peek(), ("c", "c"))
         ti.nextn(3)
         self.assertEqual(ti.peekn(4), "f")
         self.assertEqual(ti.peekn(3), "f")
@@ -171,7 +171,7 @@ class TestTagTextInputCase(unittest.TestCase):
         self.assertEqual(ti.peekn(7), "f")
         self.assertEqual(ti.peekn(8), "f")
         self.assertEqual(ti.peekn(16), "f")
-        self.assertEqual(ti.peek(), "f")
+        self.assertEqual(ti.peek(), ("f", "f"))
         ti.nextn(4)
         self.assertEqual(ti.peekn(4), "")
         self.assertEqual(ti.peekn(3), "")
@@ -179,7 +179,7 @@ class TestTagTextInputCase(unittest.TestCase):
         self.assertEqual(ti.peekn(7), "")
         self.assertEqual(ti.peekn(8), "")
         self.assertEqual(ti.peekn(16), "")
-        self.assertIsNone(ti.peek())
+        self.assertEqual(ti.peek(), (None, None))
         ti.nextn(5)
         self.assertEqual(ti.peekn(4), "")
         self.assertEqual(ti.peekn(3), "")
@@ -187,7 +187,7 @@ class TestTagTextInputCase(unittest.TestCase):
         self.assertEqual(ti.peekn(7), "")
         self.assertEqual(ti.peekn(8), "")
         self.assertEqual(ti.peekn(16), "")
-        self.assertIsNone(ti.peek())
+        self.assertEqual(ti.peek(), (None, None))
     #-def
 
     def test_input_from_file(self):
@@ -195,15 +195,15 @@ class TestTagTextInputCase(unittest.TestCase):
 
         with OpenContext(0, "", False):
             self.assertTrue(ti.load_data_from_file('foo'))
-        self.assertIsNone(ti.peek())
+        self.assertEqual(ti.peek(), (None, None))
 
         with OpenContext(0, "xyz", False):
             self.assertTrue(ti.load_data_from_file('bar'))
-        self.assertEqual(ti.peek(), 'x')
+        self.assertEqual(ti.peek(), ('x', 'x'))
         ti.nextn(2)
-        self.assertEqual(ti.peek(), 'z')
+        self.assertEqual(ti.peek(), ('z', 'z'))
         ti.next()
-        self.assertIsNone(ti.peek())
+        self.assertEqual(ti.peek(), (None, None))
         self.assertEqual(ti.peekn(3), "")
 
         with OpenContext(OPEN_FAIL, "abc", False):
@@ -257,6 +257,7 @@ class TestTagEngineCase(unittest.TestCase):
         self.assertIsNone(te.env())
         self.assertIsNone(te.matcher())
         self.assertEqual(te.nvals(), 0)
+        self.assertEqual(te.naddrs(), 0)
         self.assertEqual(te.code(), [])
         self.assertEqual(te.code_size(), 0)
         self.assertEqual(te.ip(), 0)
@@ -614,6 +615,60 @@ class TestTagEngineCase(unittest.TestCase):
         self.assertEqual(te.last_error_detail(), "")
     #-def
 
+    def test_stack(self):
+        te = TagEngine()
+
+        te.reset()
+        self.assertEqual(te.state(), TES_IDLE)
+        self.assertEqual(te.naddrs(), 0)
+        self.assertEqual(te.last_error_detail(), "")
+        te.popaddr()
+        self.assertEqual(te.state(), TES_ERROR)
+        self.assertEqual(te.naddrs(), 0)
+        self.assertEqual(te.last_error_detail(), "Pop applied on empty stack")
+
+        te.reset()
+        self.assertEqual(te.state(), TES_IDLE)
+        self.assertEqual(te.naddrs(), 0)
+        self.assertEqual(te.last_error_detail(), "")
+        te.topaddr()
+        self.assertEqual(te.state(), TES_ERROR)
+        self.assertEqual(te.naddrs(), 0)
+        self.assertEqual(te.last_error_detail(), "Top applied on empty stack")
+
+        te.reset()
+        self.assertEqual(te.state(), TES_IDLE)
+        self.assertEqual(te.naddrs(), 0)
+        self.assertEqual(te.last_error_detail(), "")
+        te.pushaddr(1)
+        self.assertEqual(te.state(), TES_IDLE)
+        self.assertEqual(te.last_error_detail(), "")
+        self.assertEqual(te.naddrs(), 1)
+        self.assertEqual(te.topaddr(), 1)
+        self.assertEqual(te.state(), TES_IDLE)
+        self.assertEqual(te.naddrs(), 1)
+        te.pushaddr(7)
+        self.assertEqual(te.state(), TES_IDLE)
+        self.assertEqual(te.last_error_detail(), "")
+        self.assertEqual(te.naddrs(), 2)
+        self.assertEqual(te.topaddr(), 7)
+        self.assertEqual(te.state(), TES_IDLE)
+        self.assertEqual(te.last_error_detail(), "")
+        self.assertEqual(te.naddrs(), 2)
+        self.assertEqual(te.popaddr(), 7)
+        self.assertEqual(te.state(), TES_IDLE)
+        self.assertEqual(te.last_error_detail(), "")
+        self.assertEqual(te.naddrs(), 1)
+        self.assertEqual(te.popaddr(), 1)
+        self.assertEqual(te.state(), TES_IDLE)
+        self.assertEqual(te.last_error_detail(), "")
+        self.assertEqual(te.naddrs(), 0)
+        self.assertIsNone(te.popaddr())
+        self.assertEqual(te.state(), TES_ERROR)
+        self.assertEqual(te.last_error_detail(), "Pop applied on empty stack")
+        self.assertEqual(te.naddrs(), 0)
+    #-def
+
     def test_set_match_flag(self):
         te = TagEngine()
 
@@ -669,10 +724,7 @@ class TestInstructionsCase(unittest.TestCase):
         self.assertEqual(te.last_error_detail(), "")
         self.assertEqual(te.ip(), 2)
         self.assertEqual(te.match(), m)
-        if n is None:
-            self.assertIsNone(ti.peek())
-        else:
-            self.assertEqual(ti.peek(), n)
+        self.assertEqual(ti.peek(), (n, n))
         self.assertTrue(te.match_flag())
     #-def
 
@@ -683,7 +735,7 @@ class TestInstructionsCase(unittest.TestCase):
         )
         self.assertEqual(te.ip(), 1)
         self.assertIsNone(te.match())
-        self.assertEqual(ti.peek(), u)
+        self.assertEqual(ti.peek(), (u, u))
         self.assertFalse(te.match_flag())
     #-def
 
@@ -694,7 +746,7 @@ class TestInstructionsCase(unittest.TestCase):
         )
         self.assertEqual(te.ip(), 1)
         self.assertIsNone(te.match())
-        self.assertEqual(ti.peek(), m[0])
+        self.assertEqual(ti.peek(), (m[0], m[0]))
         self.assertFalse(te.match_flag())
     #-def
 
@@ -703,7 +755,7 @@ class TestInstructionsCase(unittest.TestCase):
         self.assertEqual(te.last_error_detail(), "Unexpected end of input")
         self.assertEqual(te.ip(), 1)
         self.assertIsNone(te.match())
-        self.assertIsNone(ti.peek())
+        self.assertEqual(ti.peek(), (None, None))
         self.assertFalse(te.match_flag())
     #-def
 
@@ -715,9 +767,9 @@ class TestInstructionsCase(unittest.TestCase):
         self.assertEqual(te.ip(), 1)
         self.assertIsNone(te.match())
         if m:
-            self.assertEqual(ti.peek(), m[0])
+            self.assertEqual(ti.peek(), (m[0], m[0]))
         else:
-            self.assertIsNone(ti.peek())
+            self.assertEqual(ti.peek(), (None, None))
         self.assertFalse(te.match_flag())
     #-def
 
@@ -726,10 +778,7 @@ class TestInstructionsCase(unittest.TestCase):
         self.assertEqual(te.last_error_detail(), "")
         self.assertEqual(te.ip(), 2)
         self.assertIsNone(te.match())
-        if p is None:
-            self.assertIsNone(ti.peek())
-        else:
-            self.assertEqual(ti.peek(), p)
+        self.assertEqual(ti.peek(), (p, p))
         if r:
             self.assertTrue(te.match_flag())
         else:
@@ -741,10 +790,7 @@ class TestInstructionsCase(unittest.TestCase):
         self.assertEqual(te.last_error_detail(), "")
         self.assertEqual(te.ip(), ip + 1)
         self.assertIsNone(te.match())
-        if p is None:
-            self.assertIsNone(ti.peek())
-        else:
-            self.assertEqual(ti.peek(), p)
+        self.assertEqual(ti.peek(), (p, p))
         self.assertFalse(te.match_flag())
     #-def
 
@@ -753,10 +799,7 @@ class TestInstructionsCase(unittest.TestCase):
         self.assertEqual(te.last_error_detail(), "")
         self.assertEqual(te.ip(), 2)
         self.assertIsNone(te.match())
-        if p is None:
-            self.assertIsNone(ti.peek())
-        else:
-            self.assertEqual(ti.peek(), p)
+        self.assertEqual(ti.peek(), (p, p))
         self.assertTrue(te.match_flag())
     #-def
 
@@ -773,7 +816,7 @@ class TestInstructionsCase(unittest.TestCase):
         self.assertEqual(te.last_error_detail(), "Bang!")
         self.assertEqual(te.ip(), 1)
         self.assertIsNone(te.match())
-        self.assertEqual(ti.peek(), 'u')
+        self.assertEqual(ti.peek(), ('u', 'u'))
         self.assertFalse(te.match_flag())
     #-def
 
@@ -2789,10 +2832,23 @@ class TestInstructionsCase(unittest.TestCase):
     #-def
 
     def test_Call(self):
+        te, ti = self.create_and_run_tag_engine("xy", [
+            Call(3), Halt(), Fail('?'), MatchSymbol('x'), Return(), Fail('??')
+        ])
+
+        self.assertEqual(te.match(), "x")
+        self.assertEqual(ti.peek(), ('y', 'y'))
+        self.assertTrue(te.match_flag())
+        self.assertEqual(te.ip(), 2)
+        self.assertEqual(te.state(), TES_HALTED)
+        self.assertEqual(te.last_error_detail(), "")
+    #-def
+
+    def test_ECall(self):
         def f(te):
             te.set_match("Yipeee!")
         te, _ = self.create_and_run_tag_engine("x", [
-            Call(f), Halt()
+            ECall(f), Halt()
         ])
 
         self.assertEqual(te.match(), "Yipeee!")
@@ -3003,19 +3059,19 @@ class TestTagICCompilerCase(unittest.TestCase):
           L._exit,
             HALT,
           L._a,
-            CALL    (self.tc_emit_1),
+            ECALL   (self.tc_emit_1),
             JUMP    (L._exit),
           L._b_to_d,
-            CALL    (self.tc_emit_2),
+            ECALL   (self.tc_emit_2),
             JUMP    (L._exit),
           L._score_semicolon,
-            CALL    (self.tc_emit_3),
+            ECALL   (self.tc_emit_3),
             JUMP    (L._exit),
           L._default,
-            CALL    (self.tc_emit_4),
+            ECALL   (self.tc_emit_4),
             JUMP    (L._exit),
           L._eof,
-            CALL    (self.tc_emit_5),
+            ECALL   (self.tc_emit_5),
             JUMP    (L._exit)
         ]))
 
@@ -3063,7 +3119,7 @@ class TestTagICCompilerCase(unittest.TestCase):
             NULL,
           L._x,
             SKIP   ('x'),
-            CALL   (self.tc_emit_3),
+            ECALL  (self.tc_emit_3),
             HALT
         ]))
 
@@ -3089,25 +3145,25 @@ class TestTagICCompilerCase(unittest.TestCase):
           L._1,
             SKIP   (['a', 'v']),
             BRANCH (L._t2),
-            CALL   (self.tc_emit_2),
+            ECALL  (self.tc_emit_2),
             HALT,
           L._2,
             SKIP   ('v'),
-            CALL   (self.tc_emit_4),
+            ECALL  (self.tc_emit_4),
             HALT
         ]))
 
         e, i = self.tc_run(p, "av")
         self.assertEqual(e.env().result, 4)
-        self.assertIsNone(i.peek())
+        self.assertEqual(i.peek(), (None, None))
 
         e, i = self.tc_run(p, "va")
         self.assertEqual(e.env().result, 4)
-        self.assertEqual(i.peek(), 'a')
+        self.assertEqual(i.peek(), ('a', 'a'))
 
         e, i = self.tc_run(p, "aa")
         self.assertEqual(e.env().result, 2)
-        self.assertEqual(i.peek(), 'a')
+        self.assertEqual(i.peek(), ('a', 'a'))
     #-def
 
     def test_compile_4(self):
@@ -3245,7 +3301,7 @@ class TestTagICCompilerCase(unittest.TestCase):
         e, i = self.tc_run(p, "fg")
         self.assertEqual(e.state(), TES_ERROR)
         self.assertEqual(e.last_error_detail(), "FAIL test")
-        self.assertEqual(i.peek(), 'f')
+        self.assertEqual(i.peek(), ('f', 'f'))
     #-def
 
     def test_compile_6(self):
@@ -3336,14 +3392,14 @@ class TestTagICCompilerCase(unittest.TestCase):
             self.assertEqual(e.state(), TES_HALTED)
             if not is_skip:
                 self.assertEqual(e.match(), list("///.<>{}"))
-            self.assertIsNone(i.peek())
+            self.assertEqual(i.peek(), (None, None))
         for p, s in ((p2, ""), (p3, "a"), (p4, "?"), (p5, "b"), (p6, "$")):
             e, i = self.tc_run(p, s)
             self.assertEqual(e.state(), TES_HALTED)
             self.assertTrue(e.match_flag())
         e, i = self.tc_run(p7, "aaaaa?.?.?.?.4356.asdf&")
         self.assertEqual(e.state(), TES_HALTED)
-        self.assertEqual(i.peek(), '&')
+        self.assertEqual(i.peek(), ('&', '&'))
         with self.assertRaises(DoItAssertionError):
             icc.compile([
               MATCH (100),
@@ -3419,7 +3475,7 @@ class TestTagICCompilerCase(unittest.TestCase):
 
         e, i = self.tc_run(q, "b")
         self.assertEqual(e.state(), TES_HALTED)
-        self.assertIsNone(i.peek())
+        self.assertEqual(i.peek(), (None, None))
     #-def
 
     def test_compile_8(self):
@@ -3559,7 +3615,7 @@ class TestTagICCompilerCase(unittest.TestCase):
         ]))
 
         e, i = self.tc_run(p1, "a")
-        self.assertIsNone(i.peek())
+        self.assertEqual(i.peek(), (None, None))
 
         e, _ = self.tc_run(p2, "a")
         self.assertEqual(e.state(), TES_PAUSED)
@@ -3570,7 +3626,7 @@ class TestTagICCompilerCase(unittest.TestCase):
             ])
         with self.assertRaises(DoItAssertionError):
             icc.compile([
-              CALL (1),
+              ECALL (1),
             ])
         with self.assertRaises(DoItAssertionError):
             icc.compile([
@@ -3591,6 +3647,29 @@ class TestTagICCompilerCase(unittest.TestCase):
         with self.assertRaises(DoItAssertionError):
             icc.compile([
               MATCH (128)
+            ])
+    #-def
+
+    def test_compile_11(self):
+        icc = TagICCompiler()
+        L = icc.symbol_table().label_factory()
+        p = TagProgram('test', ResultHolderEnvironment, icc.compile([
+            CALL (L._test),
+            HALT,
+          L._test,
+            PUSH ("Huray!"),
+            RETURN
+        ]))
+
+        e, _ = self.tc_run(p, "")
+        self.assertEqual(e.state(), TES_HALTED)
+        self.assertEqual(e.nvals(), 1)
+        self.assertEqual(e.topval(), "Huray!")
+        self.assertEqual(e.naddrs(), 0)
+
+        with self.assertRaises(DoItAssertionError):
+            icc.compile([
+              CALL(L._foo)
             ])
     #-def
 #-class

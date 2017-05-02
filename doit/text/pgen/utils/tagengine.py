@@ -71,7 +71,7 @@ class TagAbstractInput(object):
         """
         """
 
-        return None
+        return None, None
     #-def
 
     def peekn(self, n):
@@ -136,8 +136,9 @@ class TagTextInput(TagAbstractInput):
         """
 
         if self.__index < self.__nitems:
-            return self.__data[self.__index]
-        return None
+            c = self.__data[self.__index]
+            return c, c
+        return None, None
     #-def
 
     def peekn(self, n):
@@ -233,12 +234,12 @@ class TagMatcher(object):
         """
         """
 
-        c = self.__input.peek()
-        if p(c):
-            self.__last_match = c
+        t, d = self.__input.peek()
+        if p(t):
+            self.__last_match = d
             self.__input.next()
             return True
-        return self.bad_match(c)
+        return self.bad_match(d)
     #-def
 
     def match_at_least_one_symbol(self, symbol):
@@ -268,16 +269,16 @@ class TagMatcher(object):
         """
         """
 
-        c = self.__input.peek()
-        if not p(c):
-            return self.bad_match(c)
-        m = [c]
+        t, d = self.__input.peek()
+        if not p(t):
+            return self.bad_match(d)
+        m = [d]
         self.__input.next()
         while True:
-            c = self.__input.peek()
-            if not p(c):
+            t, d = self.__input.peek()
+            if not p(t):
                 break
-            m.append(c)
+            m.append(d)
             self.__input.next()
         self.__last_match = m
         return True
@@ -310,10 +311,10 @@ class TagMatcher(object):
         """
         """
 
-        c = self.__input.peek()
+        t, d = self.__input.peek()
         m = []
-        if p(c):
-            m.append(c)
+        if p(t):
+            m.append(d)
             self.__input.next()
         self.__last_match = m
         return True
@@ -355,10 +356,10 @@ class TagMatcher(object):
 
         m = []
         while True:
-            c = self.__input.peek()
-            if not p(c):
+            t, d = self.__input.peek()
+            if not p(t):
                 break
-            m.append(c)
+            m.append(d)
             self.__input.next()
         self.__last_match = m
         return True
@@ -398,17 +399,17 @@ class TagMatcher(object):
         """
         """
 
-        return p(self.__input.peek())
+        return p(self.__input.peek()[0])
     #-def
 
     def branch(self, table, default, eof):
         """
         """
 
-        c = self.__input.peek()
-        if c is None:
+        t, _ = self.__input.peek()
+        if t is None:
             return eof
-        return table.get(c, default)
+        return table.get(t, default)
     #-def
 
     def skip_symbol(self, symbol):
@@ -445,10 +446,10 @@ class TagMatcher(object):
         """
         """
 
-        if p(self.__input.peek()):
+        if p(self.__input.peek()[0]):
             self.__input.next()
             return True
-        return self.bad_match(self.__input.peek())
+        return self.bad_match(self.__input.peek()[1])
     #-def
 
     def skip_at_least_one_symbol(self, symbol):
@@ -478,10 +479,10 @@ class TagMatcher(object):
         """
         """
 
-        if not p(self.__input.peek()):
-            return self.bad_match(self.__input.peek())
+        if not p(self.__input.peek()[0]):
+            return self.bad_match(self.__input.peek()[1])
         self.__input.next()
-        while p(self.__input.peek()):
+        while p(self.__input.peek()[0]):
             self.__input.next()
         return True
     #-def
@@ -513,7 +514,7 @@ class TagMatcher(object):
         """
         """
 
-        if p(self.__input.peek()):
+        if p(self.__input.peek()[0]):
             self.__input.next()
         return True
     #-def
@@ -552,7 +553,7 @@ class TagMatcher(object):
         """
         """
 
-        while p(self.__input.peek()):
+        while p(self.__input.peek()[0]):
             self.__input.next()
         return True
     #-def
@@ -585,21 +586,21 @@ class TagMatcher(object):
         """
 
         while True:
-            c = self.__input.peek()
-            if c is None:
+            t, _ = self.__input.peek()
+            if t is None:
                 break
-            if p(c):
+            if p(t):
                 break
             self.__input.next()
         return True
     #-def
 
-    def bad_match(self, c):
+    def bad_match(self, t):
         """
         """
 
-        if c is not None:
-            self.__last_error_detail = "Unexpected input symbol %r" % c
+        if t is not None:
+            self.__last_error_detail = "Unexpected input symbol %r" % t
         else:
             self.__last_error_detail = "Unexpected end of input"
         return False
@@ -1612,6 +1613,29 @@ class Jump(TagCommand):
 class Call(TagCommand):
     """
     """
+    __slots__ = [ '__p' ]
+
+    def __init__(self, p):
+        """
+        """
+
+        TagCommand.__init__(self)
+        self.__p = p - 1
+    #-def
+
+    def __call__(self, tag_engine):
+        """
+        """
+
+        # (ip + 1) - 1
+        tag_engine.pushaddr(tag_engine.ip())
+        tag_engine.set_ip(self.__p)
+    #-def
+#-class
+
+class ECall(TagCommand):
+    """
+    """
     __slots__ = [ '__f' ]
 
     def __init__(self, f):
@@ -1627,6 +1651,29 @@ class Call(TagCommand):
         """
 
         self.__f(tag_engine)
+    #-def
+#-class
+
+class Return(TagCommand):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        TagCommand.__init__(self)
+    #-def
+
+    def __call__(self, tag_engine):
+        """
+        """
+
+        r = tag_engine.popaddr()
+        if tag_engine.state() == TES_ERROR:
+            return
+        tag_engine.set_ip(r)
     #-def
 #-class
 
@@ -1738,7 +1785,7 @@ class TagEngine(object):
     """
     __slots__ = [
         '__program_name', '__env', '__matcher',
-        '__valstack', '__code', '__code_size',
+        '__valstack', '__stack', '__code', '__code_size',
         '__ip', '__match', '__match_flag',
         '__state', '__last_error_detail'
     ]
@@ -1894,6 +1941,42 @@ class TagEngine(object):
         return len(self.__valstack)
     #-def
 
+    def pushaddr(self, addr):
+        """
+        """
+
+        self.__stack.append(addr)
+    #-def
+
+    def popaddr(self):
+        """
+        """
+
+        if not self.__stack:
+            self.__last_error_detail = "Pop applied on empty stack"
+            self.__state = TES_ERROR
+            return None
+        return self.__stack.pop()
+    #-def
+
+    def topaddr(self):
+        """
+        """
+
+        if not self.__stack:
+            self.__last_error_detail = "Top applied on empty stack"
+            self.__state = TES_ERROR
+            return None
+        return self.__stack[-1]
+    #-def
+
+    def naddrs(self):
+        """
+        """
+
+        return len(self.__stack)
+    #-def
+
     def code(self):
         """
         """
@@ -1986,6 +2069,7 @@ class TagEngine(object):
         self.__env = None
         self.__matcher = None
         self.__valstack = []
+        self.__stack = []
         self.__code = []
         self.__code_size = 0
         self.__ip = 0
@@ -2033,8 +2117,10 @@ TIC_JTRUE      = 14
 TIC_JFALSE     = 15
 TIC_JUMP       = 16
 TIC_CALL       = 17
-TIC_PAUSE      = 18
-TIC_HALT       = 19
+TIC_ECALL      = 18
+TIC_RETURN     = 19
+TIC_PAUSE      = 20
+TIC_HALT       = 21
 
 class TagICElement(object):
     """
@@ -2439,8 +2525,13 @@ class TagICCompiler(object):
                 else:
                     code.append(Jump(arg.position()))
             elif opcode == TIC_CALL:
+                _assert(arg.position() >= 0, "Undefined label %s" % arg.name())
+                code.append(Call(arg.position()))
+            elif opcode == TIC_ECALL:
                 _assert(iscallable(arg), "Invalid instruction operand type")
-                code.append(Call(arg))
+                code.append(ECall(arg))
+            elif opcode == TIC_RETURN:
+                code.append(Return())
             elif opcode == TIC_PAUSE:
                 code.append(Pause())
             elif opcode == TIC_HALT:
@@ -2605,5 +2696,7 @@ JTRUE      = lambda x: (TIC_JTRUE, TIC_UNUSED, TIC_UNUSED, x)
 JFALSE     = lambda x: (TIC_JFALSE, TIC_UNUSED, TIC_UNUSED, x)
 JUMP       = lambda x: (TIC_JUMP, TIC_UNUSED, TIC_UNUSED, x)
 CALL       = lambda x: (TIC_CALL, TIC_UNUSED, TIC_UNUSED, x)
+ECALL      = lambda x: (TIC_ECALL, TIC_UNUSED, TIC_UNUSED, x)
+RETURN     = (TIC_RETURN, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
 PAUSE      = (TIC_PAUSE, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
 HALT       = (TIC_HALT, TIC_UNUSED, TIC_UNUSED, TIC_UNUSED)
