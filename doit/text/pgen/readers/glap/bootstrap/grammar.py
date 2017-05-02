@@ -159,9 +159,24 @@ class GlapStream(object):
         """
 
         p = self.pos
-        while n > 0:
-            self.matchset(set)
+        while n > 0 and self.pos < self.size and self.data[self.pos] in set:
+            self.pos += 1
             n -= 1
+        if n > 0:
+            raise GlapLexError(self, "Expected one of [%s]" % repr(set)[1:-1])
+        return self.data[p : self.pos]
+    #-def
+
+    def matchnif(self, f, n, fname):
+        """
+        """
+
+        p = self.pos
+        while n > 0 and self.pos < self.size and f(self.data[self.pos]):
+            self.pos += 1
+            n -= 1
+        if n > 0:
+            raise GlapLexError(self, "Expected %s" % fname)
         return self.data[p : self.pos]
     #-def
 #-class
@@ -207,15 +222,15 @@ class GlapLexer(object):
     """
     """
     crange = lambda a, b: [ chr(c) for c in range(ord(a), ord(b) + 1) ]
-    WS = [ '\n', ' ' ]
+    WS = "\n "
     ASCIICHAR = lambda c: ord(' ') <= ord(c) and ord(c) <= ord('~')
     COMMENTCHAR = lambda c: GlapLexer.ASCIICHAR(c) or ord(c) >= 128
     SOURCECHAR = lambda c: c == '\n' or GlapLexer.COMMENTCHAR(c)
-    ODIGIT = crange('0', '7')
-    DIGIT = crange('0', '9')
-    XDIGIT = DIGIT + crange('A', 'F') + crange('a', 'f')
-    IDCHAR = crange('A', 'Z') + crange('a', 'z') + ['_']
-    IDCHARNUM = IDCHAR + DIGIT
+    ODIGIT = "01234567"
+    DIGIT = "0123456789"
+    XDIGIT = "%sABCDEFabcdef" % DIGIT
+    IDCHAR = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_"
+    IDCHARNUM = "%s%s" % (DIGIT, IDCHAR)
     KEYWORDS = [ "module", "grammar", "end" ]
     CHARCHAR = lambda c: GlapLexer.COMMENTCHAR(c) and c not in ("'", "\\")
     STRCHAR = lambda c: GlapLexer.COMMENTCHAR(c) and c not in ('"', '\\')
@@ -258,13 +273,13 @@ class GlapLexer(object):
             raise GlapSyntaxError(self, "Expected end of input")
     #-def
 
-    def test(self, t):
+    def test(self, *ts):
         """
         """
 
         if self.peek():
-            return self.token.ttype == t
-        return t is None
+            return self.token.ttype in ts
+        return None in ts
     #-def
 
     def match(self, t):
@@ -293,6 +308,8 @@ class GlapLexer(object):
             self.token = self.scan_NUMBER(c, istream)
         elif c == '\'':
             self.token = self.scan_CHAR(c, istream)
+        elif c == '"':
+            self.token = self.scan_STR(c, istream)
         else:
             raise GlapLexError(istream, "Unexpected symbol %r" % c)
     #-def
@@ -387,13 +404,37 @@ class GlapLexer(object):
         elif c == '\\':
             istream.next()
             ch = self.scan_ESCAPE_SEQUENCE(istream.peek(), istream)
-        elif CHARCHAR(c):
+        elif GlapLexer.CHARCHAR(c):
             ch = c
             istream.next()
         else:
             raise GlapLexError(istream, "Unexpected symbol %r" % c)
         istream.match('\'')
         return GlapToken(GLAP_CHAR, p, ch)
+    #-def
+
+    def scan_STR(self, c, istream):
+        """
+        """
+
+        # '"' ( '\\' ESCAPE_SEQUENCE | STRCHAR )* '"'
+        p = istream.pos
+        istream.next()
+        s = ""
+        while True:
+            c = istream.peek(1)
+            if c in ("", '"'):
+                break
+            elif c == '\\':
+                istream.next()
+                s += self.scan_ESCAPE_SEQUENCE(istream.peek(), istream)
+            elif GlapLexer.STRCHAR(c):
+                s += c
+                istream.next()
+            else:
+                raise GlapLexError(istream, "Unexpected symbol %r" % c)
+        istream.match('"')
+        return GlapToken(GLAP_STR, p, s)
     #-def
 
     def scan_ESCAPE_SEQUENCE(self, c, istream):
@@ -424,347 +465,111 @@ class GlapLexer(object):
     #-def
 #-class
 
-class _GlapLexer(TagProgram):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self, envclass):
-        """
-        """
-
-        icc = TagICCompiler()
-
-        M = icc.symbol_table().macro_factory()
-        L = icc.symbol_table().label_factory()
-
-        NOTEOF = lambda c: c is not None
-        ASCIICHAR = lambda c: ord(' ') <= ord(c) and ord(c) <= ord('~')
-        COMMENTCHAR = lambda c: NOTEOF(c) and (ASCIICHAR(c) or ord(c) >= 128)
-        SOURCECHAR = lambda c: c == '\n' or COMMENTCHAR(c)
-        icc.define('ODIGIT', ('1', '7'))
-        icc.define('NZ_DIGIT', ('1', '9'))
-        icc.define('DIGIT', '0', M.NZ_DIGIT)
-        icc.define('XDIGIT', M.DIGIT, ('a', 'f'), ('A', 'F'))
-        icc.define('LETTER_', ('A', 'Z'), ('a', 'z'), '_')
-        icc.define('ALNUM_', M.DIGIT, M.LETTER_)
-        CHARCHAR = lambda c: COMMENTCHAR(c) and c not in ("'", "\\")
-        STRCHAR = lambda c: COMMENTCHAR(c) and c not in ('"', '\\')
-        icc.define('ESCAPECHAR', "abtnvfr\"'\\")
-
-        TagProgram.__init__(self, 'glap_lexer', envclass, icc.compile([
-          # Start state:
-          L._start,
-            BRANCH       (L._switch_table),
-          L._eof,
-            HALT,
-          L._switch_table,
-            SYMBOL       ('-',        L._comment_or_minus),
-            SET          ("\n ",      L._whitespace),
-            SET          (M.LETTER_,  L._id),
-            SET          (M.NZ_DIGIT, L._int_part),
-            SYMBOL       ('0',        L._oct_or_hex_int),
-            SYMBOL       ("'",        L._char),
-            SYMBOL       ('"',        L._str),
-            DEFAULT      (L._other),
-            EOF          (L._eof),
-            NULL,
-          L._restart,
-            PAUSE,
-            JUMP         (L._start),
-          # COMMENT -> "--" COMMENTCHAR*
-          L._comment_or_minus,
-            SKIP         ('-'),
-            TEST         ('-'),
-            JFALSE       (L._minus),
-            SKIP         ('-'),
-            SKIP_MANY    (COMMENTCHAR),
-            JUMP         (L._start),
-          L._minus,
-            CALL         (self.emit_minus),
-            JUMP         (L._restart),
-          # WS -> (' ' | '\n')*
-          L._whitespace,
-            SKIP_MANY    ("\n "),
-            JUMP         (L._start),
-          # ID -> LETTER_ ALNUM_*
-          L._id,
-            MATCH        (M.LETTER_),
-            PUSH_MATCH,
-            MATCH_MANY   (M.ALNUM_),
-            CONCAT       (STK, ACC),
-            CALL         (self.emit_id),
-            JUMP         (L._restart),
-          # INT -> INT_PART
-          # INT -> "0" ODIGIT*
-          # INT -> "0" [Xx] XDIGIT+
-          # FLOAT -> INT_PART FLOAT_PART
-          #
-          # INT -> "0" (ODIGIT* | [Xx] XDIGIT+)
-          L._oct_or_hex_int,
-            MATCH        ('0'),
-            TEST         (['X', 'x']),
-            JTRUE        (L._hex_int),
-            PUSH_MATCH,
-            MATCH_MANY   (M.ODIGIT),
-            CONCAT       (STK, ACC),
-            CALL         (self.emit_oct_int),
-            JUMP         (L._restart),
-          L._hex_int,
-            SKIP         (['X', 'x']),
-            MATCH_PLUS   (M.XDIGIT),
-            CALL         (self.emit_hex_int),
-            JUMP         (L._restart),
-          # INT_PART -> NZ_DIGIT DIGIT*
-          L._int_part,
-            MATCH        (M.NZ_DIGIT),
-            PUSH_MATCH,
-            MATCH_MANY   (M.DIGIT),
-            CONCAT       (STK, ACC),
-            TEST         ('.'),
-            JTRUE        (L._float_part),
-            CALL         (self.emit_int),
-            JUMP         (L._restart),
-          # FLOAT_PART -> FRAC_PART EXP_PART?
-          # FLOAR_PART -> EXP_PART
-          #
-          # FRAC_PART -> "." DIGIT+
-          L._float_part,
-            SKIP         ('.'),
-            MATCH_PLUS   (M.DIGIT),
-            PUSH_MATCH,
-            TEST         (['e', 'E']),
-            JTRUE        (L._exp_part),
-            PUSH         ([]), # no sign
-            PUSH         ([]), # no exp
-            CALL         (self.emit_float),
-            JUMP         (L._restart),
-          # EXP_PART -> [Ee] [+-]? DIGIT+
-          L._exp_part,
-            SKIP         (['e', 'E']),
-            MATCH_OPT    (['+', '-']),
-            PUSH_MATCH,
-            MATCH_PLUS   (M.DIGIT),
-            PUSH_MATCH,
-            CALL         (self.emit_float),
-            JUMP         (L._restart),
-          # CHAR -> "'" ("\\" ESCAPE_SEQUENCE | CHARCHAR) "'"
-          L._char,
-            SKIP         ("'"),
-            TEST         ('\\'),
-            JFALSE       (L._charchar),
-            SKIP         ('\\'),
-            CALL         (L._escape_sequence),
-            JUMP         (L._char_finish),
-          L._charchar,
-            MATCH        (CHARCHAR),
-            PUSH_MATCH,
-          L._char_finish,
-            SKIP         ("'"),
-            CALL         (self.emit_char),
-            JUMP         (L._restart),
-          # STR -> '"' ('\\' ESCAPE_SEQUENCE | STRCHAR)* '"'
-          L._str,
-            SKIP         ('"'),
-            PUSH         (""),
-          L._str_loop,
-            TEST         ('"'),
-            JTRUE        (L._str_finish),
-            TEST         ('\\'),
-            JFALSE       (L._strchar),
-            SKIP         ('\\'),
-            CALL         (L._escape_sequence),
-            JUMP         (L._str_addchar),
-          L._strchar,
-            MATCH        (STRCHAR),
-            PUSH_MATCH,
-          L._str_addchar,
-            CONCAT       (STK, STK),
-            JUMP         (L._str_loop),
-          L._str_finish,
-            SKIP         ('"'),
-            CALL         (self.emit_str),
-            JUMP         (L._restart),
-          # ESCAPE_SEQUENCE -> ESCAPE_CHAR
-          # ESCAPE_SEQUENCE -> ODIGIT+
-          # ESCAPE_SEQUENCE -> "x" XDIGIT+
-          # ESCAPE_SEQUENCE -> "u" XDIGIT XDIGIT XDIGIT XDIGIT
-          L._escape_sequence,
-            BRANCH       (L._escape_swt),
-            FAIL         ("One of [abtnvfr'\"\\0-7xu] was expected"),
-          L._escape_swt,
-            SET          (M.ESCAPECHAR, L._escape_char),
-            SET          (M.ODIGIT, L._oct_escape),
-            SYMBOL       ('x', L._hex_escape),
-            SYMBOL       ('u', L._unicode_escape),
-            NULL,
-          L._escape_char,
-            MATCH        (M.ESCAPECHAR),
-            CALL         (self.contribute_escapechar),
-            RETURN,
-          L._oct_escape,
-            MATCH_PLUS   (M.ODIGIT),
-            CALL         (self.contribute_oct_char),
-            RETURN,
-          L._hex_escape,
-            SKIP         ('x'),
-            MATCH_PLUS   (M.XDIGIT),
-            CALL         (self.contribute_hex_char),
-            RETURN,
-          L._unicode_escape,
-            SKIP         ('u'),
-            MATCH        (M.XDIGIT),
-            PUSH_MATCH,
-            MATCH        (M.XDIGIT),
-            PUSH_MATCH,
-            MATCH        (M.XDIGIT),
-            PUSH_MATCH,
-            MATCH        (M.XDIGIT),
-            PUSH_MATCH,
-            CALL         (self.contribute_unicode_char),
-            RETURN,
-          # OTHER -> SOURCECHAR
-          L._other,
-            MATCH        (SOURCECHAR),
-            CALL         (self.emit_other),
-            JUMP         (L._restart)
-        ]))
-        self.reset()
-    #-def
-
-    def emit_minus(self, te):
-        """
-        """
-
-        self.__token = GlapToken(ord('-')
-    #-def
-#-class
-
-
 class GlapParser(TagProgram):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'context' ]
 
-    def __init__(self, envclass):
+    def __init__(self, context):
         """
         """
 
-        TagProgram.__init__(self, 'glap_parser', envclass)
-        self.compile([
-          # start -> module
-          L._start,
-            CALL        (L._module),
-            HALT,
-          # module -> "module" ID module_unit* "end"
-          L._module,
-            SKIP        (s2t["module"]),
-            MATCH       (GLAP_ID),
-            PUSH_MATCH,
-            PUSH        ([]),
-          L._module_1,
-            TEST_EOF,
-            JTRUE       (L._module_2),
-            TEST        (s2t["end"]),
-            JTRUE       (L._module_2),
-            CALL        (L._module_unit),
-            JUMP        (L._module_1),
-          L._module_2,
-            SKIP        (s2t["end"]),
-            ECALL       (self.make_module),
-            RETURN,
-          # module_unit -> module | grammar | command
-          L._module_unit,
-            BRANCH      (L._module_unit_sw),
-            FAIL        ("Unexpected end of input"),
-          L._module_unit_sw,
-            SYMBOL      (s2t["module"], L._module_unit_1),
-            SYMBOL      (s2t["grammar"], L._module_unit_2),
-            DEFAULT     (L._module_unit_3),
-            NULL,
-          L._module_unit_1,
-            CALL        (L._module),
-            RETURN,
-          L._module_unit_2,
-            CALL        (L._grammar),
-            RETURN,
-          L._module_unit_3,
-            CALL        (L._command),
-            RETURN,
-          # grammar -> "grammar" ID grammar_type_spec?
-          #              ( rule | "." command )*
-          #            "end"
-          L._grammar,
-            SKIP        (s2t["grammar"]),
-            MATCH       (GLAP_ID),
-            PUSH_MATCH,
-            PUSH        ([]),
-            TEST        (s2t['(']),
-            JFALSE      (L._grammar_1),
-            CALL        (L._grammar_type_spec),
-          L._grammar_1,
-            PUSH        ([]),
-          L._grammar_2,
-            TEST_EOF,
-            JTRUE       (L._grammar_4),
-            TEST        (s2t["end"]),
-            JTRUE       (L._grammar_4),
-            TEST        (s2t['.']),
-            JFALSE      (L._grammar_3),
-            SKIP        (s2t['.']),
-            CALL        (L._command),
-            JUMP        (L._grammar_2),
-          L._grammar_3,
-            CALL        (L._rule),
-            JUMP        (L._grammar_2),
-          L._grammar_4,
-            SKIP        (s2t["end"]),
-            ECALL       (self.make_grammar),
-            RETURN,
-          # grammar_type_spec -> "(" ( ID ( "," ID )* )? ")"
-          L._grammar_type_spec,
-            SKIP (s2t['(']),
-            PUSH ([]),
-            TEST (GLAP_ID),
-            JFALSE (L._grammar_type_spec_),
-            MATCH (GLAP_ID),
+        self.context = context
+    #-def
 
     def parse(self):
         """
         """
 
-        lexer = self.lexer
-        module = self.parse_module(lexer)
+        # start -> module
+        lexer = self.context.lexer
+        actions = self.context.actions
+        module = self.parse_module(lexer, actions)
         lexer.asserteof()
-        return module
+        return actions.run("start", self.context, module)
     #-def
 
-    def parse_module(self, lexer):
+    def parse_module(self, lexer, actions):
         """
         """
 
+        # module -> "module" ID module_unit* "end"
         lexer.match("module")
         t_ID = lexer.match(GLAP_ID)
         module_units = []
         while lexer.peek() and not lexer.test("end"):
-            module_units.append(self.parse_module_unit(self, lexer))
+            module_units.append(self.parse_module_unit(self, lexer, actions))
         lexer.match("end")
-        return self.make_module(t_ID, module_units)
+        return actions.run("module", self.context, t_ID, module_units)
     #-def
 
-    def parse_module_unit(self, lexer):
+    def parse_module_unit(self, lexer, actions):
         """
         """
 
+        # module_unit -> module | grammar | command
         t = lexer.peek()
         if not t:
             raise GlapSyntaxError(lexer, "Unexpected end of input")
         t = t.ttype
         if t == "module":
-            return self.parse_module(lexer)
+            return self.parse_module(lexer, actions)
         elif t == "grammar":
-            return self.parse_grammar(lexer)
-        return self.parse_command(lexer)
+            return self.parse_grammar(lexer, actions)
+        return self.parse_command(lexer, actions)
+    #-def
+
+    def parse_grammar(self, lexer, actions):
+        """
+        """
+
+        # grammar -> "grammar" ID grammar_type_spec?
+        #              ( rule | "." command )*
+        #            "end"
+        lexer.match("grammar")
+        t_ID = lexer.match(GLAP_ID)
+        grammar_type_spec = []
+        if lexer.test("("):
+            grammar_type_spec = self.parse_grammar_type_spec(lexer, actions)
+        rules_and_commands = []
+        while lexer.peek() and not lexer.test("end"):
+            if lexer.test("."):
+                lexer.next()
+                rules_and_commands.append(self.parse_command(lexer, actions))
+                continue
+            rules_and_commands.append(self.parse_rule(lexer, actions))
+        lexer.match("end")
+        return actions.run("grammar",
+            self.context, t_ID, grammar_type_spec, rules_and_commands
+        )
+    #-def
+
+    def parse_grammar_type_spec(self, lexer, actions):
+        """
+        """
+
+        # grammar_type_spec -> "(" ( ID ( "," ID )* )? ")"
+        lexer.match("(")
+        l = []
+        if lexer.test(GLAP_ID):
+            l.append(lexer.match(GLAP_ID))
+            while lexer.test(","):
+                lexer.next()
+                l.append(lexer.match(GLAP_ID))
+        lexer.match(")")
+        return l
+    #-def
+
+    def parse_rule(self, lexer, actions):
+        """
+        """
+
+        # rule -> ID ( "->" | ":" ) rule_rhs_expr ";"
+        lhs = lexer.match(GLAP_ID)
+        leftarrow = lexer.match("->", ":")
+        rhs = self.parse_rule_rhs_expr(lexer, actions)
+        lexer.match(";")
+        return actions.run("rule", self.context, lhs, leftarrow, rhs)
     #-def
 #-class
 
@@ -779,101 +584,6 @@ class __GlapParser(Parser):
 
         Grammar.__init__(self)
 
-        self['start'] = (
-            V('module')
-        )
-        def start_module():
-            m, NewModule, name = str2id("m NewModule name")
-            return Assign(m, NewModule(name))
-        def add_to_module():
-            AddToModule, m, munit = str2id("AddToModule m munit")
-            return AddToModule(m, munit)
-        def end_module():
-            FinishModule, m = str2id("FinishModule m")
-            return Block(
-                FinishModule(m),
-                Return(m)
-            )
-        self['module'] = (
-            T("module") + T('ID') % "name"
-              + start_module()
-              + (
-                V('module_unit') % "munit"
-                + add_to_module()
-              )['*']
-              + end_module()
-            + T("end")
-        )
-        self['module_unit'] = (
-            V('command')
-            | V('module')
-            | V('grammar')
-        )
-        def start_grammar():
-            g, NewGrammar, name, gtspec = str2id("g NewGrammar name gtspec")
-            return Assign(g, NewGrammar(name, gtspec))
-        def add_r_to_g():
-            AddToGrammar, g, r = str2id("AddToGrammar g r")
-            return AddToGrammar(g, r)
-        def add_cmd_to_g():
-            AddToGrammar, g, cmd = str2id("AddToGrammar g cmd")
-            return AddToGrammar(g, cmd)
-        def end_grammar():
-            FinishGrammar, g = str2id("FinishGrammar g")
-            return Block(
-                FinishGrammar(g),
-                Return(g)
-            )
-        self['grammar'] = (
-            T("grammar") + T('ID') % "name"
-            + V('grammar_type_spec')['?'] % "gtspec"
-              + start_grammar()
-              + (
-                V('rule') % "r" + add_r_to_g()
-                | T(".") + V('command') % "cmd" + add_cmd_to_g()
-              )['*']
-              + end_grammar()
-            + T("end")
-        )
-        def start_gts_list():
-            gts_list, NewGTSList = str2id("gts_list NewGTSList")
-            return Assign(gts_list, NewGTSList())
-        def add_gts_to_gts_list():
-            AddToGTSList, gts_list, name = str2id("AddToGTSList gts_list name")
-            return AddToGTSList(gts_list, name)
-        def end_gts_list():
-            FinishGTSList, gts_list = str2id("FinishGTSList gts_list")
-            return Block(
-                FinishGTSList(gts_list),
-                Return(gts_list)
-            )
-        self['grammar_type_spec'] = (
-            T("(")
-              + start_gts_list()
-              + (
-                V('ID') % "name"
-                + add_gts_to_gts_list()
-                + (
-                  T(",") + V('ID') % "name"
-                  + add_gts_to_gts_list()
-                )['*']
-              )['?']
-              + end_gts_list()
-            + T(")")
-        )
-        def start_rule():
-            r, NewRule, lhs = str2id("r NewRule lhs")
-            return Assign(r, NewRule(lhs))
-        def set_alias_flag():
-            SetAliasFlag, r = str2id("SetAliasFlag r")
-            return SetAliasFlag(r, BoolLiteral(True))
-        def end_rule():
-            FinishRule, SetRhs, r, rhs = str2id("FinishRule SetRhs r rhs")
-            return Block(
-                SetRhs(r, rhs),
-                FinishRule(r),
-                Return(r)
-            )
         self['rule'] = (
           T('ID') % "lhs"
           + start_rule()
