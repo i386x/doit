@@ -47,9 +47,32 @@ class GlapLexError(ParsingError):
         if lineno > 1:
             s = s.split('\n')[-1]
         colno = len(s) + 1
-        ParsingError.__init__(self,
-            "In <%s> at [%d:%d]: %s" % (istream.name, lineno, colno, detail)
-        )
+        ParsingError.__init__(self, "In <%s> at [%d:%d]: %s" % (
+            istream.name, lineno, colno, detail
+        ))
+    #-def
+#-class
+
+class GlapSyntaxError(ParsingError):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, lexer, detail):
+        """
+        """
+
+        p = lexer.istream.pos
+        if lexer.token:
+            p = lexer.token.location()
+        s = lexer.istream.data[0 : p]
+        lineno = s.count('\n') + 1
+        if lineno > 1:
+            s = s.split('\n')[-1]
+        colno = len(s) + 1
+        ParsingError.__init__(self, "In <%s> at [%d:%d]: %s" % (
+            lexer.istream.name, lineno, colno, detail
+        ))
     #-def
 #-class
 

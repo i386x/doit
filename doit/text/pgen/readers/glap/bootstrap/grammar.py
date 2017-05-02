@@ -33,13 +33,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-GLAP_UNKNOWN = -1
-GLAP_NULL    = 0
-GLAP_ID      = 1
-GLAP_INT     = 2
-GLAP_FLOAT   = 3
-GLAP_CHAR    = 4
-GLAP_STR     = 5
+GLAP_ID    = 1
+GLAP_INT   = 2
+GLAP_FLOAT = 3
+GLAP_CHAR  = 4
+GLAP_STR   = 5
 
 class GlapStream(object):
     """
@@ -155,11 +153,29 @@ class GlapStream(object):
             return self.data[self.pos - 1]
         return default
     #-def
+
+    def matchn(self, set, n):
+        """
+        """
+
+        p = self.pos
+        while n > 0:
+            self.matchset(set)
+            n -= 1
+        return self.data[p : self.pos]
+    #-def
 #-class
 
 class GlapToken(Token):
     """
     """
+    NAMES = {
+      GLAP_ID: "identifier",
+      GLAP_INT: "int literal",
+      GLAP_FLOAT: "float literal",
+      GLAP_CHAR: "char literal",
+      GLAP_STR: "string literal"
+    }
     __slots__ = []
 
     def __init__(self, ttype, location, *data):
@@ -167,6 +183,23 @@ class GlapToken(Token):
         """
 
         Token.__init__(self, ttype, location, data)
+    #-def
+
+    def location(self):
+        """
+        """
+
+        return self.data[0]
+    #-def
+
+    @classmethod
+    def tokname(cls, ttype):
+        """
+        """
+
+        if isinstance(ttype, str):
+            return repr(ttype)
+        return cls.NAMES.get(ttype, "<unknown>")
     #-def
 #-class
 
@@ -176,14 +209,29 @@ class GlapLexer(object):
     crange = lambda a, b: [ chr(c) for c in range(ord(a), ord(b) + 1) ]
     WS = [ '\n', ' ' ]
     ASCIICHAR = lambda c: ord(' ') <= ord(c) and ord(c) <= ord('~')
-    COMMENTCHAR = lambda c: ASCIICHAR(c) or ord(c) >= 128
-    SOURCECHAR = lambda c: c == '\n' or COMMENTCHAR(c)
+    COMMENTCHAR = lambda c: GlapLexer.ASCIICHAR(c) or ord(c) >= 128
+    SOURCECHAR = lambda c: c == '\n' or GlapLexer.COMMENTCHAR(c)
     ODIGIT = crange('0', '7')
     DIGIT = crange('0', '9')
     XDIGIT = DIGIT + crange('A', 'F') + crange('a', 'f')
     IDCHAR = crange('A', 'Z') + crange('a', 'z') + ['_']
     IDCHARNUM = IDCHAR + DIGIT
-    __slots__ = []
+    KEYWORDS = [ "module", "grammar", "end" ]
+    CHARCHAR = lambda c: GlapLexer.COMMENTCHAR(c) and c not in ("'", "\\")
+    STRCHAR = lambda c: GlapLexer.COMMENTCHAR(c) and c not in ('"', '\\')
+    ESCAPECHAR2CHAR = {
+      'a': '\a',
+      'b': '\b',
+      't': '\t',
+      'n': '\n',
+      'v': '\v',
+      'f': '\f',
+      'r': '\r',
+      '"': '"',
+      '\'': '\'',
+      '\\': '\\'
+    }
+    __slots__ = [ 'istream', 'token' ]
 
     def __init__(self, istream):
         """
@@ -191,6 +239,43 @@ class GlapLexer(object):
 
         self.istream = istream
         self.token = None
+    #-def
+
+    def peek(self):
+        """
+        """
+
+        if self.token is None:
+            self.next()
+        return self.token
+    #-def
+
+    def asserteof(self):
+        """
+        """
+
+        if self.peek():
+            raise GlapSyntaxError(self, "Expected end of input")
+    #-def
+
+    def test(self, t):
+        """
+        """
+
+        if self.peek():
+            return self.token.ttype == t
+        return t is None
+    #-def
+
+    def match(self, t):
+        """
+        """
+
+        if not self.peek() or self.token.ttype != t:
+            raise GlapSyntaxError(self, "Expected %s" % GlapToken.tokname(t))
+        t = self.token
+        self.next()
+        return t
     #-def
 
     def next(self):
@@ -206,6 +291,8 @@ class GlapLexer(object):
             self.token = self.scan_ID(c, istream)
         elif c in self.DIGIT:
             self.token = self.scan_NUMBER(c, istream)
+        elif c == '\'':
+            self.token = self.scan_CHAR(c, istream)
         else:
             raise GlapLexError(istream, "Unexpected symbol %r" % c)
     #-def
@@ -214,6 +301,7 @@ class GlapLexer(object):
         """
         """
 
+        # ( [ ' ', '\n' ]* | "--" COMMENTCHAR* )*
         while True:
             p = istream.pos
             istream.matchset(self.WS)
@@ -230,21 +318,30 @@ class GlapLexer(object):
         if istream.peek(2) != "--":
             return
         istream.next(2)
-        istream.matchmanyif(self.COMMENTCHAR)
+        istream.matchmanyif(GlapLexer.COMMENTCHAR)
     #-def
 
     def scan_ID(self, c, istream):
         """
         """
 
+        # IDCHAR IDCHARNUM*
         p = istream.pos
-        return GlapToken(GLAP_ID, p, istream.matchmany(self.IDCHARNUM))
+        m = istream.matchmany(self.IDCHARNUM)
+        if m in self.KEYWORDS:
+            return GlapToken(m, p)
+        return GlapToken(GLAP_ID, p, m)
     #-def
 
     def scan_NUMBER(self, c, istream):
         """
         """
 
+        # (DIGIT - '0') DIGIT*
+        #   ( '.' DIGIT+ )?
+        #   ( ( 'E' | 'e' ) ( '+' | '-' )? DIGIT+ )?
+        # '0' ODIGIT*
+        # '0' ( 'X' | 'x' ) XDIGIT+
         p = istream.pos
         if c != '0':
             # Non-zero digit case - match integral part:
@@ -275,6 +372,55 @@ class GlapLexer(object):
         return GlapToken(
             GLAP_INT, p, GLAP_INT_OCT, "0" + istream.matchmany(self.ODIGIT)
         )
+    #-def
+
+    def scan_CHAR(self, c, istream):
+        """
+        """
+
+        # '\'' ( '\\' ESCAPE_SEQUENCE | CHARCHAR ) '\''
+        p = istream.pos
+        istream.next()
+        c = istream.peek(1)
+        if c == "":
+            raise GlapLexError(istream, "Unexpected end of input")
+        elif c == '\\':
+            istream.next()
+            ch = self.scan_ESCAPE_SEQUENCE(istream.peek(), istream)
+        elif CHARCHAR(c):
+            ch = c
+            istream.next()
+        else:
+            raise GlapLexError(istream, "Unexpected symbol %r" % c)
+        istream.match('\'')
+        return GlapToken(GLAP_CHAR, p, ch)
+    #-def
+
+    def scan_ESCAPE_SEQUENCE(self, c, istream):
+        """
+        """
+
+        # ESCAPECHAR
+        # ODIGIT ODIGIT? ODIGIT?
+        # 'x' XDIGIT{2}
+        # 'u' XDIGIT{4}
+        if c == "":
+            raise GlapLexError(istream, "Unexpected end of input")
+        elif c in self.ESCAPECHAR2CHAR:
+            istream.next()
+            return self.ESCAPECHAR2CHAR[c]
+        elif c in self.ODIGIT:
+            x = self.matchset(self.ODIGIT)
+            x += self.matchopt(self.ODIGIT, "")
+            x += self.matchopt(self.ODIGIT, "")
+            return chr(int(x, 8))
+        elif c == 'x':
+            istream.next()
+            return chr(int(self.matchn(self.XDIGIT, 2), 16))
+        elif c == 'u':
+            istream.next()
+            return chr(int(self.matchn(self.XDIGIT, 4), 16))
+        raise GlapLexError(istream, "Invalid symbol (%r) after '\\'" % c)
     #-def
 #-class
 
