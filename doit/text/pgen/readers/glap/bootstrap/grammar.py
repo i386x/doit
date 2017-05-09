@@ -881,7 +881,7 @@ class GlapParser(object):
         # addop -> "+" | "-" | "." | "++" | "~~"
         # c_expr[9] -> c_expr[9] mulop c_expr[10] | c_expr[10]
         # mulop -> "*" | "/" | "%"
-        # c_expr[10] -> c_expr[11] c_expr[11]*
+        # c_expr[10] -> c_expr[11] ("'"? c_expr[11])*
         # c_expr[11] -> uop c_expr[11] | c_expr[12]
         # uop -> "-" | "!" | "~"
         # c_expr[12] -> c_expr[12] postop | c_expr_atom
@@ -909,9 +909,15 @@ class GlapParser(object):
             if op.name == "":
                 # Call expression.
                 fargs = []
-                while optab.operandfollows(lexer):
+                while True:
+                    if not optab.operandfollows(lexer) and not lexer.test("'"):
+                        break
+                    lambdas_ = lambdas
+                    if lexer.test("'"):
+                        lambdas_ = True
+                        lexer.next()
                     farg, _ = self.parse_c_expr(
-                        lexer, actions, op.lbp, lambdas
+                        lexer, actions, op.lbp, lambdas_
                     )
                     fargs.append(farg)
                 result = actions.run(
@@ -956,7 +962,7 @@ class GlapParser(object):
         # c_expr_atom -> ID                   -- identifier
         #              | "$" ID               -- get value
         #              | "#" ID               -- get macro parameter content
-        #              | "$(" c_expr[1]+ ")"  -- expand macro with params
+        #              | "$(" c_maccall ")"   -- expand macro with params
         #              | INT
         #              | FLOAT
         #              | STR
@@ -965,6 +971,26 @@ class GlapParser(object):
         #              | "[" c_hash_items  "]"             -- hash
         #              | "{" "|" c_fargs "|" command* "}"  -- lambda
         #              | "(" c_expr[0] ")"
+        t = lexer.peek()
+        if t is None:
+            GlapSyntaxError(lexer, "Unexpected end of input")
+        ttype = t.ttype
+        if ttype == GLAP_ID:
+            lexer.next()
+            return actions.run("c_expr_atom(ID)", self.context, t)
+        elif ttype == "$":
+            lexer.next()
+            t = lexer.match(GLAP_ID)
+            return actions.run("c_expr_atom($ID)", self.context, t)
+        elif ttype == "#":
+            lexer.next()
+            t = lexer.match(GLAP_ID)
+            return actions.run("c_expr_atom(#ID)", self.context, t)
+        elif ttype == "$(":
+            lexer.next()
+            m, margs = self.parse_c_maccall(lexer, actions)
+            lexer.match(")")
+            return actions.run("c_expr_atom($(_ _))", self.context, m, margs)
     #-def
 
     # -------------------------------------------------------------------------
