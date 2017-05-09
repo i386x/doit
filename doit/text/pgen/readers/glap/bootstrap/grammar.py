@@ -465,7 +465,113 @@ class GlapLexer(object):
     #-def
 #-class
 
-class GlapParser(TagProgram):
+class Operator(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, level, lbp, name, rbp):
+        """
+        """
+
+        self.level = level
+        self.name = name
+        slbp = "_" if lbp >= 0 else ""
+        srbp = "_" if rbp >= 0 else ""
+        self.mask = "%s%s%s" % (slbp, name or " ", srbp)
+        self.lbp = lbp
+        self.rbp = rbp
+    #-def
+#-class
+
+class OperatorTable(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, *spec, **opts):
+        """
+        """
+
+        self.prefixops = {}
+        self.operators = {}
+        self.atomlevel = -1
+        self.opts = opts
+        for x in spec:
+            self.add_operator(*x)
+    #-def
+
+    def add_operator(level, lbp, name, rbp):
+        """
+        """
+
+        if lbp < 0 and rbp < 0:
+            if level > self.atomlevel:
+                self.atomlevel = level
+            return
+        if lbp < 0:
+            _assert(name not in self.prefixops,
+                "%r has been already added to operator table" % name
+            )
+            self.prefixops[name] = Operator(level, lbp, name, rbp)
+            if rbp > self.atomlevel:
+                self.atomlevel = rbp
+            return
+        _assert(name not in self.operators,
+            "%r has been already added to operator table" % name
+        )
+        self.operators[name] = Operator(level, lbp, name, rbp)
+        if lbp > self.atomlevel:
+            self.atomlevel = lbp
+        if rbp > self.atomlevel:
+            self.atomlevel = rbp
+    #-def
+
+    def peekprefix(self, lexer):
+        """
+        """
+
+        t = lexer.peek()
+        if not t:
+            return None
+        return self.prefixops.get(t.ttype, None)
+    #-def
+
+    def peekoperator(self, lexer):
+        """
+        """
+
+        t = lexer.peek()
+        if not t:
+            return None
+        o = self.operators.get(t.ttype, None)
+        if o:
+            return o
+        if t.ttype in self.opts.get('first', []):
+            return self.operators.get("", None)
+        return None
+    #-def
+
+    def operandfollows(self, lexer):
+        """
+        """
+
+        t = lexer.peek()
+        return t and t.ttype in self.opts.get('first', [])
+    #-def
+#-class
+
+def expression_parser(*spec, **opts):
+    """
+    """
+
+    def expression_parser_installer(method):
+        method.optab = OperatorTable(*spec, **opts)
+        return method
+    return expression_parser_installer
+#-def
+
+class GlapParser(object):
     """
     """
     __slots__ = [ 'context' ]
@@ -571,6 +677,304 @@ class GlapParser(TagProgram):
         lexer.match(";")
         return actions.run("rule", self.context, lhs, leftarrow, rhs)
     #-def
+
+    @expression_parser(
+      (0, 0, "|", 1),
+      (1, 1, "-", 2),
+      (2, 2, "", 3),
+      (3, 3, "*", -1),
+      (3, 3, "+", -1),
+      (3, 3, "?", -1),
+      (4, -1, "-", 4),
+      (4, -1, "~", 4),
+      (5, 6, "'", 6),
+      first = [ "-", "~", GLAP_ID, GLAP_STR, "eps", "{", "(" ]
+    )
+    def parse_rule_rhs_expr(self, lexer, actions, level = 0):
+        """
+        """
+
+        # rule_rhs_expr[0] -> rule_rhs_expr[0] "|" rule_rhs_expr[1]
+        #                   | rule_rhs_expr[1]
+        # rule_rhs_expr[1] -> rule_rhs_expr[1] "-" rule_rhs_expr[2]
+        #                   | rule_rhs_expr[2]
+        # rule_rhs_expr[2] -> rule_rhs_expr[2] "" rule_rhs_expr[3]
+        #                   | rule_rhs_expr[3]
+        # rule_rhs_expr[3] -> rule_rhs_expr[3] ( "*" | "+" | "?" )
+        #                   | rule_rhs_expr[4]
+        # rule_rhs_expr[4] -> ( "-" | "~" ) rule_rhs_expr[4]
+        #                   | rule_rhs_expr[5]
+        # rule_rhs_expr[5] -> rule_rhs_expr[6] "'" rule_rhs_expr[6]
+        #                   | rule_rhs_expr[6]
+        # rule_rhs_expr[6] -> rule_rhs_expr_atom
+        optab = self.parse_rule_rhs_expr.optab
+        # Peek for prefix operator.
+        op = optab.peekprefix(lexer)
+        # It is a prefix operator reachable from the current level?
+        if op and op.level >= level:
+            # Yes, it is.
+            lexer.next()
+            # Parse right-hand side:
+            result = self.parse_rule_rhs_expr(lexer, actions, op.rbp)
+            result = actions.run(
+                "rule_rhs_expr(%s)" % op.mask, self.context, result
+            )
+            oplvl = op.level
+        else:
+            # No, it isn't. It is either atom or binary/postfix operator or it
+            # is a prefix operator that is unreachable from this level (only
+            # atom pass here).
+            result = self.parse_rule_rhs_expr_atom(lexer, actions)
+            oplvl = optab.atomlevel
+        while True:
+            op = optab.peekoperator(lexer)
+            # `op' is not operator => stop
+            # previous operator/atom cannot be reached (derived) => stop
+            # current operator has lower priority (level) => stop
+            if not op or op.lbp > oplvl or op.level < level:
+                break
+            # "Invisible" operator treatment.
+            if op.name:
+                lexer.next()
+            # Binary operator?
+            if op.rbp >= 0:
+                rhs = self.parse_rule_rhs_expr(lexer, actions, op.rbp)
+                result = actions.run(
+                    "rule_rhs_expr(%s)" % op.mask, self.context, result, rhs
+                )
+            else:
+                # Unary postfix.
+                result = actions.run(
+                    "rule_rhs_expr(%s)" % op.mask, self.context, result
+                )
+            # Update previous operator level.
+            oplvl = op.level
+        return result
+    #-def
+
+    def parse_rule_rhs_expr_atom(self, lexer, actions):
+        """
+        """
+
+        # rule_rhs_expr_atom -> ID | STR ( ".." STR )? | "eps"
+        #                     | "{" a_start "}" | "(" rule_rhs_expr[0] ")"
+        t = lexer.peek(1)
+        if t is None:
+            raise GlapSyntaxError(lexer, "Unexpected end of input")
+        ttype = t.ttype
+        if ttype == GLAP_ID:
+            lexer.next()
+            return actions.run("rule_rhs_expr_atom(ID)", self.context, t)
+        elif ttype == GLAP_STR:
+            lexer.next()
+            if lexer.test(".."):
+                lexer.next()
+                u = lexer.match(GLAP_STR)
+                return actions.run(
+                    "rule_rhs_expr_atom(STR..STR)", self.context, t, u
+                )
+            return actions.run("rule_rhs_expr_atom(STR)", self.context, t)
+        elif ttype == "eps":
+            lexer.next()
+            return actions.run("rule_rhs_expr_atom(eps)", self.context)
+        elif ttype == "{":
+            lexer.next()
+            r = self.parse_a_start(lexer, actions)
+            lexer.match("}")
+            return actions.run("rule_rhs_expr_atom(action)", self.context, r)
+        elif ttype == "(":
+            lexer.next()
+            r = self.parse_rule_rhs_expr(lexer, actions, 0)
+            lexer.match(")")
+            return r
+        raise GlapSyntaxError(lexer, "Atom (primary expression) expected")
+    #-def
+
+    # -------------------------------------------------------------------------
+    # -- Commands
+    # -------------------------------------------------------------------------
+
+    def parse_command(self, lexer, actions):
+        """
+        """
+
+        # command -> c_expr
+        #          | c_stmt
+        if lexer.test(
+            "{", "defmacro", "define", "if", "foreach", "while", "do", "break",
+            "continue", "return", "try", "throw", "rethrow"
+        ):
+            return self.parse_c_stmt(lexer, actions)
+        r, _ = self.parse_c_expr(lexer, actions, 0, False)
+        return r
+    #-def
+
+    @expression_parser(
+      (0, 12, "=", 0),   # assign
+      (0, 12, "+=", 0),  # in-place add
+      (0, 12, "-=", 0),  # in-place sub
+      (0, 12, "*=", 0),  # in-place mult
+      (0, 12, "/=", 0),  # in-place div
+      (0, 12, "%=", 0),  # in-place mod
+      (0, 12, "&=", 0),  # in-place bitand
+      (0, 12, "|=", 0),  # in-place bitor
+      (0, 12, "^=", 0),  # in-place bitxor
+      (0, 12, "<<=", 0), # in-place bitwise shift to the left
+      (0, 12, ">>=", 0), # in-place bitwise shift to the right
+      (0, 12, "&&=", 0), # in-place logical and
+      (0, 12, "||=", 0), # in-place logical or
+      (0, 12, ".=", 0),  # in-place string concatenation
+      (0, 12, "++=", 0), # in-place list join
+      (0, 12, "~~=", 0), # in-place hash table merge
+      (1, 1, "||", 2),   # logical or
+      (2, 2, "&&", 3),   # logical and
+      (3, 4, "<", 4),    # less than
+      (3, 4, ">", 4),    # greater than
+      (3, 4, "<=", 4),   # less or equal
+      (3, 4, ">=", 4),   # greater or equal
+      (3, 4, "==", 4),   # equal
+      (3, 4, "!=", 4),   # not equal
+      (3, 4, "===", 4),  # is identical
+      (3, 4, "in", 4),   # contains
+      (4, 4, "|", 5),    # bitor
+      (5, 5, "&", 6),    # bitand
+      (6, 6, "^", 7),    # bitxor
+      (7, 7, "<<", 8),   # bitwise shift to the left
+      (7, 7, ">>", 8),   # bitwise shift to the right
+      (8, 8, "+", 9),    # add
+      (8, 8, "-", 9),    # sub
+      (8, 8, ".", 9),    # concat
+      (8, 8, "++", 9),   # join
+      (8, 8, "~~", 9),   # merge
+      (9, 9, "*", 10),   # mul
+      (9, 9, "/", 10),   # div
+      (9, 9, "%", 10),   # mod
+      (10, 11, "", -1),  # call
+      (11, -1, "-", 11), # negation
+      (11, -1, "!", 11), # logical not
+      (11, -1, "~", 11), # bitinvert
+      (12, 12, "[", -1), # index
+      (12, 12, ":", -1), # access
+      first = [
+        "-", "!", "~", GLAP_ID, "$", "#", "$(", GLAP_INT, GLAP_FLOAT, GLAP_STR,
+        "(", "[", "{"
+      ]
+    )
+    def parse_c_expr(self, lexer, actions, level = 0, lambdas = False):
+        """
+        """
+
+        # c_expr[0] -> c_expr[12] assignop c_expr[0] | c_expr[1]
+        # assignop -> "="   | "+=" | "-="  | "*="  | "/="  | "%="  | "&="
+        #           | "|="  | "^=" | "<<=" | ">>=" | "&&=" | "||=" | ".="
+        #           | "++=" | "~~="
+        # c_expr[1] -> c_expr[1] "||" c_expr[2] | c_expr[2]
+        # c_expr[2] -> c_expr[2] "&&" c_expr[3] | c_expr[3]
+        # c_expr[3] -> c_expr[4] relop c_expr[4] | c_expr[4]
+        # relop -> "<" | ">" | "<=" | ">=" | "==" | "!=" | "===" | "in"
+        # c_expr[4] -> c_expr[4] "|" c_expr[5] | c_expr[5]
+        # c_expr[5] -> c_expr[5] "&" c_expr[6] | c_expr[6]
+        # c_expr[6] -> c_expr[6] "^" c_expr[7] | c_expr[7]
+        # c_expr[7] -> c_expr[7] bitshiftop c_expr[8] | c_expr[8]
+        # bitshiftop -> "<<" | ">>"
+        # c_expr[8] -> c_expr[8] addop c_expr[9] | c_expr[9]
+        # addop -> "+" | "-" | "." | "++" | "~~"
+        # c_expr[9] -> c_expr[9] mulop c_expr[10] | c_expr[10]
+        # mulop -> "*" | "/" | "%"
+        # c_expr[10] -> c_expr[11] c_expr[11]*
+        # c_expr[11] -> uop c_expr[11] | c_expr[12]
+        # uop -> "-" | "!" | "~"
+        # c_expr[12] -> c_expr[12] postop | c_expr_atom
+        # postop -> "[" c_expr[0] "]" | ":" ID
+        optab = self.parse_c_expr.optab
+        op = optab.peekprefix(lexer)
+        if op and op.level >= level:
+            lexer.next()
+            result, _ = self.parse_c_expr(lexer, actions, op.rbp, True)
+            result = actions.run(
+                "c_expr(%s)" % op.mask, self.context, result
+            )
+            oplvl = op.level
+        else:
+            result = self.parse_c_expr_atom(lexel, actions, lambdas)
+            oplvl = optab.atomlevel
+        while True:
+            op = optab.peekoperator(lexer)
+            if not op or op.lbp > oplvl or op.level < level:
+                break
+            if not lambdas and lexer.token.ttype == "{":
+                # "{" denotes a block instead of lambda
+                break
+            # Handle operators here.
+            if op.name == "":
+                # Call expression.
+                fargs = []
+                while optab.operandfollows(lexer):
+                    farg, _ = self.parse_c_expr(
+                        lexer, actions, op.lbp, lambdas
+                    )
+                    fargs.append(farg)
+                result = actions.run(
+                    "c_expr(_ _)", self.context, result, fargs
+                )
+            elif op.name == "[":
+                # Index expression.
+                lexer.next()
+                iexpr, _ = self.parse_c_expr(lexer, actions, 0, True)
+                lexer.match("]")
+                result = actions.run(
+                    "c_expr(_[_])", self.context, result, iexpr
+                )
+            elif op.name == ":":
+                # Access expression.
+                lexer.next()
+                t_ID = lexer.match(GLAP_ID)
+                result = actions.run(
+                    "c_expr(_:ID)", self.context, result, t_ID
+                )
+            elif op.rbp < 0:
+                # Other unary expression.
+                lexer.next()
+                result = actions.run(
+                    "c_expr(%s)" % op.mask, self.context, result
+                )
+            else:
+                # Binary operator.
+                lexer.next()
+                rhs, _ = self.parse_c_expr(lexer, actions, op.rbp, True)
+                result = actions.run(
+                    "c_expr(%s)" % op.mask, self.context, result, rhs
+                )
+            oplvl = op.level
+        return result, oplvl
+    #-def
+
+    def parse_c_expr_atom(self, lexer, actions, lambdas):
+        """
+        """
+
+        # c_expr_atom -> ID                   -- identifier
+        #              | "$" ID               -- get value
+        #              | "#" ID               -- get macro parameter content
+        #              | "$(" c_expr[1]+ ")"  -- expand macro with params
+        #              | INT
+        #              | FLOAT
+        #              | STR
+        #              | "(" c_expr[1] "," c_expr[1] ")"   -- pair
+        #              | "[" c_list_items? "]"             -- list
+        #              | "[" c_hash_items  "]"             -- hash
+        #              | "{" "|" c_fargs "|" command* "}"  -- lambda
+        #              | "(" c_expr[0] ")"
+    #-def
+
+    # -------------------------------------------------------------------------
+    # -- Actions
+    # -------------------------------------------------------------------------
+
+    def parse_a_start(self, lexer, actions):
+        """
+        """
+    #-def
 #-class
 
 class __GlapParser(Parser):
@@ -584,58 +988,6 @@ class __GlapParser(Parser):
 
         Grammar.__init__(self)
 
-        self['rule'] = (
-          T('ID') % "lhs"
-          + start_rule()
-            + (T("->") | T(":") + set_alias_flag())
-            + V('rule_rhs_expr') % "rhs"
-          + end_rule()
-          + T(";")
-        )
-        _ = lambda v: Return(str2id(v))
-        _un = lambda x: Return(str2id("%s" % x)(str2id("lhs")))
-        _bin = lambda x: Return(str2id("%s" % x)(*str2id("lhs rhs")))
-        self['rule_rhs_expr'] = PrecedenceGraph(
-          (0, (0, "|", 1), 1, _bin("RuleAltExpression")),
-          (1, (1, "-", 2), 2, _bin("RuleExcludeExpression")),
-          (2, (2, "", 3),  3, _bin("RuleConcatExpression")),
-          (3, (3, "*", -1), 4, _un("RuleStarExpression")),
-          (3, (3, "+", -1), 4, _un("RulePlusExpression")),
-          (3, (3, "?", -1), 4, _un("RuleOptExpression")),
-          (4, (-1, "-", 4), 5, _un("RuleDiscardExpression")),
-          (4, (-1, "~", 4), 5, _un("RuleInvExpression")),
-          (5, (6, "'", 6), 6, _bin("RuleLabelExpression")),
-          (6, (-1, V('rule_rhs_expr_atom'), -1) -1, _("lhs"))
-        )
-        Epsilon = Return(str2id("Epsilon")())
-        self['rule_rhs_expr_atom'] = (
-          T('ID') % "i" + _("i")
-          | T('STRING') % "s" + _("s")
-          | V('char_or_range') % "cr" + _("cr")
-          | T("eps") + Epsilon
-          | V('action') % "a" + _("a")
-          | T("(") + V('rule_rhs_expr_0') % "e" + T(")") + _("e")
-        )
-        def rule_range_literal():
-            RuleRangeLiteral, a, b = str2id("RuleRangeLiteral a b")
-            return Return(RangeLiteral(a, b))
-        def rule_char_literal():
-            CharLiteral, a = str2id("CharLiteral a")
-            return Return(CharLiteral(a))
-        self['char_or_range'] = (
-            T('ID') % "a"
-            + (
-              T("..") + T('ID') % "b"
-              + rule_range_literal()
-            )['?']
-            + rule_char_literal()
-        )
-        self['action'] = (
-          T("{")
-            + V('a_start') % "a"
-          + T("}")
-          + _("a")
-        )
         # Command grammar:
         self['command'] = (
           V('c_expr') % "expr" + T('DELIM') + _("expr")
