@@ -993,6 +993,19 @@ class GlapParser(object):
             return actions.run("c_expr_atom($(_ _))", self.context, m, margs)
     #-def
 
+    def parse_c_maccall(self, lexer, actions):
+        """
+        """
+
+        m, _ = self.parse_c_expr(lexer, actions, 1, True)
+        margs = []
+        while lexer.test("`"):
+            lexer.next()
+            marg, _ = self.parse_c_expr(lexer, actions, 1, True)
+            margs.append(marg)
+        return m, margs
+    #-def
+
     # -------------------------------------------------------------------------
     # -- Actions
     # -------------------------------------------------------------------------
