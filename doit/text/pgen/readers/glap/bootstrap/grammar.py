@@ -787,7 +787,7 @@ class GlapParser(object):
             r = self.parse_rule_rhs_expr(lexer, actions, 0)
             lexer.match(")")
             return r
-        raise GlapSyntaxError(lexer, "Atom (primary expression) expected")
+        raise GlapSyntaxError(lexer, "Atom (primary expression) was expected")
     #-def
 
     # -------------------------------------------------------------------------
@@ -798,14 +798,15 @@ class GlapParser(object):
         """
         """
 
-        # command -> c_expr
+        # command -> c_expr ";"
         #          | c_stmt
         if lexer.test(
             "{", "defmacro", "define", "if", "foreach", "while", "do", "break",
-            "continue", "return", "try", "throw", "rethrow"
+            "continue", "return", "try", "throw"
         ):
             return self.parse_c_stmt(lexer, actions)
         r, _ = self.parse_c_expr(lexer, actions, 0, False)
+        lexer.match(";")
         return r
     #-def
 
@@ -971,6 +972,11 @@ class GlapParser(object):
         #              | "[" c_hash_items  "]"             -- hash
         #              | "{" "|" c_fargs "|" command* "}"  -- lambda
         #              | "(" c_expr[0] ")"
+        #
+        # c_list_items -> c_expr[1] ( "," c_expr[1] )*
+        # c_hash_items -> c_hash_item ( "," c_hash_item )*
+        # c_hash_item -> c_expr[1] "=>" c_expr[1]
+        # c_fargs -> ID+ ( "..." ID )?
         t = lexer.peek()
         if t is None:
             GlapSyntaxError(lexer, "Unexpected end of input")
@@ -991,12 +997,79 @@ class GlapParser(object):
             m, margs = self.parse_c_maccall(lexer, actions)
             lexer.match(")")
             return actions.run("c_expr_atom($(_ _))", self.context, m, margs)
+        elif ttype == GLAP_INT:
+            lexer.next()
+            return actions.run("c_expr_atom(INT)", self.context, t)
+        elif ttype == GLAP_FLOAT:
+            lexer.next()
+            return actions.run("c_expr_atom(FLOAT)", self.context, t)
+        elif ttype == GLAP_STR:
+            lexer.next()
+            return actions.run("c_expr_atom(STR)", self.context, t)
+        elif ttype == "(":
+            lexer.next()
+            r, l = self.parse_c_expr(lexer, actions, 0, True)
+            if lexer.test(","):
+                if l < 1:
+                    raise GlapSyntaxError(lexer,
+                        "Assignment expression inside pair"
+                    )
+                lexer.next()
+                e, _ = self.parse_c_expr(lexer, actions, 1, True)
+                r = actions.run("c_expr_atom(pair)", self.context, r, e)
+            lexer.match(")")
+            return r
+        elif ttype == "[":
+            is_hash = False
+            items = []
+            while not lexer.test("]", None):
+                if items:
+                    lexer.match(",")
+                item, _ = self.parse_c_expr(lexer, actions, 1, True)
+                if not items and lexer.test("=>"):
+                    is_hash = True
+                if is_hash:
+                    lexer.match("=>")
+                    v, _ = self.parse_c_expr(lexer, actions, 1, True)
+                    item = (item, v)
+                items.append(item)
+            lexer.match("]")
+            return actions.run(
+                "c_expr_atom(%s)" % ("hash" if is_hash else "list"),
+                self.context, items
+            )
+        elif ttype == "{":
+            if not lambdas:
+                raise GlapSyntaxError(lexer,
+                    "Atom (primary expression) was expected, but block found"
+                )
+            lexer.next()
+            lexer.match("|")
+            fargs = [lexer.match(GLAP_ID)]
+            has_varags = False
+            while lexer.test(GLAP_ID):
+                fargs.append(lexer.match(GLAP_ID))
+            if lexer.test("..."):
+                lexer.next()
+                fargs.append(lexer.match(GLAP_ID))
+                has_varags = True
+            lexer.match("|")
+            commands = []
+            while not lexer.test("}", None):
+                commands.append(self.parse_command(lexer, actions))
+            lexer.match("}")
+            return actions.run(
+                "c_expr_atom(lambda)",
+                self.context, fargs, has_varargs, commands
+            )
+        raise GlapSyntaxError(lexer, "Atom (primary expression) was expected")
     #-def
 
     def parse_c_maccall(self, lexer, actions):
         """
         """
 
+        # c_maccall -> c_expr[1] ("`" c_expr[1])*
         m, _ = self.parse_c_expr(lexer, actions, 1, True)
         margs = []
         while lexer.test("`"):
@@ -1004,6 +1077,153 @@ class GlapParser(object):
             marg, _ = self.parse_c_expr(lexer, actions, 1, True)
             margs.append(marg)
         return m, margs
+    #-def
+
+    def parse_c_stmt(self, lexer, actions):
+        """
+        """
+
+        # c_stmt -> c_block
+        # c_stmt -> "defmacro" ID ID* "(" command* ")"
+        # c_stmt -> "define" ID ID* ( "..." ID )? c_block
+        # c_stmt -> "if" c_expr[1] c_block
+        #           ( "elif" c_expr[1] c_block )*
+        #           ( "else" c_block )?
+        # c_stmt -> "foreach" ID c_expr[1] c_block
+        # c_stmt -> "while" c_expr[1] c_block
+        # c_stmt -> "do" c_block "while" c_expr[1] ";"
+        # c_stmt -> "break"
+        # c_stmt -> "continue"
+        # c_stmt -> "return" ( c_expr[1] ";" )?
+        # c_stmt -> "try" c_block
+        #           ( "catch" ID ID? c_block )*
+        #           ( "finally" c_block )?
+        # c_stmt -> "throw" c_expr[1] ";"
+        t = lexer.peek()
+        if t is None:
+            raise GlapSyntaxError(lexer, "Unexpected end of input")
+        tt = t.ttype
+        if tt == "{":
+            return self.parse_c_block(lexer, actions)
+        else tt == "defmacro":
+            lexer.next()
+            name = lexer.match(GLAP_ID)
+            params = []
+            while lexer.test(GLAP_ID):
+                params.append(lexer.match(GLAP_ID))
+            lexer.match("(")
+            body = []
+            while not lexer.test(")", None):
+                body.append(self.parse_command(lexer, actions))
+            lexer.match(")")
+            return actions.run(
+                "c_stmt(defmacro)", self.context, name, params, body
+            )
+        else tt == "define":
+            lexer.next()
+            name = lexer.match(GLAP_ID)
+            params = []
+            while lexer.test(GLAP_ID):
+                params.append(lexer.match(GLAP_ID))
+            has_varargs = False
+            if lexer.test("..."):
+                lexer.next()
+                params.append(lexer.match(GLAP_ID))
+                has_varargs = True
+            body = self.parse_c_block(lexer, actions)
+            return actions.run(
+                "c_stmt(define)", self.context, name, params, has_varargs, body
+            )
+        elif tt == "if":
+            lexer.next()
+            cond, _ = self.parse_c_expr(lexer, actions, 1, False)
+            then_part = self.parse_c_block(lexer, actions)
+            elif_parts = []
+            while lexer.test("elif"):
+                lexer.next()
+                ei_cond, _ = self.parse_c_expr(lexer, actions, 1, False)
+                ei_body = self.parse_c_block(lexer, actions)
+                elif_parts.append((ei_cond, ei_body))
+            else_part = []
+            if lexer.test("else"):
+                lexer.next()
+                else_part.append(self.parse_c_block(lexer, actions)
+            return actions.run(
+                "c_stmt(if)", self.context, then_part, elif_parts, else_part
+            )
+        elif tt == "foreach":
+            lexer.next()
+            varname = lexer.match(GLAP_ID)
+            ie, _ = self.parse_c_expr(lexer, actions, 1, False)
+            body = self.parse_c_block(lexer, actions)
+            return actions.run(
+                "c_stmt(foreach)", self.context, varname, ie, body
+            )
+        elif tt == "while":
+            lexer.next()
+            cond, _ = self.parse_c_expr(lexer, actions, 1, False)
+            body = self.parse_c_block(lexer, actions)
+            return actions.run(
+                "c_stmt(while)", self.context, cond, body
+            )
+        elif tt == "do":
+            lexer.next()
+            body = self.parse_c_block(lexer, actions)
+            lexer.match("while")
+            cond, _ = self.parse_c_expr(lexer, actions, 1, False)
+            lexer.match(";")
+            return actions.run(
+                "c_stmt(do-while)", self.context, body, cond
+            )
+        elif tt in ["break", "continue"]:
+            lexer.next()
+            return actions.run("c_stmt(%s)" % tt, self.context)
+        elif tt == "return":
+            lexer.next()
+            if self.parse_c_expr.optab.operandfollows(lexer) \
+            and lexer.token.ttype != "{":
+                rv, _ = self.parse_c_expr(lexer, actions, 1, False)
+                lexer.match(";")
+                return actions.run("c_stmt(return(expr))", self.context, rv)
+            return actions.run("c_stmt(return)", self.context)
+        elif tt == "try":
+            lexer.next()
+            tryblock = self.parse_c_block(lexer, actions)
+            catches = []
+            while lexer.test("catch"):
+                lexer.next()
+                exc = lexer.match(GLAP_ID)
+                excvar = None
+                if lexer.test(GLAP_ID):
+                    excvar = lexer.match(GLAP_ID)
+                catchblock = self.parse_c_block(lexer, actions)
+                catches.append((exc, excvar, catchblock))
+            fnly = []
+            if lexer.test("finally"):
+                lexer.next()
+                fnly.append(self.parse_c_block(lexer, actions))
+            return actions.run(
+                "c_stmt(try)", self.context, tryblock, catches, fnly
+            )
+        elif tt == "throw":
+            lexer.next()
+            ee, _ = self.parse_c_expr(lexer, actions, 1, True)
+            lexer.match(";")
+            return actions.run("c_stmt(throw)", self.context, ee)
+        raise GlapSyntaxError(lexer, "Statement was expected")
+    #-def
+
+    def parse_c_block(self, lexer, actions):
+        """
+        """
+
+        # c_block -> "{" command* "}"
+        lexer.match("{")
+        commands = []
+        while not lexer.test("}", None):
+            commands.append(self.parse_command(lexer, actions))
+        lexer.match("}")
+        return actions.run("c_stmt(block)", self.context, commands)
     #-def
 
     # -------------------------------------------------------------------------
@@ -1027,199 +1247,6 @@ class __GlapParser(Parser):
 
         Grammar.__init__(self)
 
-        # Command grammar:
-        self['command'] = (
-          V('c_expr') % "expr" + T('DELIM') + _("expr")
-          | V('c_stmt') % "stmt" + T('DELIM') + _("stmt")
-        )
-        c_expr = PrecedenceGraph()
-        self['c_expr'] = c_expr
-        for op, act in [
-            ("=", _bin("CmdAssignExpression")),
-            ("+=", _bin("CmdInplaceAddExpression")),
-            ("-=", _bin("CmdInplaceSubExpression")),
-            ("*=", _bin("CmdInplaceMulExpression")),
-            ("/=", _bin("CmdInplaceDivExpression")),
-            ("%=", _bin("CmdInplaceModExpression")),
-            ("&=", _bin("CmdInplaceBitAndExpression")),
-            ("|=", _bin("CmdInplaceBitOrExpression")),
-            ("^=", _bin("CmdInplaceBitXorExpression")),
-            ("<<=", _bin("CmdInplaceBitShiftLeftExpression")),
-            (">>=", _bin("CmdInplaceBitShiftRightExpression")),
-            ("&&=", _bin("CmdInplaceAndExpression")),
-            ("||=", _bin("CmdInplaceOrExpression")),
-            (".=", _bin("CmdInplaceConcatExpression")),
-            ("++=", _bin("CmdInplaceJoinExpression")),
-            ("~~=" _bin("CmdInplaceMergeExpression"))
-        ]:
-            c_expr.add(0, (12, op, 0), 1, act)
-        c_expr.add_more([
-          (1, (1, "||", 2), 2, _bin("CmdOrExpression")),
-          (2, (2, "&&", 3), 3, _bin("CmdAndExpression"))
-        ])
-        for op, act in [
-            ("<", _bin("CmdLtExpression")),
-            (">", _bin("CmdGtExpression")),
-            ("<=", _bin("CmdLeExpression")),
-            (">=", _bin("CmdGeExpression")),
-            ("==", _bin("CmdEqExpression")),
-            ("!=", _bin("CmdNeExpression")),
-            ("===", _bin("CmdIsExpression")),
-            ("in", _bin("CmdContainsExpression"))
-        ]:
-            c_expr.add(3, (4, op, 4), 4, act)
-        c_expr.add_more([
-          (4, (4, "|", 5), 5, _bin("CmdBitOrExpression")),
-          (5, (5, "&", 6), 6, _bin("CmdBitAndExpression")),
-          (6, (6, "^", 7), 7, _bin("CmdBitXorExpression"))
-        ])
-        for op, act in [
-            ("<<", _bin("CmdBitShiftLeftExpression")),
-            (">>", _bin("CmdBitShiftRightExpression"))
-        ]:
-            c_expr.add(7, (7, op, 8), 8, act)
-        for op, act in [
-            ("+", _bin("CmdAddExpression")),
-            ("-", _bin("CmdSubExpression")),
-            (".", _bin("CmdConcatExpression")),
-            ("++", _bin("CmdJoinExpression")),
-            ("~~", _bin("CmdMergeExpression"))
-        ]:
-            c_expr.add(8, (8, op, 9), 9, act)
-        for op, act in [
-            ("*", _bin("CmdMulExpression")),
-            ("/", _bin("CmdDivExpression")),
-            ("%", _bin("CmdModExpression"))
-        ]:
-            c_expr.add(9, (9, op, 10), 10, act)
-        for op, act in [
-            ("-", _un("CmdNegExpression")),
-            ("!", _un("CmdNotExpression")),
-            ("~", _un("CmdInvExpression"))
-        ]:
-            c_expr.add(10, (-1, op, 10), 11, act)
-        def c_call_expr():
-            CmdCallExpression, lhs, args = str2id("CmdCallExpression lhs args")
-            return Return(CmdCallExpression(lhs, args))
-        c_expr.add(11, (12, V('c_call_args') % "args", -1), 12, c_call_expr())
-        for op in [ V('c_index_op'), V('c_access_op') ]:
-            c_expr.add(12, (12, op, -1), 13)
-        c_expr.add(13, (-1, V('c_expr_atom'), -1), -1)
-        self['c_call_args'] = (
-          V('c_expr_4')['+']
-        )
-        self['c_index_op'] = (
-          T("[") + V('c_expr_0') + T("]")
-        )
-        self['c_access_op'] = (
-          T(".") + T('ID')
-        )
-        self['c_expr_atom'] = (
-          (T("$") | T("#"))['?'] + T('ID')
-          | T("$(") + V('c_expr_1')['+'] + T(")")
-          | T('INT')
-          | T('FLOAT')
-          | T('STRING')
-          | V('c_pair')
-          | V('c_list')
-          | V('c_hash')
-          | V('c_lambda')
-          | T("(") + V('c_expr_0') + T(")")
-        )
-        self['c_pair'] = (
-          T("(") + V('c_expr_1') + T(",") + V('c_expr_1') + T(")")
-        )
-        self['c_list'] = (
-          T("[") + V('c_list_items')['?'] + T("]")
-        )
-        self['c_list_items'] = (
-          V('c_expr_1') + (
-            T(",") + V('c_expr_1')
-          )['*']
-        )
-        self['c_hash'] = (
-          T("[")
-          + V('c_hash_item') + (
-            T(",") + V('c_hash_item')
-          )['*']
-          + T("]")
-        )
-        self['c_hash_item'] = (
-          V('c_expr_1') + T("=>") + V('c_expr_1')
-        )
-        self['c_lambda'] = (
-          T("{") + T("|") + V('c_fargs') + T("|")
-            + V('command')['*']
-          + T("}")
-        )
-        self['c_fargs'] = (
-          T('ID')['*'] + (T("...") + T('ID'))['?']
-        )
-        self['c_stmt'] = (
-          V('c_defmacro')
-          | V('c_define')
-          | V('c_if')
-          | V('c_foreach')
-          | V('c_while')
-          | V('c_dowhile')
-          | T("break")
-          | T("continue")
-          | T("return") + V('c_expr_1')['?']
-          | V('c_try')
-          | T("throw") + V('c_expr_1') + V('c_expr_1')
-          | T("rethrow") + V('c_expr_1')
-        )
-        self['c_block'] = (
-          T("{") + V('command')['*'] + T("}")
-        )
-        self['c_defmacro'] = (
-          T("defmacro") + T('ID') + T('ID')['*'] + T("(")
-            + V('command')['*']
-          + T(")")
-        )
-        self['c_define'] = (
-          T("define") + T('ID') + V('c_fargs')
-            + V('c_block')
-        )
-        self['c_if'] = (
-          T("if") + V('c_expr_1')
-            + V('c_block')
-          + V('c_if_elif')['*']
-          + V('c_if_else')['?']
-        )
-        self['c_if_elif'] = (
-          T("elif") + V('c_expr_1') + V('c_block')
-        )
-        self['c_if_else'] = (
-          T("else") + V('c_block')
-        )
-        self['c_foreach'] = (
-          T("foreach") + T('ID') + V('c_expr_1')
-            + V('c_block')
-        )
-        self['c_while'] = (
-          T("while") + V('c_expr_1')
-            + V('c_block')
-        )
-        self['c_dowhile'] = (
-          T("do")
-            + V('c_block')
-          T("while") + V('c_expr_1')
-        )
-        self['c_try'] = (
-          T("try")
-            + V('c_block')
-          + V('c_try_catch')['*']
-          + V('c_try_finally')['?']
-        )
-        self['c_try_catch'] = (
-          T("catch") + T('ID') + T('ID')['?']
-            + V('c_block')
-        )
-        self['c_try_finally'] = (
-          T("finally")
-            + V('c_block')
-        )
         # Action grammar:
         self['a_start'] = (
           V('a_stmt')['*']
