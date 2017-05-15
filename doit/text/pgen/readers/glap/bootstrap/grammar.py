@@ -36,8 +36,7 @@ IN THE SOFTWARE.\
 GLAP_ID    = 1
 GLAP_INT   = 2
 GLAP_FLOAT = 3
-GLAP_CHAR  = 4
-GLAP_STR   = 5
+GLAP_STR   = 4
 
 class GlapStream(object):
     """
@@ -188,7 +187,6 @@ class GlapToken(Token):
       GLAP_ID: "identifier",
       GLAP_INT: "int literal",
       GLAP_FLOAT: "float literal",
-      GLAP_CHAR: "char literal",
       GLAP_STR: "string literal"
     }
     __slots__ = []
@@ -282,11 +280,11 @@ class GlapLexer(object):
         return None in ts
     #-def
 
-    def match(self, t):
+    def match(self, *ts):
         """
         """
 
-        if not self.peek() or self.token.ttype != t:
+        if not self.peek() or self.token.ttype not in ts:
             raise GlapSyntaxError(self, "Expected %s" % GlapToken.tokname(t))
         t = self.token
         self.next()
@@ -306,8 +304,6 @@ class GlapLexer(object):
             self.token = self.scan_ID(c, istream)
         elif c in self.DIGIT:
             self.token = self.scan_NUMBER(c, istream)
-        elif c == '\'':
-            self.token = self.scan_CHAR(c, istream)
         elif c == '"':
             self.token = self.scan_STR(c, istream)
         else:
@@ -389,28 +385,6 @@ class GlapLexer(object):
         return GlapToken(
             GLAP_INT, p, GLAP_INT_OCT, "0" + istream.matchmany(self.ODIGIT)
         )
-    #-def
-
-    def scan_CHAR(self, c, istream):
-        """
-        """
-
-        # '\'' ( '\\' ESCAPE_SEQUENCE | CHARCHAR ) '\''
-        p = istream.pos
-        istream.next()
-        c = istream.peek(1)
-        if c == "":
-            raise GlapLexError(istream, "Unexpected end of input")
-        elif c == '\\':
-            istream.next()
-            ch = self.scan_ESCAPE_SEQUENCE(istream.peek(), istream)
-        elif GlapLexer.CHARCHAR(c):
-            ch = c
-            istream.next()
-        else:
-            raise GlapLexError(istream, "Unexpected symbol %r" % c)
-        istream.match('\'')
-        return GlapToken(GLAP_CHAR, p, ch)
     #-def
 
     def scan_STR(self, c, istream):
@@ -1233,149 +1207,301 @@ class GlapParser(object):
     def parse_a_start(self, lexer, actions):
         """
         """
+
+        # a_start -> a_stmt*
+        alist = []
+        while not lexer.test("}", None):
+            stmt, _ = self.parse_a_stmt(lexer, actions)
+            alist.append(stmt)
+        return alist
     #-def
-#-class
 
-class __GlapParser(Parser):
-    """
-    """
-    __slots__ = []
-
-    def __init__(self):
+    def parse_a_stmt(self, lexer, actions, labels = False):
         """
         """
 
-        Grammar.__init__(self)
+        # a_stmt -> a_block
+        # a_stmt -> a_expr ";"
+        # a_stmt -> a_lexpr a_assign_op a_expr ";"
+        # a_stmt -> "if" a_expr a_block
+        #           ( "elif" a_expr a_block )*
+        #           ( "else" a_block )?
+        # a_stmt -> "case" a_expr "of" "{"
+        #             ( a_expr ":" a_stmt* )*
+        #             ( "default" ":" a_stmt* )?
+        #           "}"
+        # a_stmt -> "for" ID ":" a_expr a_block
+        # a_stmt -> "while" a_expr a_block
+        # a_stmt -> "do" a_block "while" a_expr ";"
+        # a_stmt -> "break" ";"
+        # a_stmt -> "continue" ";"
+        # a_stmt -> "return" a_expr? ";"
+        # a_lexpr -> a_expr[10] "[" a_expr[0] "]"
+        #          | a_expr[10] "." ID
+        #          | ID
+        #          | "(" a_lexpr ")"
+        t = lexer.peek()
+        if t is None:
+            raise GlapSyntaxError(lexer, "Unexpected end of input")
+        tt = t.ttype
+        if tt == "{":
+            return self.parse_a_block(lexer, actions), False
+        elif self.parse_a_expr.optab.operandfollows(lexer):
+            expr, is_lexpr = self.parse_a_expr(lexer, actions)
+            action = ["a_stmt(expr)", self.context, expr]
+            t = lexer.peek()
+            if t is None:
+                raise GlapSyntaxError(lexer, "Unexpected end of input")
+            tt = t.ttype
+            if tt == ":" and labels:
+                lexer.next()
+                return actions.run(*action), True
+            elif tt in [
+                "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=",
+                ">>="
+            ]:
+                if not is_lexpr:
+                    raise GlapSyntaxError(lexer, "L-expression was expected")
+                lexer.next()
+                expr, _ = self.parse_a_expr(lexer, actions)
+                action[0] = "a_stmt(_ %s _)" % tt
+                action.append(expr)
+            lexer.match(";")
+            return actions.run(*action), False
+        elif tt == "if":
+            lexer.next()
+            cond, _ = self.parse_a_expr(lexer, actions)
+            then_part = self.parse_a_block(lexer, actions)
+            elif_parts = []
+            while lexer.test("elif"):
+                lexer.next()
+                eic, _ = self.parse_a_expr(lexer, actions)
+                eib = self.parse_a_block(lexer, actions)
+                elif_parts.append((eic, eib))
+            else_part = []
+            if lexer.test("else"):
+                lexer.next()
+                else_part.append(self.parse_a_block(lexer, actions))
+            return actions.run(
+                "a_stmt(if)", self.context, then_part, elif_parts, else_part
+            ), False
+        elif tt == "case":
+            lexer.next()
+            swe, _ = self.parse_a_expr(lexer, actions)
+            lexer.match("of")
+            lexer.match("{")
+            cases = []
+            while not lexer.test("}", "default", None):
+                stmt, is_label = self.parse_a_stmt(lexer, actions, True)
+                if not cases and not is_label:
+                    raise GlapSyntaxError(lexer, "Label was expected")
+                cases.append((is_label, stmt))
+            default = []
+            if lexer.test("default"):
+                lexer.next()
+                lexer.match(":")
+                while not lexer.test("}", None):
+                    stmt, _ = self.parse_a_stmt(lexer, actions)
+                    default.append(stmt)
+            lexer.match("}")
+            return actions.run(
+                "a_stmt(case)", self.context, swe, cases, default
+            ), False
+        elif tt == "for":
+            lexer.next()
+            var = lexer.match(GLAP_ID)
+            lexer.match(":")
+            cond, _ = self.parse_a_expr(lexer, actions)
+            body = self.parse_a_block(lexer, actions)
+            return actions.run(
+                "a_stmt(for)", self.context, var, cond, body
+            ), False
+        elif tt == "while":
+            lexer.next()
+            cond, _ = self.parse_a_expr(lexer, actions)
+            body = self.parse_a_block(lexer, actions)
+            return actions.run(
+                "a_stmt(while)", self.context, cond, body
+            ), False
+        elif tt == "do":
+            lexer.next()
+            body = self.parse_a_block(lexer, actions)
+            lexer.match("while")
+            cond, _ = self.parse_a_expr(lexer, actions)
+            lexer.match(";")
+            return actions.run(
+                "a_stmt(do-while)", self.context, body, cond
+            ), False
+        elif tt == "break":
+            lexer.next()
+            lexer.match(";")
+            return actions.run("a_stmt(break)", self.context), False
+        elif tt == "continue":
+            lexer.next()
+            lexer.match(";")
+            return actions.run("a_stmt(continue)", self.context), False
+        elif tt == "return":
+            lexer.next()
+            if lexer.test(";"):
+                lexer.next()
+                return actions.run("a_stmt(return)", self.context), False
+            expr, _ = self.parse_a_expr(lexer, actions)
+            lexer.match(";")
+            return actions.run(
+                "a_stmt(return(expr))", self.context, expr
+            ), False
+        raise GlapSyntaxError(lexer, "Statement was expected")
+    #-def
 
-        # Action grammar:
-        self['a_start'] = (
-          V('a_stmt')['*']
-        )
-        self['a_stmt'] = (
-          V('a_block')
-          | V('a_assign')
-          | V('a_if')
-          | V('a_case')
-          | V('a_for')
-          | V('a_while')
-          | V('a_dowhile')
-          | T("break") + T(";")
-          | T("continue") + T(";")
-          | T("return") + V('a_expr')['?'] + T(";")
-        )
-        self['a_block'] = (
-          T("{") + V('a_stmt')['*'] + T("}")
-        )
-        self['a_assign_op'] = (
-          T("=")
-          | T("+=")
-          | T("-=")
-          | T("*=")
-          | T("/=")
-          | T("%=")
-          | T("&=")
-          | T("|=")
-          | T("^=")
-          | T("<<=")
-          | T(">>=")
-        )
-        self['a_assign'] = (
-          V('a_lexpr') + V('a_assign_op') + V('a_expr') + T(";")
-        )
-        self['a_if'] = (
-          T("if") + V('a_expr')
-            + V('a_block')
-          + V('a_elif')['*']
-          + V('a_else')['?']
-        )
-        self['a_elif'] = (
-          T("elif") + V('a_expr')
-            + V('a_block')
-        )
-        self['a_else'] = (
-          T("else")
-            + V('a_block')
-        )
-        self['a_case'] = (
-          T("case") + V('a_expr') + T("of") + T("{")
-            + V("a_cases")['*']
-            + V("a_default")['?']
-          + T("}")
-        )
-        self['a_cases'] = (
-          V('a_expr') + T(":")
-            + V('a_stmt')['*']
-        )
-        self['a_default'] = (
-          T("default") + T(":")
-            + V('a_stmt')['*']
-        )
-        self['a_for'] = (
-          T("for") + T('ID') + T(":") + V('a_expr')
-            + V('a_block')
-        )
-        self['a_while'] = (
-          T("while") + V('a_expr')
-            + V('a_block')
-        )
-        self['a_dowhile'] = (
-          T("do")
-            + V('a_block')
-          + T("while")
-        )
-        a_lexpr = PrecedenceGraph()
-        self['a_lexpr'] = a_lexpr
-        for op in [ V('a_index_op'), V('a_access_op') ]:
-            a_lexpr.add(0, (0, op, -1), 1)
-        a_lexpr.add(1, (-1, V('a_lexpr_atom'), -1), -1)
-        self['a_lexpr_atom'] = (
-          T('ID')
-          | T("(") + V('a_expr_0') + T(")") + (
-              V('a_index_op') | V('a_access_op')
-            )
-        )
-        a_expr = PrecedenceGraph()
-        self['a_expr'] = a_expr
-        a_expr.add_more([
-          (0, (0, "||", 1), 1),
-          (1, (1, "&&", 2), 2)
-        ])
-        for op in [ "<", ">", "<=", ">=", "==", "!=" ]:
-            a_expr.add(2, (3, op, 3), 3)
-        a_expr.add_more([
-          (3, (3, "|", 4), 4),
-          (4, (4, "&", 5), 5),
-          (5, (5, "^", 6), 6)
-        ])
-        for op in [ "<<", ">>" ]:
-            a_expr.add(6, (6, op, 7), 7)
-        for op in [ "+", "-" ]:
-            a_expr.add(7, (7, op, 8), 8)
-        for op in [ "*", "/", "%" ]:
-            a_expr.add(8, (8, op, 9), 9)
-        for op in [ "-", "~", "!" ]:
-            a_expr.add(9, (-1, op, 9), 10)
-        for op in [ V('a_call_op'), V('a_index_op'), V('a_access_op') ]:
-            a_expr.add(10, (10, op, -1), 11)
-        a_expr.add(11, (-1, V('a_expr_atom'), -1), -1)
-        self['a_call_op'] = (
-          T("(") + V('a_call_args')['?'] + T(")")
-        )
-        self['a_call_args'] = (
-          V('a_expr_0') + (T(",") + V('a_expr_0'))['*']
-        )
-        self['a_index_op'] = (
-          T("[") + V('a_expr_0') + T("]")
-        )
-        self['a_access_op'] = (
-          T(".") + T('ID')
-        )
-        self['a_expr_atom'] = (
-          T('ID')
-          | T('INT')
-          | T('FLOAT')
-          | T('STRING')
-          | T("(") + V('a_expr_0') + T(")")
-        )
+    def parse_a_block(self, lexer, actions):
+        """
+        """
+
+        # a_block -> "{" a_stmt* "}"
+        lexer.match("{")
+        stmts = []
+        while not lexer.test("}", None):
+            stmt, _ = self.parse_a_stmt(lexer, actions)
+            stmts.append(stmt)
+        lexer.match("}")
+        return actions.run("a_stmt(block)", self.context, stmts)
+    #-def
+
+    @expression_parser(
+      (0, 0, "||", 1),
+      (1, 1, "&&", 2),
+      (2, 3, "<", 3),
+      (2, 3, ">", 3),
+      (2, 3, "<=", 3),
+      (2, 3, ">=", 3),
+      (2, 3, "==", 3),
+      (2, 3, "!=", 3),
+      (3, 3, "|", 4),
+      (4, 4, "&", 5),
+      (5, 5, "^", 6),
+      (6, 6, "<<", 7),
+      (6, 6, ">>", 7),
+      (7, 7, "+", 8),
+      (7, 7, "-", 8),
+      (8, 8, "*", 9),
+      (8, 8, "/", 9),
+      (8, 8, "%", 9),
+      (9, -1, "-", 9),
+      (9, -1, "~", 9),
+      (9, -1, "!", 9),
+      (10, 10, "(", -1),
+      (10, 10, "[", -1),
+      (10, 10, ".", -1),
+      first = [ "-", "~", "!", GLAP_ID, GLAP_INT, GLAP_FLOAT, GLAP_STR, "(" ]
+    )
+    def parse_a_expr(self, lexer, actions, level = 0):
+        """
+        """
+
+        # a_expr[0] -> a_expr[0] "||" a_expr[1] | a_expr[1]
+        # a_expr[1] -> a_expr[1] "&&" a_expr[2] | a_expr[2]
+        # a_expr[2] -> a_expr[3] a_relop a_expr[3] | a_expr[3]
+        # a_relop -> "<" | ">" | "<=" | ">=" | "==" | "!="
+        # a_expr[3] -> a_expr[3] "|" a_expr[4] | a_expr[4]
+        # a_expr[4] -> a_expr[4] "&" a_expr[5] | a_expr[5]
+        # a_expr[5] -> a_expr[5] "^" a_expr[6] | a_expr[6]
+        # a_expr[6] -> a_expr[6] a_bitshiftop a_expr[7] | a_expr[7]
+        # a_bitshiftop -> "<<" | ">>"
+        # a_expr[7] -> a_expr[7] a_addop a_expr[8] | a_expr[8]
+        # a_addop -> "+" | "-"
+        # a_expr[8] -> a_expr[8] a_mulop a_expr[9] | a_expr[9]
+        # a_mulop -> "*" | "/" | "%"
+        # a_expr[9] -> a_uop a_expr[9] | a_expr[10]
+        # a_uop -> "-" | "~" | "!"
+        # a_expr[10] -> a_expr[10] a_postfixop | a_expr_atom
+        # a_postfixop -> "(" ( a_expr[0] ( "," a_expr[0] )* )? ")"
+        #                 | "[" a_expr[0] "]"
+        #                 | "." ID
+        optab = self.parse_a_expr.optab
+        op = optab.peekprefix(lexer)
+        if op and op.level >= level:
+            lexer.next()
+            result, is_lexpr = self.parse_a_expr(lexer, actions, op.rbp)
+            result = actions.run("a_expr(%s)" % op.mask, self.context, result)
+            oplvl = op.level
+        else:
+            result, is_lexpr = self.parse_a_expr_atom(lexer, actions)
+            oplvl = optab.atomlevel
+        while True:
+            op = optab.peekoperator(lexer)
+            if not op or op.lbp > oplvl or op.level < level:
+                break
+            if op.name == "(":
+                lexer.next()
+                args = []
+                while not lexer.test(")", None):
+                    if args:
+                        lexer.match(",")
+                    arg, _ = self.parse_a_expr(lexer, actions)
+                    args.append(arg)
+                lexer.match(")")
+                result = actions.run(
+                    "a_expr(_(_))", self.context, result, args
+                )
+                is_lexpr = False
+            elif op.name == "[":
+                lexer.next()
+                iexpr, _ = self.parse_a_expr(lexer, actions)
+                lexer.match("]")
+                result = actions.run(
+                    "a_expr(_[_])", self.context, result, iexpr
+                )
+                is_lexpr = True
+            elif op.name == ".":
+                lexer.next()
+                t_ID = lexer.match(GLAP_ID)
+                result = actions.run(
+                    "a_expr(_.ID)", self.context, result, t_ID
+                )
+                is_lexpr = True
+            elif op.rbp < 0:
+                lexer.next()
+                result = actions.run(
+                    "a_expr(%s)" % op.mask, self.context, result
+                )
+                is_lexpr = False
+            else:
+                lexer.next()
+                rhs, _ = self.parse_a_expr(lexer, actions, op.rbp)
+                result = actions.run(
+                    "a_expr(%s)" % op.mask, self.context, result, rhs
+                )
+                is_lexpr = False
+            oplvl = op.level
+        return result, is_lexpr
+    #-def
+
+    def parse_a_expr_atom(self, lexer, actions):
+        """
+        """
+
+        # a_expr_atom -> ID | INT | FLOAT | STR | "(" a_expr[0] ")"
+        t = lexer.peek()
+        if t is None:
+            raise GlapSyntaxError(lexer, "Unexpected end of input")
+        tt = t.ttype
+        if tt == GLAP_ID:
+            lexer.next()
+            return actions.run("a_expr_atom(ID)", self.context, t), True
+        elif tt == GLAP_INT:
+            lexer.next()
+            return actions.run("a_expr_atom(INT)", self.context, t), False
+        elif tt == GLAP_FLOAT:
+            lexer.next()
+            return actions.run("a_expr_atom(FLOAT)", self.context, t), False
+        elif tt == GLAP_STR:
+            lexer.next()
+            return actions.run("a_expr_atom(STR)", self.context, t), False
+        elif tt == "(":
+            lexer.next()
+            r = self.parse_a_expr(lexer, actions)
+            lexer.match(")")
+            return r
+        raise GlapSyntaxError(lexer, "Atom (primary expression) was expected")
     #-def
 #-class
