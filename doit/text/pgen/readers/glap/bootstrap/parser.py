@@ -1,5 +1,5 @@
 #                                                         -*- coding: utf-8 -*-
-#! \file    ./doit/text/pgen/readers/glap/bootstrap/grammar.py
+#! \file    ./doit/text/pgen/readers/glap/bootstrap/parser.py
 #! \author  Jiří Kučera, <sanczes@gmail.com>
 #! \stamp   2016-02-11 10:19:52 (UTC+01:00, DST+00:00)
 #! \project DoIt!: Tools and Libraries for Building DSLs
@@ -483,7 +483,7 @@ class OperatorTable(object):
             if level > self.atomlevel:
                 self.atomlevel = level
             return
-        if lbp < 0:
+        elif lbp < 0:
             _assert(name not in self.prefixops,
                 "%r has been already added to operator table" % name
             )
@@ -575,12 +575,12 @@ class GlapParser(object):
 
         # module -> "module" ID module_unit* "end"
         lexer.match("module")
-        t_ID = lexer.match(GLAP_ID)
+        name = lexer.match(GLAP_ID)
         module_units = []
         while lexer.peek() and not lexer.test("end"):
             module_units.append(self.parse_module_unit(self, lexer, actions))
         lexer.match("end")
-        return actions.run("module", self.context, t_ID, module_units)
+        return actions.run("module", self.context, name, module_units)
     #-def
 
     def parse_module_unit(self, lexer, actions):

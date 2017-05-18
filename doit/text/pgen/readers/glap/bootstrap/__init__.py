@@ -76,6 +76,47 @@ class GlapSyntaxError(ParsingError):
     #-def
 #-class
 
+class GlapParserActions(object):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        self.actions = {
+          'start': self.on_start,
+          'module': self.on_module
+        }
+    #-def
+
+    def on_start(self, context, module):
+        """
+        """
+
+        return module
+    #-def
+
+    def on_module(self, context, loc, name, module_units):
+        """
+        """
+
+        node = DefModule(name.value(), module_units)
+        node.set_location(*make_location(context, loc))
+        return node
+    #-def
+
+    def run(self, action, context, *args):
+        """
+        """
+
+        if action not in self.actions:
+            raise ParsingError("Action %r does not exist" % action)
+        return self.actions[action](context, *args)
+    #-def
+#-class
+
 def get_source():
     """
     """
