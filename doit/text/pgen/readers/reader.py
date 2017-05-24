@@ -36,35 +36,38 @@ IN THE SOFTWARE.\
 class Reader(object):
     """
     """
-    __slots__ = [ '__istream', '__kwargs', '__parser' ]
+    FROM_FILE = 'from_file'
+    __slots__ = [ '__opts' ]
 
-    def __init__(self, istream, Parser = DummyParser, **kwargs):
+    def __init__(self, **opts):
         """
         """
 
-        self.__istream = istream
-        self.__kwargs = kwargs
-        self.__parser = Parser(self, istream, **kwargs)
+        self.__opts = opts
     #-def
 
-    def read(self, *args, **kwargs):
+    def options(self):
+        """
+        """
+
+        return self.__opts
+    #-def
+
+    def read(self, source, *args, **opts):
         """
         """
 
         not_implemented()
     #-def
 
-    def parse(self, *args, **kwargs):
+    def load_source(self, source, **opts):
         """
         """
 
-        return self.__parser.parse(*args, **kwargs)
-    #-def
-
-    def set_parser(self, Parser):
-        """
-        """
-
-        self.__parser = Parser(self, self.__istream, **self.__kwargs)
+        k = self.FROM_FILE
+        from_file = opts.get(k, self.__opts.get(k, False))
+        if from_file:
+            return read_all(source)
+        return source
     #-def
 #-class

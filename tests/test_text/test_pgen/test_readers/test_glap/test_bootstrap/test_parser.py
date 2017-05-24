@@ -36,3 +36,5 @@ IN THE SOFTWARE.\
 
 import unittest
 
+class TestMakeLocationCase(unittest.TestCase):
+#-class
