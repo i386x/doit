@@ -36,5 +36,65 @@ IN THE SOFTWARE.\
 
 import unittest
 
-class TestMakeLocationCase(unittest.TestCase):
+from doit.text.pgen.readers.glap.bootstrap import \
+    make_location
+
+class FakeContext(object):
+    __slots__ = [ 'stream' ]
+
+    def __init__(self):
+        self.stream = None
+    #-def
 #-class
+
+class FakeStream(object):
+    __slots__ = [ 'context', 'name', 'data', 'pos', 'size' ]
+
+    def __init__(self, ctx, name, s):
+        ctx.stream = self
+        self.context = ctx
+        self.name = name
+        self.data = s
+        self.pos = 0
+        self.size = len(s)
+    #-def
+#-class
+
+name_001 = "sample_001.g"
+sample_001 = """\
+-- Sample grammar
+
+module sample_001
+  grammar X
+    start -> "a"+;
+  end
+end
+"""
+
+class TestMakeLocationCase(unittest.TestCase):
+
+    def test_make_location(self):
+        ctx = FakeContext()
+        stream = FakeStream(ctx, name_001, sample_001)
+
+        self.assertEqual(make_location(ctx), (name_001, 1, 1))
+
+        p = 26
+        self.assertEqual(stream.data[p : p + 10], "sample_001")
+        self.assertEqual(make_location(ctx, p), (name_001, 3, 8))
+
+        p = 18
+        stream.pos = p
+        self.assertEqual(stream.data[p : p + 2], "\nm")
+        self.assertEqual(make_location(ctx), (name_001, 2, 1))
+
+        stream.pos = stream.size
+        self.assertEqual(make_location(ctx), (name_001, 8, 1))
+    #-def
+#-class
+
+def suite():
+    suite = unittest.TestSuite()
+    suite.addTest(unittest.makeSuite(TestMakeLocationCase))
+    return suite
+#-def

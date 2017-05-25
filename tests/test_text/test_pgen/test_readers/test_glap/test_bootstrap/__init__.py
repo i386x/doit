@@ -36,5 +36,10 @@ IN THE SOFTWARE.\
 
 import unittest
 
+from . import test_parser
+
 def suite():
     suite = unittest.TestSuite()
+    suite.addTest(test_parser.suite())
+    return suite
+#-def

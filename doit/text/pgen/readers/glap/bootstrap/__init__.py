@@ -33,19 +33,22 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.text.pgen.errors import ParsingError
+from doit.text.pgen.readers.reader import Reader
+
 def make_location(context, loc = -1):
     """
     """
 
-    istream = context.istream
+    stream = context.stream
     if loc < 0:
-        loc = istream.pos
-    s = istream.data[0 : loc]
+        loc = stream.pos
+    s = stream.data[0 : loc]
     lineno = s.count('\n') + 1
     if lineno > 1:
         s = s.split('\n')[-1]
     colno = len(s) + 1
-    return istream.name, lineno, colno
+    return stream.name, lineno, colno
 #-def
 
 class GlapLexError(ParsingError):

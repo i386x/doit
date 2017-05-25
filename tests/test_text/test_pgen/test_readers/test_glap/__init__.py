@@ -36,10 +36,10 @@ IN THE SOFTWARE.\
 
 import unittest
 
-#from . import test_cmd
+from . import test_bootstrap
 
 def suite():
     suite = unittest.TestSuite()
-    #suite.addTest(test_cmd.suite())
+    suite.addTest(test_bootstrap.suite())
     return suite
 #-def
