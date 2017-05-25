@@ -61,7 +61,7 @@ SOURCES = doit/config/config.py \
           doit/text/pgen/readers/glap/bootstrap/pp/commands.py \
           doit/text/pgen/readers/glap/bootstrap/pp/eval.py \
           doit/text/pgen/readers/glap/bootstrap/__init__.py \
-          doit/text/pgen/readers/glap/bootstrap/grammar.py \
+          doit/text/pgen/readers/glap/bootstrap/parser.py \
           doit/text/pgen/readers/reader.py \
           doit/text/pgen/utils/cfgtools.py \
           doit/text/pgen/utils/tagengine.py \
@@ -71,6 +71,8 @@ SOURCES = doit/config/config.py \
           scripts/pgen.py \
           scripts/pyversion.py \
           scripts/runtests.py
+
+TESTS_GLAP_DIR = tests/test_text/test_pgen/test_readers/test_glap
 
 TESTS =   tests/test_config/__init__.py \
           tests/test_config/test_config.py \
@@ -101,7 +103,9 @@ TESTS =   tests/test_config/__init__.py \
           tests/test_text/test_pgen/test_models/test_cfgram.py \
           tests/test_text/test_pgen/test_models/test_precedence.py \
           tests/test_text/test_pgen/test_models/test_token.py \
-          tests/test_text/test_pgen/test_readers/test_glap/__init__.py \
+          $(TESTS_GLAP_DIR)/test_bootstrap/__init__.py \
+          $(TESTS_GLAP_DIR)/test_bootstrap/test_parser.py \
+          $(TESTS_GLAP_DIR)/__init__.py \
           tests/test_text/test_pgen/test_readers/__init__.py \
           tests/test_text/test_pgen/test_utils/__init__.py \
           tests/test_text/test_pgen/test_utils/test_tagengine.py \
