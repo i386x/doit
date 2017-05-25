@@ -36,14 +36,18 @@ IN THE SOFTWARE.\
 
 import unittest
 
+from doit.text.pgen.errors import ParsingError
+
 from doit.text.pgen.readers.glap.bootstrap import \
-    make_location
+    make_location, \
+    GlapLexError, GlapSyntaxError
 
 class FakeContext(object):
-    __slots__ = [ 'stream' ]
+    __slots__ = [ 'stream', 'lexer' ]
 
     def __init__(self):
         self.stream = None
+        self.lexer = None
     #-def
 #-class
 
@@ -57,6 +61,27 @@ class FakeStream(object):
         self.data = s
         self.pos = 0
         self.size = len(s)
+    #-def
+#-class
+
+class FakeToken(object):
+    __slots__ = [ 'loc' ]
+
+    def __init__(self):
+        self.loc = -1
+    #-def
+
+    def location(self):
+        return self.loc
+    #-def
+#-class
+
+class FakeLexer(object):
+    __slots__ = [ 'token' ]
+
+    def __init__(self, ctx):
+        ctx.lexer = self
+        self.token = None
     #-def
 #-class
 
@@ -93,8 +118,29 @@ class TestMakeLocationCase(unittest.TestCase):
     #-def
 #-class
 
+class TestGlapErrorsCase(unittest.TestCase):
+
+    def test_glap_errors(self):
+        ctx = FakeContext()
+        FakeStream(ctx, name_001, sample_001)
+        FakeLexer(ctx)
+
+        with self.assertRaises(ParsingError):
+            raise GlapLexError(ctx, "Lex error")
+
+        with self.assertRaises(ParsingError):
+            raise GlapSyntaxError(ctx, "Syntax error")
+
+        ctx.lexer.token = FakeToken()
+        ctx.lexer.token.loc = 26
+        with self.assertRaises(ParsingError):
+            raise GlapSyntaxError(ctx, "Syntax error")
+    #-def
+#-class
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestMakeLocationCase))
+    suite.addTest(unittest.makeSuite(TestGlapErrorsCase))
     return suite
 #-def
