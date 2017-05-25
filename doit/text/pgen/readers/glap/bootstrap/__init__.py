@@ -87,7 +87,7 @@ class GlapSyntaxError(ParsingError):
 class GlapContext(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'stream', 'lexer', 'parser', 'actions', 'env', 'processor' ]
 
     def __init__(self):
         """
@@ -105,7 +105,7 @@ class GlapContext(object):
 class GlapStream(object):
     """
     """
-    __slots__ = [ 'name', 'data', 'pos', 'size' ]
+    __slots__ = [ 'context', 'name', 'data', 'pos', 'size' ]
 
     def __init__(self, context, name, s):
         """
@@ -138,7 +138,7 @@ class GlapStream(object):
         """
 
         if self.peek(len(p)) != p:
-            raise GlapLexError(self, "Expected %r" % p)
+            raise GlapLexError(self.context, "Expected %r" % p)
         self.pos += len(p)
         return p
     #-def
@@ -150,7 +150,9 @@ class GlapStream(object):
         if self.pos < self.size and self.data[self.pos] in set:
             self.pos += 1
             return self.data[self.pos - 1]
-        raise GlapLexError(self, "Expected one of [%s]" % repr(set)[1:-1])
+        raise GlapLexError(self.context,
+            "Expected one of [%s]" % repr(set)[1:-1]
+        )
     #-def
 
     def matchif(self, f, fname):
@@ -160,7 +162,7 @@ class GlapStream(object):
         if self.pos < self.size and f(self.data[self.pos]):
             self.pos += 1
             return self.data[self.pos - 1]
-        raise GlapLexError(self, "Expected %s" % fname)
+        raise GlapLexError(self.context, "Expected %s" % fname)
     #-def
 
     def matchmany(self, set):
@@ -228,7 +230,9 @@ class GlapStream(object):
             self.pos += 1
             n -= 1
         if n > 0:
-            raise GlapLexError(self, "Expected one of [%s]" % repr(set)[1:-1])
+            raise GlapLexError(self.context,
+                "Expected one of [%s]" % repr(set)[1:-1]
+            )
         return self.data[p : self.pos]
     #-def
 
@@ -241,7 +245,7 @@ class GlapStream(object):
             self.pos += 1
             n -= 1
         if n > 0:
-            raise GlapLexError(self, "Expected %s" % fname)
+            raise GlapLexError(self.context, "Expected %s" % fname)
         return self.data[p : self.pos]
     #-def
 #-class
