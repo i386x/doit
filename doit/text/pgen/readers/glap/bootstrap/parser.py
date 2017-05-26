@@ -33,10 +33,18 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.support.errors import doit_assert as _assert
+from doit.text.pgen.models.token import Token
+from doit.text.pgen.readers.glap.bootstrap import GlapLexError
+
 GLAP_ID    = 1
 GLAP_INT   = 2
 GLAP_FLOAT = 3
 GLAP_STR   = 4
+
+GLAP_INT_DEC = 1
+GLAP_INT_OCT = 2
+GLAP_INT_HEX = 3
 
 class GlapToken(Token):
     """
@@ -77,7 +85,6 @@ class GlapToken(Token):
 class GlapLexer(object):
     """
     """
-    crange = lambda a, b: [ chr(c) for c in range(ord(a), ord(b) + 1) ]
     WS = "\n "
     ASCIICHAR = lambda c: ord(' ') <= ord(c) and ord(c) <= ord('~')
     COMMENTCHAR = lambda c: GlapLexer.ASCIICHAR(c) or ord(c) >= 128
@@ -102,13 +109,14 @@ class GlapLexer(object):
       '\'': '\'',
       '\\': '\\'
     }
-    __slots__ = [ 'istream', 'token' ]
+    __slots__ = [ 'context', 'token' ]
 
-    def __init__(self, istream):
+    def __init__(self, context):
         """
         """
 
-        self.istream = istream
+        context.lexer = self
+        self.context = context
         self.token = None
     #-def
 
@@ -153,99 +161,99 @@ class GlapLexer(object):
         """
         """
 
-        istream = self.istream
-        self.skip_spaces(istream)
-        c = istream.peek(1)
+        stream = self.context.stream
+        self.skip_spaces(stream)
+        c = stream.peek(1)
         if c == "":
             self.token = None
         elif c in self.IDCHAR:
-            self.token = self.scan_ID(c, istream)
+            self.token = self.scan_ID(c, stream)
         elif c in self.DIGIT:
-            self.token = self.scan_NUMBER(c, istream)
+            self.token = self.scan_NUMBER(c, stream)
         elif c == '"':
-            self.token = self.scan_STR(c, istream)
+            self.token = self.scan_STR(c, stream)
         else:
-            raise GlapLexError(istream, "Unexpected symbol %r" % c)
+            raise GlapLexError(self.context, "Unexpected symbol %r" % c)
     #-def
 
-    def skip_spaces(self, istream):
+    def skip_spaces(self, stream):
         """
         """
 
         # ( [ ' ', '\n' ]* | "--" COMMENTCHAR* )*
         while True:
-            p = istream.pos
-            istream.matchset(self.WS)
-            self.skip_comment(istream)
-            if p < istream.pos:
+            p = stream.pos
+            stream.matchmany(self.WS)
+            self.skip_comment(stream)
+            if p < stream.pos:
                 continue
             break
     #-def
 
-    def skip_comment(self, istream):
+    def skip_comment(self, stream):
         """
         """
 
-        if istream.peek(2) != "--":
+        if stream.peek(2) != "--":
             return
-        istream.next(2)
-        istream.matchmanyif(GlapLexer.COMMENTCHAR)
+        stream.next(2)
+        stream.matchmanyif(GlapLexer.COMMENTCHAR)
     #-def
 
-    def scan_ID(self, c, istream):
+    def scan_ID(self, c, stream):
         """
         """
 
         # IDCHAR IDCHARNUM*
-        p = istream.pos
-        m = istream.matchmany(self.IDCHARNUM)
+        p = stream.pos
+        m = stream.matchmany(self.IDCHARNUM)
         if m in self.KEYWORDS:
             return GlapToken(m, p)
         return GlapToken(GLAP_ID, p, m)
     #-def
 
-    def scan_NUMBER(self, c, istream):
+    def scan_NUMBER(self, c, stream):
         """
         """
 
-        # (DIGIT - '0') DIGIT*
+        # ( (DIGIT - '0') DIGIT* | '0' )
         #   ( '.' DIGIT+ )?
         #   ( ( 'E' | 'e' ) ( '+' | '-' )? DIGIT+ )?
         # '0' ODIGIT*
         # '0' ( 'X' | 'x' ) XDIGIT+
-        p = istream.pos
-        if c != '0':
-            # Non-zero digit case - match integral part:
-            ipart = istream.matchmany(self.DIGIT)
-            c = istream.peek(1)
+        p = stream.pos
+        stream.next()
+        if c != '0' or stream.peek(1) in [ '.', 'E', 'e' ]:
+            # Non-zero digit, or zero-only, case - match integral part:
+            ipart = "%s%s" % (c, stream.matchmany(self.DIGIT))
+            c = stream.peek(1)
             if c not in [ '.', 'E', 'e' ]:
                 return GlapToken(GLAP_INT, p, GLAP_INT_DEC, ipart)
             # Floating-point number - try match fraction part:
             fpart, epart = "", ""
             if c == '.':
-                istream.next()
-                fpart = istream.matchplus(self.DIGIT)
+                stream.next()
+                fpart = stream.matchplus(self.DIGIT)
                 # Repeek:
-                c = istream.peek(1)
+                c = stream.peek(1)
             # Try match exponent part:
             if c in [ 'E', 'e' ]:
-                istream.next()
-                epart = istream.matchopt(['+', '-'], '+')
-                epart += istream.matchplus(self.DIGIT)
+                stream.next()
+                epart = stream.matchopt(['+', '-'], '+')
+                epart += stream.matchplus(self.DIGIT)
             return GlapToken(GLAP_FLOAT, p, ipart, fpart, epart)
         # '0' - octal or hexadecimal number:
-        istream.next()
-        if istream.peek(1) in [ 'X', 'x' ]:
-            istream.next()
+        if stream.peek(1) in [ 'X', 'x' ]:
+            stream.next()
             return GlapToken(
-                GLAP_INT, p, GLAP_INT_HEX, istream.matchplus(self.XDIGIT)
+                GLAP_INT, p, GLAP_INT_HEX, stream.matchplus(self.XDIGIT)
             )
         return GlapToken(
-            GLAP_INT, p, GLAP_INT_OCT, "0" + istream.matchmany(self.ODIGIT)
+            GLAP_INT, p, GLAP_INT_OCT, "0" + stream.matchmany(self.ODIGIT)
         )
     #-def
 
-    def scan_STR(self, c, istream):
+    def scan_STR(self, c, stream):
         """
         """
 
@@ -269,7 +277,7 @@ class GlapLexer(object):
         return GlapToken(GLAP_STR, p, s)
     #-def
 
-    def scan_ESCAPE_SEQUENCE(self, c, istream):
+    def scan_ESCAPE_SEQUENCE(self, c, stream):
         """
         """
 
@@ -300,7 +308,7 @@ class GlapLexer(object):
 class Operator(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'level', 'name', 'mask', 'lbp', 'rbp' ]
 
     def __init__(self, level, lbp, name, rbp):
         """
@@ -319,7 +327,7 @@ class Operator(object):
 class OperatorTable(object):
     """
     """
-    __slots__ = []
+    __slots__ = [ 'prefixops', 'operators', 'atomlevel', 'opts' ]
 
     def __init__(self, *spec, **opts):
         """
@@ -333,7 +341,7 @@ class OperatorTable(object):
             self.add_operator(*x)
     #-def
 
-    def add_operator(level, lbp, name, rbp):
+    def add_operator(self, level, lbp, name, rbp):
         """
         """
 
@@ -937,7 +945,7 @@ class GlapParser(object):
         tt = t.ttype
         if tt == "{":
             return self.parse_c_block(lexer, actions)
-        else tt == "defmacro":
+        elif tt == "defmacro":
             lexer.next()
             name = lexer.match(GLAP_ID)
             params = []
@@ -951,7 +959,7 @@ class GlapParser(object):
             return actions.run(
                 "c_stmt(defmacro)", self.context, name, params, body
             )
-        else tt == "define":
+        elif tt == "define":
             lexer.next()
             name = lexer.match(GLAP_ID)
             params = []
@@ -979,7 +987,7 @@ class GlapParser(object):
             else_part = []
             if lexer.test("else"):
                 lexer.next()
-                else_part.append(self.parse_c_block(lexer, actions)
+                else_part.append(self.parse_c_block(lexer, actions))
             return actions.run(
                 "c_stmt(if)", self.context, then_part, elif_parts, else_part
             )

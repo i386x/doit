@@ -44,6 +44,12 @@ from doit.text.pgen.readers.glap.bootstrap import \
     GlapContext, \
     GlapStream
 
+from doit.text.pgen.readers.glap.bootstrap.parser import \
+    GLAP_ID, GLAP_INT, GLAP_FLOAT, \
+    GLAP_INT_DEC, GLAP_INT_OCT, GLAP_INT_HEX, \
+    GlapToken, \
+    GlapLexer
+
 class FakeContext(object):
     __slots__ = [ 'stream', 'lexer' ]
 
@@ -421,11 +427,220 @@ class TestGlapStreamCase(unittest.TestCase):
     #-def
 #-class
 
+class TestGlapTokenCase(unittest.TestCase):
+
+    def test_glap_token_methods(self):
+        p = 26
+        t = GlapToken(GLAP_ID, p, sample_001[p : p + 10])
+
+        self.assertEqual(t.ttype, GLAP_ID)
+        self.assertEqual(t.location(), p)
+        self.assertEqual(t.data[1], (sample_001[p : p + 10],))
+
+        self.assertEqual(GlapToken.tokname("=="), "'=='")
+        self.assertEqual(GlapToken.tokname(GLAP_ID), "identifier")
+        self.assertEqual(GlapToken.tokname(0), "<unknown>")
+    #-def
+#-class
+
+lex_sample_name_001 = "lex_sample_001.l"
+lex_sample_data_001 = """\
+
+-- Comment @#$%^&*()-_++=-abcdefghijklmnopqrstuvwxyz0123456789
+-------------------------
+
+-------------------------------------------------------------------------------
+-- !! Anothe comment                                                         --
+-------------------------------------------------------------------------------
+
+  --Příliš žluťoučký kůň úpěl ďábelské ódy.--
+
+"""
+lex_sample_toks_001 = [
+]
+
+lex_sample_name_002 = "lex_sample_002.l"
+lex_sample_data_002 = """\
+i Ab -- Two identifiers
+
+selection
+
+t890 _0
+4t 44t44 45tp_ij90 end
+
+-- End of input.
+
+"""
+lex_sample_toks_002 = [
+  GlapToken(GLAP_ID, 0, "i"),
+  GlapToken(GLAP_ID, 2, "Ab"),
+  GlapToken(GLAP_ID, 25, "selection"),
+  GlapToken(GLAP_ID, 36, "t890"),
+  GlapToken(GLAP_ID, 41, "_0"),
+  GlapToken(GLAP_INT, 44, GLAP_INT_DEC, "4"),
+  GlapToken(GLAP_ID, 45, "t"),
+  GlapToken(GLAP_INT, 47, GLAP_INT_DEC, "44"),
+  GlapToken(GLAP_ID, 49, "t44"),
+  GlapToken(GLAP_INT, 53, GLAP_INT_DEC, "45"),
+  GlapToken(GLAP_ID, 55, "tp_ij90"),
+  GlapToken("end", 63)
+]
+
+lex_sample_name_003 = "lex_sample_003.l"
+lex_sample_data_003 = """\
+-- Decimal integers:
+1 26 135 1234567890
+
+-- Octal integers:
+0 07 0777 01243567
+
+-- Hexadecimal integers:
+0x0 0x00 0X0000 0XaAbBcCdDEeFf01234567890
+
+-- Mix:
+08 0182 0x0g08
+"""
+lex_sample_toks_003 = [
+  GlapToken(GLAP_INT, 21, GLAP_INT_DEC, "1"),
+  GlapToken(GLAP_INT, 23, GLAP_INT_DEC, "26"),
+  GlapToken(GLAP_INT, 26, GLAP_INT_DEC, "135"),
+  GlapToken(GLAP_INT, 30, GLAP_INT_DEC, "1234567890"),
+  GlapToken(GLAP_INT, 61, GLAP_INT_OCT, "0"),
+  GlapToken(GLAP_INT, 63, GLAP_INT_OCT, "07"),
+  GlapToken(GLAP_INT, 66, GLAP_INT_OCT, "0777"),
+  GlapToken(GLAP_INT, 71, GLAP_INT_OCT, "01243567"),
+  GlapToken(GLAP_INT, 106, GLAP_INT_HEX, "0"),
+  GlapToken(GLAP_INT, 110, GLAP_INT_HEX, "00"),
+  GlapToken(GLAP_INT, 115, GLAP_INT_HEX, "0000"),
+  GlapToken(GLAP_INT, 122, GLAP_INT_HEX, "aAbBcCdDEeFf01234567890"),
+  GlapToken(GLAP_INT, 157, GLAP_INT_OCT, "0"),
+  GlapToken(GLAP_INT, 158, GLAP_INT_DEC, "8"),
+  GlapToken(GLAP_INT, 160, GLAP_INT_OCT, "01"),
+  GlapToken(GLAP_INT, 162, GLAP_INT_DEC, "82"),
+  GlapToken(GLAP_INT, 165, GLAP_INT_HEX, "0"),
+  GlapToken(GLAP_ID, 168, "g08")
+]
+
+lex_sample_name_004 = "lex_sample_004.l"
+lex_sample_data_004 = ""
+lex_sample_toks_004 = []
+
+lex_sample_name_005 = "lex_sample_005.l"
+lex_sample_data_005 = """\
+-- Lex error in numbers:
+0x
+"""
+lex_sample_toks_005 = [
+]
+
+lex_sample_name_006 = "lex_sample_006.l"
+lex_sample_data_006 = """\
+-- Lex error in numbers:
+0X
+"""
+lex_sample_toks_006 = [
+]
+
+lex_sample_name_007 = "lex_sample_007.l"
+lex_sample_data_007 = """\
+-- Floats:
+1.5 2.07 3e0 3E1 0.0 3e+0 0e-0 0E-1 0e-2
+0.1 3.14 2.17 0.5E-15 0.0e+8 0.0e+0
+123.456e-31
+"""
+lex_sample_toks_007 = [
+  GlapToken(GLAP_FLOAT, 11, "1", "5", ""),
+  GlapToken(GLAP_FLOAT, 15, "2", "07", ""),
+  GlapToken(GLAP_FLOAT, 20, "3", "", "+0"),
+  GlapToken(GLAP_FLOAT, 24, "3", "", "+1"),
+  GlapToken(GLAP_FLOAT, 28, "0", "0", ""),
+  GlapToken(GLAP_FLOAT, 32, "3", "", "+0"),
+  GlapToken(GLAP_FLOAT, 37, "0", "", "-0"),
+  GlapToken(GLAP_FLOAT, 42, "0", "", "-1"),
+  GlapToken(GLAP_FLOAT, 47, "0", "", "-2"),
+  GlapToken(GLAP_FLOAT, 52, "0", "1", ""),
+  GlapToken(GLAP_FLOAT, 56, "3", "14", ""),
+  GlapToken(GLAP_FLOAT, 61, "2", "17", ""),
+  GlapToken(GLAP_FLOAT, 66, "0", "5", "-15"),
+  GlapToken(GLAP_FLOAT, 74, "0", "0", "+8"),
+  GlapToken(GLAP_FLOAT, 81, "0", "0", "+0"),
+  GlapToken(GLAP_FLOAT, 88, "123", "456", "-31")
+]
+
+lex_samples = [
+  (True, lex_sample_name_001, lex_sample_data_001, lex_sample_toks_001),
+  (True, lex_sample_name_002, lex_sample_data_002, lex_sample_toks_002),
+  (True, lex_sample_name_003, lex_sample_data_003, lex_sample_toks_003),
+  (True, lex_sample_name_004, lex_sample_data_004, lex_sample_toks_004),
+  (False, lex_sample_name_005, lex_sample_data_005, lex_sample_toks_005),
+  (False, lex_sample_name_006, lex_sample_data_006, lex_sample_toks_006),
+  (True, lex_sample_name_007, lex_sample_data_007, lex_sample_toks_007),
+  (False, "error.l", "--\n  0.\n", []),
+  (False, "error.l", "--\n \n 1.\n", []),
+  (False, "error.l", "--\n \n  12.\n", []),
+  (False, "error.l", "--\n  0.e5\n", []),
+  (False, "error.l", "--\n  1.e5\n", []),
+  (False, "error.l", "--\n \n  12.e5\n", []),
+  (False, "error.l", "--\n 0e", []),
+  (False, "error.l", "--\n 0E ", []),
+  (False, "error.l", "--\n 0e+ ", []),
+  (False, "error.l", "--\n \n0E+", []),
+  (False, "error.l", "--\n \n0e-", []),
+  (False, "error.l", "--\n  0E-", []),
+  (False, "error.l", "--\n 1E-", []),
+  (False, "error.l", "--\n 1e-", []),
+  (False, "error.l", "--\n  1E+ ", []),
+  (False, "error.l", "--\n  \n     2e+ ", []),
+  (False, "error.l", "--\n  \n   3e", []),
+  (False, "error.l", "--\n  \n    4E", [])
+]
+
+class TestGlapLexerCase(unittest.TestCase):
+
+    def test_glap_lexer_ctor(self):
+        ctx = GlapContext()
+        GlapStream(ctx, "?", "abcd")
+        lexer = GlapLexer(ctx)
+
+        self.assertIs(ctx.lexer, lexer)
+        self.assertIs(lexer.context, ctx)
+        self.assertIsNone(lexer.token)
+    #-def
+
+    def test_tokenizing(self):
+        for t in lex_samples:
+            self.do_tokenizing_test(*t)
+    #-def
+
+    def do_tokenizing_test(self, should_succeed, name, data, toks):
+        result = []
+        if not should_succeed:
+            with self.assertRaises(ParsingError):
+                self.lex_tokenize(name, data, result)
+        else:
+            self.lex_tokenize(name, data, result)
+        self.maxDiff = None
+        self.assertEqual(result, toks)
+    #-def
+
+    def lex_tokenize(self, n, s, r):
+        ctx = GlapContext()
+        GlapStream(ctx, n, s)
+        lexer = GlapLexer(ctx)
+
+        while lexer.peek():
+            r.append(lexer.peek())
+            lexer.next()
+    #-def
+#-class
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestMakeLocationCase))
     suite.addTest(unittest.makeSuite(TestGlapErrorsCase))
     suite.addTest(unittest.makeSuite(TestGlapContextCase))
     suite.addTest(unittest.makeSuite(TestGlapStreamCase))
+    suite.addTest(unittest.makeSuite(TestGlapTokenCase))
+    suite.addTest(unittest.makeSuite(TestGlapLexerCase))
     return suite
 #-def

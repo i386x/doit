@@ -46,6 +46,15 @@ class TestTokenCase(unittest.TestCase):
             repr(Token(4, 5, 6)), "Token(ttype = 4, data = (5, 6))"
         )
     #-def
+
+    def test_token_comparison(self):
+        self.assertNotEqual(Token(1, 2, 3), None)
+        self.assertNotEqual(Token(1, 2, 3), (1, 2, 3))
+        self.assertNotEqual(Token(1, 2, 3), Token(1, 2, "3"))
+        self.assertNotEqual(Token(1, 2, 3), Token(1, "2", "3"))
+        self.assertNotEqual(Token(1, 2, 3), Token("1", "2", "3"))
+        self.assertEqual(Token(1, 2, 3), Token(1, 2, 3))
+    #-def
 #-class
 
 def suite():

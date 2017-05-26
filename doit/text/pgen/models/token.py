@@ -55,4 +55,12 @@ class Token(UserType):
 
         return "Token(ttype = %r, data = %r)" % (self.ttype, self.data)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, type(self)) \
+               and self.ttype == other.ttype and self.data == other.data
+    #-def
 #-class
