@@ -224,6 +224,20 @@ class Sym(TerminalNode):
     #-def
 #-class
 
+class Word(TerminalNode):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, w):
+        """
+        """
+
+        _assert(isinstance(w, str) and len(w) >= 1, "Word expected")
+        TerminalNode.__init__(self, w)
+    #-def
+#-class
+
 class Var(TerminalNode):
     """
     """

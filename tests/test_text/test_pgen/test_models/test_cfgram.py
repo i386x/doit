@@ -46,7 +46,7 @@ from doit.text.pgen.models.action import Block
 from doit.text.pgen.models.cfgram import \
     RuleNode, \
     TerminalNode, UnaryNode, BinaryNode, \
-    Epsilon, Sym, Var, Range, Action, \
+    Epsilon, Sym, Word, Var, Range, Action, \
     Alias, DoNotRecord, Complement, Iteration, PositiveIteration, Optional, \
     Label, Catenation, Alternation, \
     Grammar
@@ -175,6 +175,12 @@ class TestNodesCase(unittest.TestCase):
         with self.assertRaises(DoItAssertionError):
             Sym("")
         self.assertEqual(int(Sym('@')), ord('@'))
+        with self.assertRaises(DoItAssertionError):
+            Word(1)
+        with self.assertRaises(DoItAssertionError):
+            Word("")
+        Word("a")
+        Word("=>")
         Var('x')
         with self.assertRaises(DoItAssertionError):
             Range(1, 1)
@@ -228,7 +234,7 @@ class TestGrammarCase(unittest.TestCase):
         g = Grammar()
         g["start"] = Var('A') + Var('B')
         g['A'] = Sym('a')
-        g['B'] = Sym('b')
+        g['B'] = Sym('b') | Word("zz")
         g['A'] = Sym('c')
         g["start"] = Var('A')
         g["start"] = Var('B') + Sym('c') | Sym('d')
@@ -240,6 +246,15 @@ class TestGrammarCase(unittest.TestCase):
                 Return(Concat(
                     "#", ToStr(GetItem(GetLocal('args'), 0), fmt)
                 ))
+            ], [If(InstanceOf(GetLocal('n'), Const(Word)), [
+                Return(
+                    Concat(
+                        "\"",
+                    Concat(
+                        GetItem(GetLocal('args'), 0),
+                        "\""
+                    ))
+                )
             ], [If(InstanceOf(GetLocal('n'), Const(Catenation)), [
                 Return(
                     Concat(
@@ -266,7 +281,7 @@ class TestGrammarCase(unittest.TestCase):
                 )
             ], [
                 Return("<bad node>")
-            ])])])])
+            ])])])])])
         ], [])
 
         p.run([Visit(g.rules()["start"], f)])
@@ -274,7 +289,7 @@ class TestGrammarCase(unittest.TestCase):
         p.run([Visit(g.rules()["A"], f)])
         self.assertEqual(p.acc(), "(#61 | #63)")
         p.run([Visit(g.rules()["B"], f)])
-        self.assertEqual(p.acc(), "#62")
+        self.assertEqual(p.acc(), "(#62 | \"zz\")")
     #-def
 #-class
 
