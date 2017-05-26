@@ -621,6 +621,31 @@ lex_sample_toks_008 = [
   GlapToken(GLAP_STR, 237, "\a\b\t\n\v\f\r  \\'\"  0a\x07ž@\u01ffABČ\n")
 ]
 
+lex_sample_name_009 = "lex_sample_009.l"
+lex_sample_data_009 = """\
+-+*/()=>===== =======+++for foreach if elif
+"""
+lex_sample_toks_009 = [
+  GlapToken('-', 0),
+  GlapToken('+', 1),
+  GlapToken('*', 2),
+  GlapToken('/', 3),
+  GlapToken('(', 4),
+  GlapToken(')', 5),
+  GlapToken('=>', 6),
+  GlapToken('===', 8),
+  GlapToken('==', 11),
+  GlapToken('===', 14),
+  GlapToken('===', 17),
+  GlapToken('=', 20),
+  GlapToken('++', 21),
+  GlapToken('+', 23),
+  GlapToken('for', 24),
+  GlapToken('foreach', 28),
+  GlapToken('if', 36),
+  GlapToken('elif', 39)
+]
+
 lex_samples = [
   (True, lex_sample_name_001, lex_sample_data_001, lex_sample_toks_001),
   (True, lex_sample_name_002, lex_sample_data_002, lex_sample_toks_002),
@@ -675,7 +700,9 @@ lex_samples = [
   (False, "error.l", "--\n    \"c\tb\"", []),
   (False, "error.l", "--\n  \"x\x14y\"", []),
   (False, "error.l", "--\n \"\x7fu\"", []),
-  (False, "error.l", "--\n   \"c\x7f", [])
+  (False, "error.l", "--\n   \"c\x7f", []),
+  (True, lex_sample_name_009, lex_sample_data_009, lex_sample_toks_009),
+  (False, "error.l", "--\n @ r", [])
 ]
 
 class TestGlapLexerCase(unittest.TestCase):
@@ -688,6 +715,71 @@ class TestGlapLexerCase(unittest.TestCase):
         self.assertIs(ctx.lexer, lexer)
         self.assertIs(lexer.context, ctx)
         self.assertIsNone(lexer.token)
+    #-def
+
+    def test_asserteof(self):
+        ctx = GlapContext()
+        GlapStream(ctx, "?", "abcd--\n-- abcd")
+        lexer = GlapLexer(ctx)
+
+        with self.assertRaises(ParsingError):
+            lexer.asserteof()
+        lexer.next()
+        lexer.asserteof()
+    #-def
+
+    def test_test(self):
+        ctx = GlapContext()
+        GlapStream(ctx, "?", ";")
+        lexer = GlapLexer(ctx)
+
+        self.assertFalse(lexer.test())
+        self.assertTrue(lexer.test(";"))
+        self.assertTrue(lexer.test(";", None))
+
+        ctx = GlapContext()
+        GlapStream(ctx, "?", "--;")
+        lexer = GlapLexer(ctx)
+
+        self.assertFalse(lexer.test())
+        self.assertFalse(lexer.test(";"))
+        self.assertTrue(lexer.test(";", None))
+    #-def
+
+    def test_match(self):
+        ctx = GlapContext()
+        GlapStream(ctx, "?", "abcd 123 #")
+        lexer = GlapLexer(ctx)
+
+        with self.assertRaises(ParsingError):
+            lexer.match()
+        with self.assertRaises(ParsingError):
+            lexer.match(GLAP_STR, GLAP_FLOAT, GLAP_INT)
+        with self.assertRaises(ParsingError):
+            lexer.match(GLAP_STR, '=>', GLAP_INT)
+        with self.assertRaises(ParsingError):
+            lexer.match(GLAP_STR, GLAP_FLOAT)
+        with self.assertRaises(ParsingError):
+            lexer.match('#', GLAP_FLOAT)
+        with self.assertRaises(ParsingError):
+            lexer.match(GLAP_STR)
+        with self.assertRaises(ParsingError):
+            lexer.match('$')
+
+        self.assertEqual(
+            lexer.match(GLAP_INT, '#', ';', GLAP_ID),
+            GlapToken(GLAP_ID, 0, "abcd")
+        )
+        self.assertEqual(
+            lexer.match(GLAP_INT, '#', ';', GLAP_ID),
+            GlapToken(GLAP_INT, 5, GLAP_INT_DEC, "123")
+        )
+        self.assertEqual(
+            lexer.match(GLAP_INT, '#', ';', GLAP_ID),
+            GlapToken('#', 9)
+        )
+        with self.assertRaises(ParsingError):
+            lexer.match(GLAP_INT, '#', ';', GLAP_ID)
     #-def
 
     def test_tokenizing(self):

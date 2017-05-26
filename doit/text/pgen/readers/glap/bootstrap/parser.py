@@ -35,7 +35,7 @@ IN THE SOFTWARE.\
 
 from doit.support.errors import doit_assert as _assert
 from doit.text.pgen.models.token import Token
-from doit.text.pgen.readers.glap.bootstrap import GlapLexError
+from doit.text.pgen.readers.glap.bootstrap import GlapLexError, GlapSyntaxError
 
 GLAP_ID    = 1
 GLAP_INT   = 2
@@ -82,6 +82,57 @@ class GlapToken(Token):
     #-def
 #-class
 
+class Symbols(object):
+    """
+    """
+    __slots__ = [ 'symbols' ]
+
+    def __init__(self, *symbols):
+        """
+        """
+
+        self.symbols = {}
+        for symbol in symbols:
+            self.add_symbol(symbol)
+    #-def
+
+    def add_symbol(self, symbol):
+        """
+        """
+
+        node = self.symbols
+        i = 0
+        while i < len(symbol):
+            if symbol[i] not in node:
+                node[symbol[i]] = {}
+            node = node[symbol[i]]
+            i += 1
+        if self not in node:
+            node[self] = symbol
+    #-def
+
+    def scan_symbol(self, c, stream):
+        """
+        """
+
+        p = stream.pos
+        node = self.symbols
+        while c in node:
+            node = node[c]
+            stream.next()
+            c = stream.peek(1)
+        _assert(self in node,
+            "Symbol %r cannot be retrieved" % stream.data[p : stream.pos]
+        )
+        _assert(node[self] == stream.data[p : stream.pos],
+            "GlapLexer.SYMBOLS: %r != %r" % (
+                node[self], stream.data[p : stream.pos]
+            )
+        )
+        return GlapToken(node[self], p)
+    #-def
+#-class
+
 class GlapLexer(object):
     """
     """
@@ -94,7 +145,20 @@ class GlapLexer(object):
     XDIGIT = "%sABCDEFabcdef" % DIGIT
     IDCHAR = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_"
     IDCHARNUM = "%s%s" % (DIGIT, IDCHAR)
-    KEYWORDS = [ "module", "grammar", "end" ]
+    KEYWORDS = [
+      "break",
+      "case", "catch", "continue",
+      "default", "define", "defmacro", "do",
+      "elif", "else", "end", "eps",
+      "finally", "for", "foreach",
+      "grammar",
+      "if", "in",
+      "module",
+      "of",
+      "return",
+      "throw", "try",
+      "while"
+    ]
     STRCHAR = lambda c: GlapLexer.COMMENTCHAR(c) and c not in ('"', '\\')
     ESCAPECHAR2CHAR = {
       'a': '\a',
@@ -108,6 +172,34 @@ class GlapLexer(object):
       '\'': '\'',
       '\\': '\\'
     }
+    SYMBOLS = Symbols(
+      # Parenthesis:
+      '(', '$(', ')', '[', ']', '{', '}',
+      # Punctation:
+      ',', ';',
+      # Accessors:
+      '.', ':',
+      # Decorators:
+      '$', '#', '...', '`',
+      # Operators:
+      # - grammar rule builders:
+      '->', '..', '?', '\'',
+      # - assignments:
+      '=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '<<=', '>>=', '&&=',
+        '||=', '.=', '++=', '~~=',
+      # - logical:
+      '||', '&&', '!',
+      # - relational:
+      '<', '>', '<=', '>=', '==', '!=', '===',
+      # - bitwise:
+      '|', '&', '^', '<<', '>>', '~',
+      # - additive:
+      '+', '-', '++', '~~',
+      # - multiplicative:
+      '*', '/', '%',
+      # - hashmap item builders:
+      '=>'
+    )
     __slots__ = [ 'context', 'token' ]
 
     def __init__(self, context):
@@ -133,7 +225,7 @@ class GlapLexer(object):
         """
 
         if self.peek():
-            raise GlapSyntaxError(self, "Expected end of input")
+            raise GlapSyntaxError(self.context, "Expected end of input")
     #-def
 
     def test(self, *ts):
@@ -150,7 +242,16 @@ class GlapLexer(object):
         """
 
         if not self.peek() or self.token.ttype not in ts:
-            raise GlapSyntaxError(self, "Expected %s" % GlapToken.tokname(t))
+            if not ts:
+                what = "Unexpected token"
+            else:
+                what = "Expected %s" % GlapToken.tokname(ts[0])
+                i, l, n = 1, len(ts) - 1, len(ts)
+                while i < n:
+                    t = GlapToken.tokname(ts[i])
+                    what += (", %s" if i < l else " or %s") % t
+                    i += 1
+            raise GlapSyntaxError(self.context, what)
         t = self.token
         self.next()
         return t
@@ -171,6 +272,8 @@ class GlapLexer(object):
             self.token = self.scan_NUMBER(c, stream)
         elif c == '"':
             self.token = self.scan_STR(c, stream)
+        elif c in self.SYMBOLS.symbols:
+            self.token = self.SYMBOLS.scan_symbol(c, stream)
         else:
             raise GlapLexError(self.context, "Unexpected symbol %r" % c)
     #-def
