@@ -46,7 +46,7 @@ from doit.text.pgen.models.action import Block
 from doit.text.pgen.models.cfgram import \
     RuleNode, \
     TerminalNode, UnaryNode, BinaryNode, \
-    Epsilon, Sym, Word, Var, Range, Action, \
+    Epsilon, Sym, Word, Literal, Var, Range, Action, \
     Alias, DoNotRecord, Complement, Iteration, PositiveIteration, Optional, \
     Label, Catenation, Alternation, \
     Grammar
@@ -181,6 +181,7 @@ class TestNodesCase(unittest.TestCase):
             Word("")
         Word("a")
         Word("=>")
+        Literal(1)
         Var('x')
         with self.assertRaises(DoItAssertionError):
             Range(1, 1)

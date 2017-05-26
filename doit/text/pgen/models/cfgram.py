@@ -238,6 +238,19 @@ class Word(TerminalNode):
     #-def
 #-class
 
+class Literal(TerminalNode):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, t):
+        """
+        """
+
+        TerminalNode.__init__(self, t)
+    #-def
+#-class
+
 class Var(TerminalNode):
     """
     """
