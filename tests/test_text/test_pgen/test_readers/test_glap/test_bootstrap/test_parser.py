@@ -45,7 +45,7 @@ from doit.text.pgen.readers.glap.bootstrap import \
     GlapStream
 
 from doit.text.pgen.readers.glap.bootstrap.parser import \
-    GLAP_ID, GLAP_INT, GLAP_FLOAT, \
+    GLAP_ID, GLAP_INT, GLAP_FLOAT, GLAP_STR, \
     GLAP_INT_DEC, GLAP_INT_OCT, GLAP_INT_HEX, \
     GlapToken, \
     GlapLexer
@@ -567,6 +567,60 @@ lex_sample_toks_007 = [
   GlapToken(GLAP_FLOAT, 88, "123", "456", "-31")
 ]
 
+lex_sample_name_008 = "lex_sample_008.l"
+lex_sample_data_008 = """\
+-- Strings:
+"" ""\"" "" "" " "
+"a"  "A"  "_" "0" "Č"
+"\\""  "\\\\"  "\\'"  "\\a" "\\b" "\\t" "\\n" "\\v" "\\f" "\\r"
+"\\0" "\\1" "\\01" "\\77" "\\000" "\\007" "\\107" "\\087" "\\778"
+"\\xff"  "\\u013f"  "abcd"
+"\\na\\nb"   "\\"ab\\""   "\\'c\\'"  "'xxx'"   "\\"\""\\""
+"\\a\\b\\t\\n\\v\\f\\r  \\\\\\'\\"  0a\\7ž\\x40\\u01FFABČ\\n"
+"""
+lex_sample_toks_008 = [
+  GlapToken(GLAP_STR, 12, ""),
+  GlapToken(GLAP_STR, 15, ""),
+  GlapToken(GLAP_STR, 17, ""),
+  GlapToken(GLAP_STR, 20, ""),
+  GlapToken(GLAP_STR, 23, ""),
+  GlapToken(GLAP_STR, 26, " "),
+  GlapToken(GLAP_STR, 30, "a"),
+  GlapToken(GLAP_STR, 35, "A"),
+  GlapToken(GLAP_STR, 40, "_"),
+  GlapToken(GLAP_STR, 44, "0"),
+  GlapToken(GLAP_STR, 48, "Č"),
+  GlapToken(GLAP_STR, 52, "\""),
+  GlapToken(GLAP_STR, 58, "\\"),
+  GlapToken(GLAP_STR, 64, "'"),
+  GlapToken(GLAP_STR, 70, "\a"),
+  GlapToken(GLAP_STR, 75, "\b"),
+  GlapToken(GLAP_STR, 80, "\t"),
+  GlapToken(GLAP_STR, 85, "\n"),
+  GlapToken(GLAP_STR, 90, "\v"),
+  GlapToken(GLAP_STR, 95, "\f"),
+  GlapToken(GLAP_STR, 100, "\r"),
+  GlapToken(GLAP_STR, 105, "\x00"),
+  GlapToken(GLAP_STR, 110, "\x01"),
+  GlapToken(GLAP_STR, 115, "\x01"),
+  GlapToken(GLAP_STR, 121, "?"),
+  GlapToken(GLAP_STR, 127, "\x00"),
+  GlapToken(GLAP_STR, 134, "\x07"),
+  GlapToken(GLAP_STR, 141, "G"),
+  GlapToken(GLAP_STR, 148, "\x0087"),
+  GlapToken(GLAP_STR, 155, "?8"),
+  GlapToken(GLAP_STR, 162, "\xff"),
+  GlapToken(GLAP_STR, 170, "\u013f"),
+  GlapToken(GLAP_STR, 180, "abcd"),
+  GlapToken(GLAP_STR, 187, "\na\nb"),
+  GlapToken(GLAP_STR, 198, "\"ab\""),
+  GlapToken(GLAP_STR, 209, "'c'"),
+  GlapToken(GLAP_STR, 218, "'xxx'"),
+  GlapToken(GLAP_STR, 228, "\""),
+  GlapToken(GLAP_STR, 232, "\""),
+  GlapToken(GLAP_STR, 237, "\a\b\t\n\v\f\r  \\'\"  0a\x07ž@\u01ffABČ\n")
+]
+
 lex_samples = [
   (True, lex_sample_name_001, lex_sample_data_001, lex_sample_toks_001),
   (True, lex_sample_name_002, lex_sample_data_002, lex_sample_toks_002),
@@ -592,7 +646,36 @@ lex_samples = [
   (False, "error.l", "--\n  1E+ ", []),
   (False, "error.l", "--\n  \n     2e+ ", []),
   (False, "error.l", "--\n  \n   3e", []),
-  (False, "error.l", "--\n  \n    4E", [])
+  (False, "error.l", "--\n  \n    4E", []),
+  (True, lex_sample_name_008, lex_sample_data_008, lex_sample_toks_008),
+  (False, "error.l", "--\n \"", []),
+  (False, "error.l", "--\n\"\n", []),
+  (False, "error.l", "--\n \"abc", []),
+  (False, "error.l", "--\n \"\\", []),
+  (False, "error.l", "--\n \"\\\n\"", []),
+  (False, "error.l", "--\n \"\\/\"", []),
+  (False, "error.l", "--\n \"a\\zb\"", []),
+  (False, "error.l", "--\n \"xy\\x\"", []),
+  (False, "error.l", "--\n \"u\\x0", []),
+  (False, "error.l", "--\n \"u\\x0\"", []),
+  (False, "error.l", "--\n \"u\\x0t\"", []),
+  (False, "error.l", "--\n \"\\8\"", []),
+  (False, "error.l", "--\n \"\\8", []),
+  (False, "error.l", "--\n \"\\u\"", []),
+  (False, "error.l", "--\n \"\\u", []),
+  (False, "error.l", "--\n \"\\u1\"", []),
+  (False, "error.l", "--\n \"\\u1", []),
+  (False, "error.l", "--\n  \"s\\u1Ag\"", []),
+  (False, "error.l", "--\n \"tw\\u0AF", []),
+  (False, "error.l", "--\n \"tw\\u0AF\"", []),
+  (False, "error.l", "--\n  \"ty\\u0aFZ", []),
+  (False, "error.l", "--\n   \"ty\\u0AFZ\"", []),
+  (False, "error.l", "--\n  \"zz\\u0FF", []),
+  (False, "error.l", "--\n \"\5a\"", []),
+  (False, "error.l", "--\n    \"c\tb\"", []),
+  (False, "error.l", "--\n  \"x\x14y\"", []),
+  (False, "error.l", "--\n \"\x7fu\"", []),
+  (False, "error.l", "--\n   \"c\x7f", [])
 ]
 
 class TestGlapLexerCase(unittest.TestCase):

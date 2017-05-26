@@ -95,7 +95,6 @@ class GlapLexer(object):
     IDCHAR = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_"
     IDCHARNUM = "%s%s" % (DIGIT, IDCHAR)
     KEYWORDS = [ "module", "grammar", "end" ]
-    CHARCHAR = lambda c: GlapLexer.COMMENTCHAR(c) and c not in ("'", "\\")
     STRCHAR = lambda c: GlapLexer.COMMENTCHAR(c) and c not in ('"', '\\')
     ESCAPECHAR2CHAR = {
       'a': '\a',
@@ -258,22 +257,22 @@ class GlapLexer(object):
         """
 
         # '"' ( '\\' ESCAPE_SEQUENCE | STRCHAR )* '"'
-        p = istream.pos
-        istream.next()
+        p = stream.pos
+        stream.next()
         s = ""
         while True:
-            c = istream.peek(1)
+            c = stream.peek(1)
             if c in ("", '"'):
                 break
             elif c == '\\':
-                istream.next()
-                s += self.scan_ESCAPE_SEQUENCE(istream.peek(), istream)
+                stream.next()
+                s += self.scan_ESCAPE_SEQUENCE(stream.peek(1), stream)
             elif GlapLexer.STRCHAR(c):
                 s += c
-                istream.next()
+                stream.next()
             else:
-                raise GlapLexError(istream, "Unexpected symbol %r" % c)
-        istream.match('"')
+                raise GlapLexError(self.context, "Unexpected symbol %r" % c)
+        stream.match('"')
         return GlapToken(GLAP_STR, p, s)
     #-def
 
@@ -286,22 +285,22 @@ class GlapLexer(object):
         # 'x' XDIGIT{2}
         # 'u' XDIGIT{4}
         if c == "":
-            raise GlapLexError(istream, "Unexpected end of input")
+            raise GlapLexError(self.context, "Unexpected end of input")
         elif c in self.ESCAPECHAR2CHAR:
-            istream.next()
+            stream.next()
             return self.ESCAPECHAR2CHAR[c]
         elif c in self.ODIGIT:
-            x = self.matchset(self.ODIGIT)
-            x += self.matchopt(self.ODIGIT, "")
-            x += self.matchopt(self.ODIGIT, "")
+            x = stream.matchset(self.ODIGIT)
+            x += stream.matchopt(self.ODIGIT, "")
+            x += stream.matchopt(self.ODIGIT, "")
             return chr(int(x, 8))
         elif c == 'x':
-            istream.next()
-            return chr(int(self.matchn(self.XDIGIT, 2), 16))
+            stream.next()
+            return chr(int(stream.matchn(self.XDIGIT, 2), 16))
         elif c == 'u':
-            istream.next()
-            return chr(int(self.matchn(self.XDIGIT, 4), 16))
-        raise GlapLexError(istream, "Invalid symbol (%r) after '\\'" % c)
+            stream.next()
+            return chr(int(stream.matchn(self.XDIGIT, 4), 16))
+        raise GlapLexError(self.context, "Invalid symbol (%r) after '\\'" % c)
     #-def
 #-class
 

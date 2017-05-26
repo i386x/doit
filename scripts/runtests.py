@@ -43,6 +43,36 @@ sys.path.insert(0, root)
 
 import tests
 
+# Based on unittest/runner.py _WritelnDecorator and on sys.dysplayhook
+# pseudocode from the standard Python documentation. One does not simply
+# `sys.stdout.errors = 'backslashreplace'` .
+class _WriteDecorator(object):
+    __slots__ = [ 'stream' ]
+
+    def __init__(self, stream):
+        self.stream = stream
+    #-def
+
+    def __getattr__(self, attr):
+        if attr in ('stream', '__getstate__'):
+            return AttributeError(attr)
+        return getattr(self.stream, attr)
+    #-def
+
+    def write(self, text):
+        try:
+            self.stream.write(text)
+        except UnicodeEncodeError:
+            bytes = text.encode(self.stream.encoding, 'backslashreplace')
+            if hasattr(self.stream, 'buffer'):
+                self.stream.buffer.write(bytes)
+            else:
+                text = bytes.decode(self.stream.encoding, 'strict')
+                self.stream.write(text)
+    #-def
+#-class
+
 if __name__ == '__main__':
-    unittest.TextTestRunner(sys.stdout, True, 2).run(tests.suite())
+    stream = _WriteDecorator(sys.stdout)
+    unittest.TextTestRunner(stream, True, 2).run(tests.suite())
 #-if
