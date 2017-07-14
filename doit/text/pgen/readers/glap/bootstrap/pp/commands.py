@@ -33,16 +33,89 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-class GrammarType(Grammar, UserType):
-    """
-    """
-    __self__ = []
+from doit.support.cmd.commands import Trackable, DefModule
 
-    def __init__(self):
+RULESVARNAME = '@rules'
+
+class DefRule(Trackable):
+    """
+    """
+    __slots__ = [ 'label', 'rhs', 'is_short' ]
+
+    def __init__(self, label, rhs, is_short):
         """
         """
 
-        Grammar.__init__(self)
-        UserType.__init__(self)
+        Trackable.__init__(self)
+        self.label = label
+        self.rhs = rhs
+        self.is_short = is_short
+    #-def
+
+    def expand(self, processor):
+        """
+        """
+
+        ctx = CommandContext(self)
+        processor.insertcode(
+            Initializer(ctx),
+            GetMember(GetLocal(Module.THISVARNAME), RULESVARNAME),
+            self.do_defrule,
+            Finalizer(ctx)
+        )
+    #-def
+
+    def do_defrule(self, processor):
+        """
+        """
+
+        rules = processor.acc()
+
+        ctx = processor.cmdctx(self)
+        if not isinstance(rules, Grammar):
+            raise CommandError(processor.TypeError,
+                "%s: Run me inside grammar module" % self.name,
+                processor.traceback()
+            )
+        self.rhs.location = self.location
+        self.rhs.properties['label'] = self.label
+        self.rhs.properties['is_short'] = self.is_short
+        rules[self.label] = self.rhs
+    #-def
+#-class
+
+class DefGrammar(DefModule):
+    """
+    """
+    __slots__ = [ 'gspecs' ]
+
+    def __init__(self, gname, gspecs, gbody):
+        """
+        """
+
+        DefModule.__init__(self, gname, gbody)
+        self.gspecs = gspecs
+    #-def
+
+    def create_module(self, processor):
+        """
+        """
+
+        ctx = processor.cmdctx(self)
+        body = []
+        for gspecid, gspecloc in self.gspecs:
+            gspec = ctx.env.getvar(gspecid)
+            if not isinstance(gspec, Module):
+                raise CommandError(processor.TypeError,
+                    "%r %s is not module" % (gspecid, gspecloc),
+                    processor.traceback()
+                )
+            body.extend(gspec.body)
+        body.append(
+            SetMember(GetLocal(Module.THISVARNAME), RULESVARNAME, Grammar())
+        )
+        body.extend(self.body)
+        g = Module(self.mname, processor.mkqname(self.mname), body, ctx.env)
+        processor.insertcode(g, self.pushacc, g)
     #-def
 #-class

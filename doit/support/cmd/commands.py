@@ -38,6 +38,7 @@ from doit.support.cmd.errors import \
 
 from doit.support.cmd.runtime import \
     isderived, \
+    Evaluable, \
     Pair, \
     List, \
     HashMap, \
@@ -57,57 +58,6 @@ SequenceTypes = (str, Pair, list)
 FixedLengthSequenceTypes = (Pair,)
 VariableLengthSequenceTypes = (str, list)
 CollectionTypes = (str, Pair, list, dict)
-
-class Location(tuple):
-    """
-    """
-    __slots__ = []
-
-    def __new__(cls, file = None, line = -1, column = -1):
-        """
-        """
-
-        return super(Location, cls).__new__(cls, (file, line, column))
-    #-def
-
-    def __init__(self, file = None, line = -1, column = -1):
-        """
-        """
-
-        tuple.__init__(self)
-    #-def
-
-    def file(self):
-        """
-        """
-
-        return self[0]
-    #-def
-
-    def line(self):
-        """
-        """
-
-        return self[1]
-    #-def
-
-    def column(self):
-        """
-        """
-
-        return self[2]
-    #-def
-
-    def __str__(self):
-        """
-        """
-
-        f, l, c = self
-        if f is None or l < 0 or c < 0:
-            return "(internal)"
-        return "at [\"%s\":%d:%d]" % self
-    #-def
-#-class
 
 class CommandContext(object):
     """
@@ -339,18 +289,18 @@ class Finalizer(object):
     #-def
 #-class
 
-class Command(object):
+class Command(Evaluable):
     """
     """
-    __slots__ = [ 'name', 'qname', 'location' ]
+    __slots__ = [ 'name', 'qname' ]
 
     def __init__(self):
         """
         """
 
+        Evaluable.__init__(self)
         self.name = self.__class__.__name__.lower()
         self.qname = self.name
-        self.location = Location()
     #-def
 
     def isloop(self):
@@ -365,13 +315,6 @@ class Command(object):
         """
 
         return False
-    #-def
-
-    def set_location(self, file = None, line = -1, column = -1):
-        """
-        """
-
-        self.location = Location(file, line, column)
     #-def
 
     def __str__(self):

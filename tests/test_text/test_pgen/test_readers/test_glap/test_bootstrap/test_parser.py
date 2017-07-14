@@ -42,13 +42,15 @@ from doit.text.pgen.readers.glap.bootstrap import \
     make_location, \
     GlapLexError, GlapSyntaxError, \
     GlapContext, \
-    GlapStream
+    GlapStream, \
+    GlapParserActions
 
 from doit.text.pgen.readers.glap.bootstrap.parser import \
     GLAP_ID, GLAP_INT, GLAP_FLOAT, GLAP_STR, \
     GLAP_INT_DEC, GLAP_INT_OCT, GLAP_INT_HEX, \
     GlapToken, \
-    GlapLexer
+    GlapLexer, \
+    GlapParser
 
 class FakeContext(object):
     __slots__ = [ 'stream', 'lexer' ]
@@ -79,7 +81,7 @@ class FakeToken(object):
         self.loc = -1
     #-def
 
-    def location(self):
+    def position(self):
         return self.loc
     #-def
 #-class
@@ -103,6 +105,7 @@ module sample_001
   end
 end
 """
+ast_001 = None
 
 name_002 = "sample_002.g"
 sample_002 = """\
@@ -110,6 +113,7 @@ module sample_002
   x = "\\u012f";
 end
 """
+ast_002 = None
 
 class TestMakeLocationCase(unittest.TestCase):
 
@@ -434,7 +438,7 @@ class TestGlapTokenCase(unittest.TestCase):
         t = GlapToken(GLAP_ID, p, sample_001[p : p + 10])
 
         self.assertEqual(t.ttype, GLAP_ID)
-        self.assertEqual(t.location(), p)
+        self.assertEqual(t.position(), p)
         self.assertEqual(t.data[1], (sample_001[p : p + 10],))
 
         self.assertEqual(GlapToken.tokname("=="), "'=='")
@@ -809,6 +813,39 @@ class TestGlapLexerCase(unittest.TestCase):
     #-def
 #-class
 
+test_samples = [
+  (True, name_001, sample_001, ast_001),
+  (True, name_002, sample_002, ast_002)
+]
+
+class TestGlapParserCase(unittest.TestCase):
+
+    def test_parsing(self):
+        for p in test_samples:
+            self.do_parsing_test(*p)
+    #-def
+
+    def do_parsing_test(self, should_succeed, name, data, ast):
+        result = None
+        if not should_succeed:
+            with self.assertRaises(ParsingError):
+                result = self.parse_data(name, data)
+        else:
+            result = self.parse_data(name, data)
+        self.maxDiff = None
+        self.assertEqual(result, ast)
+    #-def
+
+    def parse_data(self, name, data):
+        ctx = GlapContext()
+        GlapStream(ctx, name, data)
+        GlapLexer(ctx)
+        parser = GlapParser(ctx)
+        GlapParserActions(ctx)
+        return parser.parse()
+    #-def
+#-class
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestMakeLocationCase))
@@ -817,5 +854,6 @@ def suite():
     suite.addTest(unittest.makeSuite(TestGlapStreamCase))
     suite.addTest(unittest.makeSuite(TestGlapTokenCase))
     suite.addTest(unittest.makeSuite(TestGlapLexerCase))
+    suite.addTest(unittest.makeSuite(TestGlapParserCase))
     return suite
 #-def

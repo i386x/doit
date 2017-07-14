@@ -42,6 +42,7 @@ from doit.support.cmd.errors import \
     CommandError
 
 from doit.support.cmd.runtime import \
+    Location, \
     Pair, \
     List, \
     HashMap, \
@@ -50,7 +51,6 @@ from doit.support.cmd.runtime import \
     Procedure
 
 from doit.support.cmd.commands import \
-    Location, \
     CommandContext, \
     Initializer, Finalizer, \
     Command, \
@@ -167,30 +167,6 @@ class Printer(CommandProcessor):
 
     def print_impl(self, s):
         self.output += s
-    #-def
-#-class
-
-class TestLocationCase(unittest.TestCase):
-
-    def test_methods(self):
-        loc0 = Location()
-        loc1 = Location("A", 1, 2)
-
-        self.assertIsNone(loc0.file())
-        self.assertEqual(loc0.line(), -1)
-        self.assertEqual(loc0.column(), -1)
-        self.assertEqual(loc0, (None, -1, -1))
-        x, y, z = loc0
-        self.assertEqual((x, y, z), (None, -1, -1))
-        self.assertEqual(str(loc0), "(internal)")
-
-        self.assertEqual(loc1.file(), "A")
-        self.assertEqual(loc1.line(), 1)
-        self.assertEqual(loc1.column(), 2)
-        self.assertEqual(loc1, ("A", 1, 2))
-        x, y, z = loc1
-        self.assertEqual((x, y, z), ("A", 1, 2))
-        self.assertEqual(str(loc1), 'at ["A":1:2]')
     #-def
 #-class
 
@@ -3152,7 +3128,6 @@ class TestModuleCase(unittest.TestCase):
 
 def suite():
     suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(TestLocationCase))
     suite.addTest(unittest.makeSuite(TestCommandCase))
     suite.addTest(unittest.makeSuite(TestVersionCase))
     suite.addTest(unittest.makeSuite(TestExpandCase))

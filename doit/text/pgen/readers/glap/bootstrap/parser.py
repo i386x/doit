@@ -42,9 +42,9 @@ GLAP_INT   = 2
 GLAP_FLOAT = 3
 GLAP_STR   = 4
 
-GLAP_INT_DEC = 1
-GLAP_INT_OCT = 2
-GLAP_INT_HEX = 3
+GLAP_INT_DEC = 10
+GLAP_INT_OCT = 8
+GLAP_INT_HEX = 16
 
 class GlapToken(Token):
     """
@@ -57,18 +57,43 @@ class GlapToken(Token):
     }
     __slots__ = []
 
-    def __init__(self, ttype, location, *data):
+    def __init__(self, ttype, position, *data):
         """
         """
 
-        Token.__init__(self, ttype, location, data)
+        Token.__init__(self, ttype, position, data)
     #-def
 
-    def location(self):
+    def position(self):
         """
         """
 
         return self.data[0]
+    #-def
+
+    def value(self, evaluate = False):
+        """
+        """
+
+        tt = self.ttype
+        data = self.data[1]
+        if tt in (GLAP_ID, GLAP_STR):
+            return data[0]
+        elif tt == GLAP_INT:
+            if evaluate:
+                base, sval = data
+                return int(sval, base)
+            return data
+        elif tt == GLAP_FLOAT:
+            if evaluate:
+                sval, fpart, epart = data
+                if fpart:
+                    sval += ".%s" % fpart
+                if epart:
+                    sval += "E%s" % epart
+                return float(sval)
+            return data
+        return tt
     #-def
 
     @classmethod
@@ -522,6 +547,7 @@ class GlapParser(object):
         """
         """
 
+        context.parser = self
         self.context = context
     #-def
 
@@ -542,13 +568,13 @@ class GlapParser(object):
         """
 
         # module -> "module" ID module_unit* "end"
-        lexer.match("module")
+        p = lexer.match("module").position()
         name = lexer.match(GLAP_ID)
         module_units = []
         while lexer.peek() and not lexer.test("end"):
-            module_units.append(self.parse_module_unit(self, lexer, actions))
+            module_units.append(self.parse_module_unit(lexer, actions))
         lexer.match("end")
-        return actions.run("module", self.context, name, module_units)
+        return actions.run("module", self.context, p, name, module_units)
     #-def
 
     def parse_module_unit(self, lexer, actions):
@@ -574,8 +600,8 @@ class GlapParser(object):
         # grammar -> "grammar" ID grammar_type_spec?
         #              ( rule | "." command )*
         #            "end"
-        lexer.match("grammar")
-        t_ID = lexer.match(GLAP_ID)
+        p = lexer.match("grammar").position()
+        name = lexer.match(GLAP_ID)
         grammar_type_spec = []
         if lexer.test("("):
             grammar_type_spec = self.parse_grammar_type_spec(lexer, actions)
@@ -588,7 +614,7 @@ class GlapParser(object):
             rules_and_commands.append(self.parse_rule(lexer, actions))
         lexer.match("end")
         return actions.run("grammar",
-            self.context, t_ID, grammar_type_spec, rules_and_commands
+            self.context, p, name, grammar_type_spec, rules_and_commands
         )
     #-def
 
@@ -655,11 +681,12 @@ class GlapParser(object):
         # It is a prefix operator reachable from the current level?
         if op and op.level >= level:
             # Yes, it is.
+            p = lexer.token.position()
             lexer.next()
             # Parse right-hand side:
             result = self.parse_rule_rhs_expr(lexer, actions, op.rbp)
             result = actions.run(
-                "rule_rhs_expr(%s)" % op.mask, self.context, result
+                "rule_rhs_expr(%s)" % op.mask, self.context, p, result
             )
             oplvl = op.level
         else:
@@ -675,6 +702,7 @@ class GlapParser(object):
             # current operator has lower priority (level) => stop
             if not op or op.lbp > oplvl or op.level < level:
                 break
+            p = lexer.token.position()
             # "Invisible" operator treatment.
             if op.name:
                 lexer.next()
@@ -682,12 +710,12 @@ class GlapParser(object):
             if op.rbp >= 0:
                 rhs = self.parse_rule_rhs_expr(lexer, actions, op.rbp)
                 result = actions.run(
-                    "rule_rhs_expr(%s)" % op.mask, self.context, result, rhs
+                    "rule_rhs_expr(%s)" % op.mask, self.context, p, result, rhs
                 )
             else:
                 # Unary postfix.
                 result = actions.run(
-                    "rule_rhs_expr(%s)" % op.mask, self.context, result
+                    "rule_rhs_expr(%s)" % op.mask, self.context, p, result
                 )
             # Update previous operator level.
             oplvl = op.level
@@ -700,7 +728,7 @@ class GlapParser(object):
 
         # rule_rhs_expr_atom -> ID | STR ( ".." STR )? | "eps"
         #                     | "{" a_start "}" | "(" rule_rhs_expr[0] ")"
-        t = lexer.peek(1)
+        t = lexer.peek()
         if t is None:
             raise GlapSyntaxError(lexer, "Unexpected end of input")
         ttype = t.ttype
@@ -718,12 +746,16 @@ class GlapParser(object):
             return actions.run("rule_rhs_expr_atom(STR)", self.context, t)
         elif ttype == "eps":
             lexer.next()
-            return actions.run("rule_rhs_expr_atom(eps)", self.context)
+            return actions.run(
+                "rule_rhs_expr_atom(eps)", self.context, t.position()
+            )
         elif ttype == "{":
             lexer.next()
             r = self.parse_a_start(lexer, actions)
             lexer.match("}")
-            return actions.run("rule_rhs_expr_atom(action)", self.context, r)
+            return actions.run(
+                "rule_rhs_expr_atom(action)", self.context, t.position(), r
+            )
         elif ttype == "(":
             lexer.next()
             r = self.parse_rule_rhs_expr(lexer, actions, 0)

@@ -42,6 +42,7 @@ from doit.support.cmd.errors import \
     CommandError
 
 from doit.support.cmd.runtime import \
+    Location, \
     Iterable, \
     Pair, \
     List, \
@@ -58,7 +59,6 @@ from doit.support.cmd.commands import \
     BREAK, \
     CONTINUE, \
     CLEANUP, \
-    Location, \
     Finalizer, \
     Command, \
     Macro, \

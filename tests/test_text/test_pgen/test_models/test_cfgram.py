@@ -48,7 +48,7 @@ from doit.text.pgen.models.cfgram import \
     TerminalNode, UnaryNode, BinaryNode, \
     Epsilon, Sym, Word, Literal, Var, Range, Action, \
     Alias, DoNotRecord, Complement, Iteration, PositiveIteration, Optional, \
-    Label, Catenation, Alternation, \
+    Label, Catenation, SetMinus, Alternation, \
     Grammar
 
 class TestRuleNodeCase(unittest.TestCase):
@@ -205,6 +205,7 @@ class TestNodesCase(unittest.TestCase):
         Optional(Sym('a'))
         Label(Sym('a'), 1)
         Catenation(Sym('a'), Sym('b'))
+        SetMinus(Sym('a'), Sym('b'))
         Alternation(Sym('a'), Sym('b'))
     #-def
 #-class

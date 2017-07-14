@@ -49,6 +49,77 @@ def isderived(exc, base):
     return False
 #-def
 
+class Location(tuple):
+    """
+    """
+    __slots__ = []
+
+    def __new__(cls, file = None, line = -1, column = -1):
+        """
+        """
+
+        return super(Location, cls).__new__(cls, (file, line, column))
+    #-def
+
+    def __init__(self, file = None, line = -1, column = -1):
+        """
+        """
+
+        tuple.__init__(self)
+    #-def
+
+    def file(self):
+        """
+        """
+
+        return self[0]
+    #-def
+
+    def line(self):
+        """
+        """
+
+        return self[1]
+    #-def
+
+    def column(self):
+        """
+        """
+
+        return self[2]
+    #-def
+
+    def __str__(self):
+        """
+        """
+
+        f, l, c = self
+        if f is None or l < 0 or c < 0:
+            return "(internal)"
+        return "at [\"%s\":%d:%d]" % self
+    #-def
+#-class
+
+class Evaluable(object):
+    """
+    """
+
+    def __init__(self):
+        """
+        """
+
+        self.location = Location()
+        self.properties = {}
+    #-def
+
+    def set_location(self, file = None, line = -1, column = -1):
+        """
+        """
+
+        self.location = Location(file, line, column)
+    #-def
+#-class
+
 class BaseIterator(object):
     """
     """
@@ -110,7 +181,7 @@ class FiniteIterator(BaseIterator):
     #-def
 #-class
 
-class Iterable(object):
+class Iterable(Evaluable):
     """
     """
     __slots__ = []
@@ -119,7 +190,7 @@ class Iterable(object):
         """
         """
 
-        pass
+        Evaluable.__init__(self)
     #-def
 
     def iterator(self):
@@ -222,7 +293,7 @@ class HashMap(dict, Iterable):
     #-def
 #-class
 
-class UserType(object):
+class UserType(Evaluable):
     """
     """
     __slots__ = []
@@ -231,7 +302,7 @@ class UserType(object):
         """
         """
 
-        pass
+        Evaluable.__init__(self)
     #-def
 
     def to_bool(self, processor):

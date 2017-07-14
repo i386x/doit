@@ -397,6 +397,19 @@ class Catenation(BinaryNode):
     #-def
 #-class
 
+class SetMinus(BinaryNode):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, lhs, rhs):
+        """
+        """
+
+        BinaryNode.__init__(self, lhs, rhs)
+    #-def
+#-class
+
 class Alternation(BinaryNode):
     """
     """
@@ -413,7 +426,7 @@ class Alternation(BinaryNode):
 class Grammar(UserType):
     """
     """
-    __slots__ = [ '__start', '__rules', 'cache', 'properties' ]
+    __slots__ = [ '__start', '__rules', 'cache' ]
 
     def __init__(self, start = "start"):
         """
@@ -423,7 +436,6 @@ class Grammar(UserType):
         self.__start = start
         self.__rules = collections.OrderedDict()
         self.cache = {}
-        self.properties = {}
     #-def
 
     def __setitem__(self, key, value):

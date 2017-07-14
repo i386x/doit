@@ -40,6 +40,7 @@ from doit.support.cmd.errors import \
 
 from doit.support.cmd.runtime import \
     isderived, \
+    Location, \
     BaseIterator, \
     FiniteIterator, \
     Iterable, \
@@ -53,9 +54,6 @@ from doit.support.cmd.runtime import \
 
 from doit.support.cmd.eval import \
     CommandProcessor
-
-from doit.support.cmd.commands import \
-    Location
 
 class PseudoCommand(object):
     __slots__ = [ 'name', 'location', '__isfunc' ]
@@ -80,6 +78,30 @@ class PseudoContext(object):
 
     def __init__(self, name, location, isfunc = True):
         self.cmd = PseudoCommand(name, location, isfunc)
+    #-def
+#-class
+
+class TestLocationCase(unittest.TestCase):
+
+    def test_methods(self):
+        loc0 = Location()
+        loc1 = Location("A", 1, 2)
+
+        self.assertIsNone(loc0.file())
+        self.assertEqual(loc0.line(), -1)
+        self.assertEqual(loc0.column(), -1)
+        self.assertEqual(loc0, (None, -1, -1))
+        x, y, z = loc0
+        self.assertEqual((x, y, z), (None, -1, -1))
+        self.assertEqual(str(loc0), "(internal)")
+
+        self.assertEqual(loc1.file(), "A")
+        self.assertEqual(loc1.line(), 1)
+        self.assertEqual(loc1.column(), 2)
+        self.assertEqual(loc1, ("A", 1, 2))
+        x, y, z = loc1
+        self.assertEqual((x, y, z), ("A", 1, 2))
+        self.assertEqual(str(loc1), 'at ["A":1:2]')
     #-def
 #-class
 
@@ -327,6 +349,7 @@ class TestProcedureTemplateCase(unittest.TestCase):
 
 def suite():
     suite = unittest.TestSuite()
+    suite.addTest(unittest.makeSuite(TestLocationCase))
     suite.addTest(unittest.makeSuite(TestIteratorCase))
     suite.addTest(unittest.makeSuite(TestIterableCase))
     suite.addTest(unittest.makeSuite(TestUserTypeCase))
