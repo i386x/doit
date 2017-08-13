@@ -449,7 +449,7 @@ class Trackable(Command):
 class MacroNode(object):
     """
     """
-    __slots__ = [ 'ctor', 'nodes' ]
+    __slots__ = [ 'ctor', 'nodes', 'deferred' ]
 
     def __init__(self, ctor, *nodes):
         """
@@ -457,13 +457,17 @@ class MacroNode(object):
 
         self.ctor = ctor
         self.nodes = nodes
+        self.deferred = []
     #-def
 
     def substitute(self, p2v):
         """
         """
 
-        return self.ctor(*[x.substitute(p2v) for x in self.nodes])
+        node = self.ctor(*[x.substitute(p2v) for x in self.nodes])
+        for d in self.deferred:
+            d(node)
+        return node
     #-def
 #-class
 

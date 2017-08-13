@@ -44,6 +44,12 @@ from doit.text.pgen.models.cfgram import \
 from doit.text.pgen.readers.glap.bootstrap.pp.commands import \
     DefRule, DefGrammar
 
+ie_ = lambda msg: "%s (%s; %s)" % (
+    msg,
+    "internal error",
+    "if you see this text, the command compiler is probably buggy"
+)
+
 def make_location(context, loc = -1):
     """
     """
@@ -258,7 +264,7 @@ class GlapStream(object):
     #-def
 #-class
 
-class GlapCmdExprHelper(object):
+class GlapCompileCmdHelper(object):
     """
     """
     UNSPECIFIED = -1
@@ -268,9 +274,27 @@ class GlapCmdExprHelper(object):
     INDEX_EXPR = 3
     ACCESS_EXPR = 4
     ASSIGN_EXPR = 5
-    CALL_EXPR = 6
-    VARIABLE = 7
-    LITERAL = 8
+    NARY_EXPR = 6
+    CALL_EXPR = 7
+    LAMBDA_EXPR = 8
+    EXPAND = 9
+    VARIABLE = 10
+    STATEMENT = 11
+    DEFMACRO_STATEMENT = 12
+    DEFINE_STATEMENT = 13
+    MACRO_NODE_NULLARY = 14
+    MACRO_NODE_UNARY = 15
+    MACRO_NODE_BINARY = 16
+    MACRO_NODE_INDEX = 17
+    MACRO_NODE_ACCESS = 18
+    MACRO_NODE_ASSIGN = 19
+    MACRO_NODE_NARY = 20
+    MACRO_NODE_CALL = 21
+    MACRO_NODE_LAMBDA = 22
+    MACRO_EXPAND = 23
+    MACRO_VARIABLE = 24
+    MACRO_PARAM = 25
+    MACRO_STATEMENT = 26
     __slots__ = [ 'kind', 'node', 'code', 'vars', 'value_holder' ]
 
     def __init__(self, context, location, errmsg):
@@ -297,14 +321,37 @@ class GlapCmdExprHelper(object):
     #-def
 
     @classmethod
+    def checknode(cls, context, loc, node):
+        """
+        """
+
+        errmsg = ""
+        inmacro = context.actions.inmacro
+        if node.kind >= cls.MACRO_NODE_NULLARY and not inmacro:
+            errmsg = "Macro node was detected outside macro definition"
+        if node.kind < MACRO_NODE_NULLARY and inmacro:
+            errmsg = "Non-macro node was detected inside macro definition"
+        if errmsg != "":
+            raise GlapSyntaxError(context, ie_(errmsg), loc)
+    #-def
+
+    @classmethod
     def make_unary(cls, context, loc, expr, unop):
         """
         """
 
+        cls.checknode(context, loc, expr)
+        inmacro = context.actions.inmacro
         o = cls(context, loc, "")
-        o.kind = cls.UNARY_EXPR
-        o.node = unop(expr.value_expr())
-        o.node.set_location(*make_location(context, loc))
+        if inmacro:
+            o.kind = cls.MACRO_NODE_UNARY
+            o.node = MacroNode(unop, expr.value_expr())
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.UNARY_EXPR
+            o.node = unop(expr.value_expr())
+            o.node.set_location(*make_location(context, loc))
         o.code.extend(expr.code)
         o.vars.extend(expr.vars)
         o.value_holder = o.node
@@ -316,10 +363,19 @@ class GlapCmdExprHelper(object):
         """
         """
 
+        cls.checknode(context, loc, lhs)
+        cls.checknode(context, loc, rhs)
+        inmacro = context.actions.inmacro
         o = cls(context, loc, "")
-        o.kind = cls.BINARY_EXPR
-        o.node = binop(lhs.value_expr(), rhs.value_expr())
-        o.node.set_location(*make_location(context, loc))
+        if inmacro:
+            o.kind = cls.MACRO_NODE_BINARY
+            o.node = MacroNode(binop, lhs.value_expr(), rhs.value_expr())
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.BINARY_EXPR
+            o.node = binop(lhs.value_expr(), rhs.value_expr())
+            o.node.set_location(*make_location(context, loc))
         o.code.extend(lhs.code)
         o.code.extend(rhs.code)
         o.vars.extend(lhs.vars)
@@ -333,10 +389,19 @@ class GlapCmdExprHelper(object):
         """
         """
 
+        cls.checknode(context, loc, expr)
+        cls.checknode(context, loc, idx)
+        inmacro = context.actions.inmacro
         o = cls(context, loc, "")
-        o.kind = cls.INDEX_EXPR
-        o.node = GetItem(expr.value_expr(), idx.value_expr())
-        o.node.set_location(*make_location(context, loc))
+        if inmacro:
+            o.kind = cls.MACRO_NODE_INDEX
+            o.node = MacroNode(GetItem, expr.value_expr(), idx.value_expr())
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.INDEX_EXPR
+            o.node = GetItem(expr.value_expr(), idx.value_expr())
+            o.node.set_location(*make_location(context, loc))
         o.code.extend(expr.code)
         o.code.extend(idx.code)
         o.vars.extend(expr.vars)
@@ -350,10 +415,21 @@ class GlapCmdExprHelper(object):
         """
         """
 
+        cls.checknode(context, loc, module)
+        cls.checknode(context, loc, member)
+        inmacro = context.actions.inmacro
         o = cls(context, loc, "")
-        o.kind = cls.ACCESS_EXPR
-        o.node = GetMember(module.value_expr(), member.node.value())
-        o.node.set_location(*make_location(context, loc))
+        if inmacro:
+            o.kind = cls.MACRO_NODE_ACCESS
+            o.node = MacroNode(
+                GetMember, module.value_expr(), member.node.value()
+            )
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.ACCESS_EXPR
+            o.node = GetMember(module.value_expr(), member.node.value())
+            o.node.set_location(*make_location(context, loc))
         o.code.extend(module.code)
         o.vars.extend(module.vars)
         o.value_holder = o.node
@@ -365,54 +441,123 @@ class GlapCmdExprHelper(object):
         """
         """
 
+        cls.checknode(context, loc, lhs)
+        cls.checknode(context, loc, rhs)
+        inmacro = context.actions.inmacro
         o = cls(context, loc, "")
-        o.kind = cls.ASSIGN_EXPR
-        if lhs.kind == cls.VARIABLE:
+        if inmacro:
+            o.kind = cls.MACRO_NODE_ASSIGN
+        else:
+            o.kind = cls.ASSIGN_EXPR
+        if lhs.kind in (cls.VARIABLE, cls.MACRO_VARIABLE):
             if inplaceop:
-                a = GetLocal(lhs.node.value())
-                a.set_location(*make_location(context, lhs.node.position()))
-                ve = inplaceop(a, rhs.value_expr())
-                ve.set_location(*make_location(context, loc))
-                o.node = SetLocal(lhs.node.value(), ve)
+                if inmacro:
+                    a = MacroNode(GetLocal, MacroNodeAtom(lhs.node.value()))
+                    l1 = make_location(context, lhs.node.position())
+                    a.deferred.append(lambda n: n.set_location(*l1))
+                    ve = MacroNode(inplaceop, a, rhs.value_expr())
+                    l2 = make_location(context, loc)
+                    ve.deferred.append(lambda n: n.set_location(*l2))
+                    o.node = MacroNode(
+                        SetLocal, MacroNodeAtom(lhs.node.value()), ve
+                    )
+                else:
+                    a = GetLocal(lhs.node.value())
+                    a.set_location(*make_location(
+                        context, lhs.node.position()
+                    ))
+                    ve = inplaceop(a, rhs.value_expr())
+                    ve.set_location(*make_location(context, loc))
+                    o.node = SetLocal(lhs.node.value(), ve)
             else:
-                o.node = SetLocal(lhs.node.value(), rhs.value_expr())
-        elif lhs.kind == cls.INDEX_EXPR:
+                if inmacro:
+                    o.node = MacroNode(
+                        SetLocal,
+                        MacroNodeAtom(lhs.node.value()),
+                        rhs.value_expr()
+                    )
+                else:
+                    o.node = SetLocal(lhs.node.value(), rhs.value_expr())
+        elif lhs.kind in (cls.INDEX_EXPR, cls.MACRO_NODE_INDEX):
             if inplaceop:
-                ve = inplaceop(lhs.node, rhs.value_expr())
-                ve.set_location(*make_location(context, loc))
-                o.node = SetItem(
-                    lhs.node.operands[0], lhs.node.operands[1], ve
-                )
+                if inmacro:
+                    ve = MacroNode(inplaceop, lhs.node, rhs.value_expr())
+                    l1 = make_location(context, loc)
+                    ve.deferred.append(lambda n: n.set_location(*l1))
+                    o.node = MacroNode(
+                        SetItem, lhs.node.nodes[0], lhs.node.nodes[1], ve
+                    )
+                else:
+                    ve = inplaceop(lhs.node, rhs.value_expr())
+                    ve.set_location(*make_location(context, loc))
+                    o.node = SetItem(
+                        lhs.node.operands[0], lhs.node.operands[1], ve
+                    )
             else:
-                o.node = SetItem(
-                    lhs.node.operands[0],
-                    lhs.node.operands[1],
-                    rhs.value_expr()
-                )
-        elif lhs.kind == cls.ACCESS_EXPR:
+                if inmacro:
+                    o.node = MacroNode(
+                        SetItem,
+                        lhs.node.nodes[0],
+                        lhs.node.nodes[1],
+                        rhs.value_expr()
+                    )
+                else:
+                    o.node = SetItem(
+                        lhs.node.operands[0],
+                        lhs.node.operands[1],
+                        rhs.value_expr()
+                    )
+        elif lhs.kind in (cls.ACCESS_EXPR, cls.MACRO_NODE_ACCESS):
             if inplaceop:
-                ve = inplaceop(lhs.node, rhs.value_expr())
-                ve.set_location(*make_location(context, loc))
-                o.node = SetMember(lhs.node.module, lhs.node.member, ve)
+                if inmacro:
+                    ve = MacroNode(inplaceop, lhs.node, rhs.value_expr())
+                    l1 = make_location(context, loc)
+                    ve.deferred.append(lambda n: n.set_location(*l1))
+                    o.node = MacroNode(
+                        SetMember, lhs.node.nodes[0], lhs.node.nodes[1], ve
+                    )
+                else:
+                    ve = inplaceop(lhs.node, rhs.value_expr())
+                    ve.set_location(*make_location(context, loc))
+                    o.node = SetMember(lhs.node.module, lhs.node.member, ve)
             else:
-                o.node = SetMember(
-                    lhs.node.module, lhs.node.member, rhs.value_expr()
-                )
+                if inmacro:
+                    o.node = MacroNode(
+                        SetMember,
+                        lhs.node.nodes[0],
+                        lhs.node.nodes[1],
+                        rhs.value_expr()
+                    )
+                else:
+                    o.node = SetMember(
+                        lhs.node.module, lhs.node.member, rhs.value_expr()
+                    )
         else:
             raise GlapSyntaxError(context,
                 "Left-hand side of assignment must be l-value", loc
             )
-        o.node.set_location(*make_location(context, loc))
+        if inmacro:
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.node.set_location(*make_location(context, loc))
         o.code.extend(lhs.code)
         o.code.extend(rhs.code)
         o.code.append(o.node)
         o.vars.extend(rhs.vars)
-        if lhs.kind == cls.VARIABLE:
+        if lhs.kind in (cls.VARIABLE, cls.MACRO_VARIABLE):
             o.vars.insert(0, lhs.node.value())
-            o.value_holder = GetLocal(lhs.node.value())
-            o.value_holder.set_location(
-                *make_location(context, lhs.node.position())
-            )
+            if inmacro:
+                o.value_holder = MacroNode(
+                    GetLocal, MacroNodeAtom(lhs.node.value())
+                )
+                l3 = make_location(context, lhs.node.position())
+                o.value_holder.deferred.append(lambda n: n.set_location(*l3))
+            else:
+                o.value_holder = GetLocal(lhs.node.value())
+                o.value_holder.set_location(
+                    *make_location(context, lhs.node.position())
+                )
         else:
             o.value_holder = lhs.node
         return o
@@ -423,10 +568,22 @@ class GlapCmdExprHelper(object):
         """
         """
 
+        cls.checknode(context, loc, f)
+        for x in fargs:
+            cls.checknode(context, loc, x)
+        inmacro = context.actions.inmacro
         o = cls(context, loc, "")
-        o.kind = cls.CALL_EXPR
-        o.node = Call(f.value_expr(), *[x.value_expr() for x in fargs])
-        o.node.set_location(*make_location(context, loc))
+        if inmacro:
+            o.kind = cls.MACRO_NODE_CALL
+            o.node = MacroNode(
+                Call, f.value_expr(), *[x.value_expr() for x in fargs]
+            )
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.CALL_EXPR
+            o.node = Call(f.value_expr(), *[x.value_expr() for x in fargs])
+            o.node.set_location(*make_location(context, loc))
         o.code.extend(f.code)
         o.vars.extend(f.vars)
         for x in fargs:
@@ -442,7 +599,10 @@ class GlapCmdExprHelper(object):
         """
 
         o = cls(context, var.position(), "Missing '$' before variable's name")
-        o.kind = cls.VARIABLE
+        if context.actions.inmacro:
+            o.kind = cls.MACRO_VARIABLE
+        else:
+            o.kind = cls.VARIABLE
         o.node = var
         return o
     #-def
@@ -453,9 +613,15 @@ class GlapCmdExprHelper(object):
         """
 
         o = cls(context, var.position(), "")
-        o.kind = cls.NULLARY_EXPR
-        o.node = GetLocal(var.value())
-        o.node.set_location(*make_location(context, var.position()))
+        if context.actions.inmacro:
+            o.kind = cls.MACRO_NODE_NULLARY
+            o.node = MacroNode(GetLocal, MacroNodeAtom(var.value()))
+            l = make_location(context, var.position())
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.NULLARY_EXPR
+            o.node = GetLocal(var.value())
+            o.node.set_location(*make_location(context, var.position()))
         o.value_holder = o.node
         return o
     #-def
@@ -465,20 +631,284 @@ class GlapCmdExprHelper(object):
         """
         """
 
-        actions = context.actions
-        if actions.macro_nest_level <= 0:
+        if not context.actions.inmacro:
             raise GlapSyntaxError(context,
                 "Macro parameter must be used only inside macro body",
                 var.position()
             )
-        o = cls(context, var.position())
+        o = cls(context, var.position(), "")
+        o.kind = cls.MACRO_PARAM
+        o.node = MacroNodeParam(var.value())
+        l = make_location(context, var.position())
+        o.node.deferred.append(lambda n: n.set_location(*l))
+        o.value_holder = o.node
+        return o
+    #-def
+
+    @classmethod
+    def make_expand(cls, context, loc, m, margs):
+        """
+        """
+
+        cls.checknode(context, loc, m)
+        for x in margs:
+            cls.checknode(context, loc, x)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_EXPAND
+            o.node = MacroNode(
+                Expand, m.value_expr(), *[x.value_expr() for x in margs]
+            )
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.EXPAND
+            o.node = Expand(m.value_expr(), *[x.value_expr() for x in margs])
+            o.node.set_location(*make_location(context, loc))
+        o.code.extend(m.code)
+        o.vars.extend(m.vars)
+        for x in margs:
+            o.code.extend(x.code)
+            o.vars.extend(x.vars)
+        o.value_holder = o.node
+        return o
+    #-def
+
+    @classmethod
+    def make_literal(cls, context, t):
+        """
+        """
+
+        o = cls(context, t.position(), "")
+        if context.actions.inmacro:
+            o.kind = cls.MACRO_NODE_NULLARY
+            o.node = MacroNode(Const, MacroNodeAtom(t.value()))
+            l = make_location(context, t.position())
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.NULLARY_EXPR
+            o.node = Const(t.value())
+            o.node.set_location(*make_location(context, t.position()))
+        o.value_holder = o.node
+        return o
+    #-def
+
+    @classmethod
+    def make_pair(cls, context, loc, x, y):
+        """
+        """
+
+        cls.checknode(context, loc, x)
+        cls.checknode(context, loc, y)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_NODE_BINARY
+            o.node = MacroNode(NewPair, x.value_expr(), y.value_expr())
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.BINARY_EXPR
+            o.node = NewPair(x.value_expr(), y.value_expr())
+            o.node.set_location(*make_location(context, loc))
+        o.code.extend(x.code)
+        o.code.extend(y.code)
+        o.vars.extend(x.vars)
+        o.vars.extend(y.vars)
+        o.value_holder = o.node
+        return o
+    #-def
+
+    @classmethod
+    def make_list(cls, context, loc, items):
+        """
+        """
+
+        for i in items:
+            cls.checknode(context, loc, i)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_NODE_NARY
+            o.node = MacroNode(NewList, *[i.value_expr() for i in items])
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.NARY_EXPR
+            o.node = NewList(*[i.value_expr() for i in items])
+            o.node.set_location(*make_location(context, loc))
+        for i in items:
+            o.code.extend(i.code)
+            o.vars.extend(i.vars)
+        o.value_holder = o.node
+        return o
+    #-def
+
+    @classmethod
+    def make_hash(cls, context, loc, items):
+        """
+        """
+
+        for k, v in items:
+            cls.checknode(context, loc, k)
+            cls.checknode(context, loc, v)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_NODE_NARY
+            items_ = []
+            for k, v in items:
+                p = MacroNode(NewPair, k.value_expr(), v.value_expr())
+                p.deferred.append(k.value_expr().deferred[0])
+                items_.append(p)
+            o.node = MacroNode(NewHash, *items_)
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.NARY_EXPR
+            o.node = NewHash(*[
+                (k.value_expr(), v.value_expr()) for k, v in items
+            ])
+            o.node.set_location(*make_location(context, loc))
+        for k, v in items:
+            o.code.extend(k.code)
+            o.code.extend(v.code)
+            o.vars.extend(k.vars)
+            o.vars.extend(v.vars)
+        o.value_holder = o.node
+        return o
+    #-def
+
+    @classmethod
+    def make_lambda(cls, context, loc, fargs, has_varargs, commands):
+        """
+        """
+
+        if context.actions.procedure_nesting_level <= 0:
+            raise GlapSyntaxError(context,
+                ie_("Unballanced `define's"), loc
+            )
+        for cmd in commands:
+            cls.checknode(context, loc, cmd)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        body = []
+        bvars = []
+        for cmd in commands:
+            body.extend(cmd.code)
+            body.append(cmd.value_expr())
+            bvars.extend(cmd.vars)
+        if inmacro:
+            o.kind = cls.MACRO_NODE_LAMBDA
+            o.node = MacroNode(
+                Lambda,
+                MacroNodeAtom([x.value() for x in fargs]),
+                MacroNodeAtom(has_varargs),
+                MacroNodeSequence(*body),
+                MacroNodeAtom(bvars)
+            )
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.LAMBDA_EXPR
+            o.node = Lambda(
+                [x.value() for x in fargs], has_varargs, body, bvars
+            )
+            o.node.set_location(*make_location(context, loc))
+        o.value_holder = o.node
+        context.actions.procedure_nesting_level -= 1
+        return o
+    #-def
+
+    @classmethod
+    def make_block(cls, context, loc, commands, keep_varinfo = False):
+        """
+        """
+
+        for cmd in commands:
+            cls.checknode(context, loc, cmd)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        body = []
+        for cmd in commands:
+            body.extend(cmd.code)
+            if keep_varinfo:
+                o.vars.extend(cmd.vars)
+            body.append(cmd.value_expr())
+        if inmacro:
+            o.kind = cls.MACRO_STATEMENT
+            o.node = MacroNode(Block, *body)
+            l = make_location(context, loc)
+            o.node.deferred.append(lambda n: n.set_location(*l))
+        else:
+            o.kind = cls.STATEMENT
+            o.node = Block(*body)
+            o.node.set_location(*make_location(context, loc))
+        o.value_holder = o.node
+        return o
+    #-def
+
+    @classmethod
+    def make_defmacro(cls, context, loc, name, params, body):
+        """
+        """
+
+        if not context.actions.inmacro:
+            raise GlapSyntaxError(context,
+                ie_("Macro body is outside `defmacro'"), loc
+            )
+        if context.actions.procedure_nesting_level != 0:
+            raise GlapSyntaxError(context,
+                ie_("Macro body is inside function"), loc
+            )
+        for node in body:
+            cls.checknode(context, loc, node)
+        o = cls(context, loc, "")
+        o.kind = cls.DEFMACRO_STATEMENT
+        mbody = []
+        for node in body:
+            mbody.extend(node.code)
+            mbody.append(node.value_expr())
+        o.node = DefMacro(name.value(), [p.value() for p in params], mbody)
+        o.node.set_location(*make_location(context, loc))
+        o.value_holder = o.node
+        context.actions.inmacro = False
+        return o
+    #-def
+
+    @classmethod
+    def make_define(cls, context, loc, name, params, has_varargs, body):
+        """
+        """
+
+        if context.actions.inmacro:
+            raise GlapSyntaxError(context,
+                ie_("Function definition is inside macro"), loc
+            )
+        if context.actions.procedure_nesting_level <= 0:
+            raise GlapSyntaxError(context,
+                ie_("Unballanced `define's"), loc
+            )
+        cls.checknode(context, loc, body)
+        body_ = body.value_expr().commands
+        o = cls(context, loc, "")
+        o.kind = cls.DEFINE_STATEMENT
+        o.node = Define(
+            name.value(), body.vars, [p.value() for p in params], has_varargs,
+            body_
+        )
+        o.node.set_location(*make_location(context, loc))
+        o.value_holder = o.node
+        context.actions.procedure_nesting_level -= 1
+        return o
     #-def
 #-class
 
 class GlapParserActions(object):
     """
     """
-    __slots__ = [ 'context', 'actions' ]
+    __slots__ = [ 'context', 'inmacro', 'inproc', 'actions' ]
 
     def __init__(self, context):
         """
@@ -486,7 +916,8 @@ class GlapParserActions(object):
 
         context.actions = self
         self.context = context
-        self.macro_nest_level = 0
+        self.inmacro = False
+        self.procedure_nesting_level = 0
         self.actions = {
           'start': self.on_start,
           'module': self.on_module,
@@ -562,6 +993,10 @@ class GlapParserActions(object):
           'c_expr_atom(list)': self.on_c_expr_atom_list,
           'c_expr_atom(hash)': self.on_c_expr_atom_hash,
           'c_expr_atom(lambda)': self.on_c_expr_atom_lambda,
+          'c_stmt(block)': self.on_c_stmt_block,
+          'c_stmt(defmacro)': self.on_c_stmt_defmacro,
+          'c_stmt(define)': self.on_c_stmt_define,
+          'unwrap': self.on_unwrap
         }
     #-def
 
@@ -761,329 +1196,448 @@ class GlapParserActions(object):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs)
     #-def
 
     def on_c_expr_iadd(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, Add)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Add)
     #-def
 
     def on_c_expr_isub(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, Sub)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Sub)
     #-def
 
     def on_c_expr_imult(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, Mul)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Mul)
     #-def
 
     def on_c_expr_idiv(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, Div)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Div)
     #-def
 
     def on_c_expr_imod(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, Mod)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Mod)
     #-def
 
     def on_c_expr_iband(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, BitAnd)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, BitAnd)
     #-def
 
     def on_c_expr_ibor(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, BitOr)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, BitOr)
     #-def
 
     def on_c_expr_ibxor(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, BitXor)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, BitXor)
     #-def
 
     def on_c_expr_ibshl(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, ShiftL)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, ShiftL)
     #-def
 
     def on_c_expr_ibshr(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, ShiftR)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, ShiftR)
     #-def
 
     def on_c_expr_iland(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, And)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, And)
     #-def
 
     def on_c_expr_ilor(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, Or)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Or)
     #-def
 
     def on_c_expr_icat(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, Concat)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Concat)
     #-def
 
     def on_c_expr_ijoin(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, Join)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Join)
     #-def
 
     def on_c_expr_imerge(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_assign(context, loc, lhs, rhs, Merge)
+        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Merge)
     #-def
 
     def on_c_expr_lor(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Or)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Or)
     #-def
 
     def on_c_expr_land(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, And)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, And)
     #-def
 
     def on_c_expr_lt(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Lt)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Lt)
     #-def
 
     def on_c_expr_gt(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Gt)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Gt)
     #-def
 
     def on_c_expr_le(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Le)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Le)
     #-def
 
     def on_c_expr_ge(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Ge)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Ge)
     #-def
 
     def on_c_expr_eq(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Eq)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Eq)
     #-def
 
     def on_c_expr_ne(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Ne)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Ne)
     #-def
 
     def on_c_expr_is(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Is)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Is)
     #-def
 
     def on_c_expr_in(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Contains)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Contains)
     #-def
 
     def on_c_expr_bor(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, BitOr)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, BitOr)
     #-def
 
     def on_c_expr_band(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, BitAnd)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, BitAnd)
     #-def
 
     def on_c_expr_bxor(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, BitXor)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, BitXor)
     #-def
 
     def on_c_expr_bshl(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, ShiftL)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, ShiftL)
     #-def
 
     def on_c_expr_bshr(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, ShiftR)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, ShiftR)
     #-def
 
     def on_c_expr_add(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Add)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Add)
     #-def
 
     def on_c_expr_sub(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Sub)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Sub)
     #-def
 
     def on_c_expr_cat(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Concat)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Concat)
     #-def
 
     def on_c_expr_join(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Join)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Join)
     #-def
 
     def on_c_expr_merge(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Merge)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Merge)
     #-def
 
     def on_c_expr_mult(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Mul)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Mul)
     #-def
 
     def on_c_expr_div(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Div)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Div)
     #-def
 
     def on_c_expr_mod(self, context, loc, lhs, rhs):
         """
         """
 
-        return GlapCmdExprHelper.make_binary(context, loc, lhs, rhs, Mod)
+        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Mod)
     #-def
 
     def on_c_expr_call(self, context, loc, f, fargs):
         """
         """
 
-        return GlapCmdExprHelper.make_call(context, loc, f, fargs)
+        return GlapCompileCmdHelper.make_call(context, loc, f, fargs)
     #-def
 
     def on_c_expr_neg(self, context, loc, expr):
         """
         """
 
-        return GlapCmdExprHelper.make_unary(context, loc, expr, Neg)
+        return GlapCompileCmdHelper.make_unary(context, loc, expr, Neg)
     #-def
 
     def on_c_expr_lnot(self, context, loc, expr):
         """
         """
 
-        return GlapCmdExprHelper.make_unary(context, loc, expr, Not)
+        return GlapCompileCmdHelper.make_unary(context, loc, expr, Not)
     #-def
 
     def on_c_expr_binv(self, context, loc, expr):
         """
         """
 
-        return GlapCmdExprHelper.make_unary(context, loc, expr, Inv)
+        return GlapCompileCmdHelper.make_unary(context, loc, expr, Inv)
     #-def
 
     def on_c_expr_index(self, context, loc, expr, idx):
         """
         """
 
-        return GlapCmdExprHelper.make_index(context, loc, expr, idx)
+        return GlapCompileCmdHelper.make_index(context, loc, expr, idx)
     #-def
 
     def on_c_expr_access(self, context, loc, module, member):
         """
         """
 
-        return GlapCmdExprHelper.make_access(context, loc, module, member)
+        return GlapCompileCmdHelper.make_access(context, loc, module, member)
     #-def
 
     def on_c_expr_atom_var(self, context, var):
         """
         """
 
-        return GlapCmdExprHelper.make_variable(var)
+        return GlapCompileCmdHelper.make_variable(var)
     #-def
 
     def on_c_expr_atom_getval(self, context, var):
         """
         """
 
-        return GlapCmdExprHelper.make_getvalue(context, var)
+        return GlapCompileCmdHelper.make_getvalue(context, var)
+    #-def
+
+    def on_c_expr_atom_macpar(self, context, var):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_macroparam(context, var)
+    #-def
+
+    def on_c_expr_atom_expand(self, context, loc, m, margs):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_expand(context, loc, m, margs)
+    #-def
+
+    def on_c_expr_atom_int(self, context, t):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_literal(context, t)
+    #-def
+
+    def on_c_expr_atom_float(self, context, t):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_literal(context, t)
+    #-def
+
+    def on_c_expr_atom_str(self, context, t):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_literal(context, t)
+    #-def
+
+    def on_c_expr_atom_pair(self, context, loc, x, y):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_pair(context, loc, x, y)
+    #-def
+
+    def on_c_expr_atom_list(self, context, loc, items):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_list(context, loc, items)
+    #-def
+
+    def on_c_expr_atom_hash(self, context, loc, items):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_hash(context, loc, items)
+    #-def
+
+    def on_c_expr_atom_lambda(
+        self, context, loc, fargs, has_varargs, commands
+    ):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_lambda(
+            context, loc, fargs, has_varargs, commands
+        )
+    #-def
+
+    def on_c_stmt_block(self, context, loc, commands):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_block(context, loc, commands)
+    #-def
+
+    def on_c_stmt_defmacro(self, context, loc, name, params, body):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_defmacro(
+            context, loc, name, params, body
+        )
+    #-def
+
+    def on_c_stmt_define(self, context, loc, name, params, has_varargs, body):
+        """
+        """
+
+        return GlapCompileCmdHelper.make_define(
+            context, loc, name, params, has_varargs, body
+        )
+    #-def
+
+    def on_unwrap(self, context, command):
+        """
+        """
+
+        if self.inmacro:
+            raise GlapSyntaxError(context, ie_("Unfinished macro definition"))
+        elif self.procedure_nesting_level != 0:
+            raise GlapSyntaxError(
+                context, ie_("Unfinished function definition")
+            )
+        kind = command.kind
+        if kind < 0:
+            raise GlapSyntaxError(context, ie_("Unspecified node"))
+        elif kind <= GlapCompileCmdHelper.EXPAND:
+            unwrapped = []
+            unwrapped.extend(command.code)
+            unwrapped.append(command.value_expr())
+            return unwrapped
+        elif kind == GlapCompileCmdHelper.VARIABLE:
+            raise GlapSyntaxError(context, ie_("Standalone variable"))
+        elif kind <= GlapCompileCmdHelper.DEFINE_STATEMENT:
+            return [command.value_expr()]
+        raise GlapSyntaxError(context,
+            ie_("Macro nodes was detected outside macro definition scope")
+        )
     #-def
 
     def run(self, action, context, *args):

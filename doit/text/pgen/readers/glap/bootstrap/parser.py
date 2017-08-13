@@ -572,7 +572,7 @@ class GlapParser(object):
         name = lexer.match(GLAP_ID)
         module_units = []
         while lexer.peek() and not lexer.test("end"):
-            module_units.append(self.parse_module_unit(lexer, actions))
+            module_units.extend(self.parse_module_unit(lexer, actions))
         lexer.match("end")
         return actions.run("module", self.context, p, name, module_units)
     #-def
@@ -587,10 +587,12 @@ class GlapParser(object):
             raise GlapSyntaxError(lexer, "Unexpected end of input")
         t = t.ttype
         if t == "module":
-            return self.parse_module(lexer, actions)
+            return [self.parse_module(lexer, actions)]
         elif t == "grammar":
-            return self.parse_grammar(lexer, actions)
-        return self.parse_command(lexer, actions)
+            return [self.parse_grammar(lexer, actions)]
+        return actions.run(
+            "unwrap", self.context, self.parse_command(lexer, actions)
+        )
     #-def
 
     def parse_grammar(self, lexer, actions):
@@ -609,7 +611,9 @@ class GlapParser(object):
         while lexer.peek() and not lexer.test("end"):
             if lexer.test("."):
                 lexer.next()
-                rules_and_commands.append(self.parse_command(lexer, actions))
+                rules_and_commands.extend(actions.run(
+                    "unwrap", self.context, self.parse_command(lexer, actions)
+                ))
                 continue
             rules_and_commands.append(self.parse_rule(lexer, actions))
         lexer.match("end")
@@ -860,7 +864,7 @@ class GlapParser(object):
         # c_expr[11] -> uop c_expr[11] | c_expr[12]
         # uop -> "-" | "!" | "~"
         # c_expr[12] -> c_expr[12] postop | c_expr_atom
-        # postop -> "[" c_expr[0] "]" | ":" ID
+        # postop -> "[" c_expr[1] "]" | ":" ID
         optab = self.parse_c_expr.optab
         op = optab.peekprefix(lexer)
         if op and op.level >= level:
@@ -901,7 +905,7 @@ class GlapParser(object):
             elif op.name == "[":
                 # Index expression.
                 lexer.next()
-                iexpr, _ = self.parse_c_expr(lexer, actions, 0, True)
+                iexpr, _ = self.parse_c_expr(lexer, actions, 1, True)
                 lexer.match("]")
                 result = actions.run(
                     "c_expr(_[_])", self.context, result, iexpr
@@ -945,7 +949,7 @@ class GlapParser(object):
         #              | "[" c_list_items? "]"             -- list
         #              | "[" c_hash_items  "]"             -- hash
         #              | "{" "|" c_fargs "|" command* "}"  -- lambda
-        #              | "(" c_expr[0] ")"
+        #              | "(" c_expr[1] ")"
         #
         # c_list_items -> c_expr[1] ( "," c_expr[1] )*
         # c_hash_items -> c_hash_item ( "," c_hash_item )*
@@ -970,7 +974,9 @@ class GlapParser(object):
             lexer.next()
             m, margs = self.parse_c_maccall(lexer, actions)
             lexer.match(")")
-            return actions.run("c_expr_atom($(_ _))", self.context, m, margs)
+            return actions.run(
+                "c_expr_atom($(_ _))", self.context, t.position(), m, margs
+            )
         elif ttype == GLAP_INT:
             lexer.next()
             return actions.run("c_expr_atom(INT)", self.context, t)
@@ -982,15 +988,13 @@ class GlapParser(object):
             return actions.run("c_expr_atom(STR)", self.context, t)
         elif ttype == "(":
             lexer.next()
-            r, l = self.parse_c_expr(lexer, actions, 0, True)
+            r, l = self.parse_c_expr(lexer, actions, 1, True)
             if lexer.test(","):
-                if l < 1:
-                    raise GlapSyntaxError(lexer,
-                        "Assignment expression inside pair"
-                    )
                 lexer.next()
                 e, _ = self.parse_c_expr(lexer, actions, 1, True)
-                r = actions.run("c_expr_atom(pair)", self.context, r, e)
+                r = actions.run(
+                    "c_expr_atom(pair)", self.context, t.position(), r, e
+                )
             lexer.match(")")
             return r
         elif ttype == "[":
@@ -1010,7 +1014,7 @@ class GlapParser(object):
             lexer.match("]")
             return actions.run(
                 "c_expr_atom(%s)" % ("hash" if is_hash else "list"),
-                self.context, items
+                self.context, t.position(), items
             )
         elif ttype == "{":
             if not lambdas:
@@ -1018,6 +1022,11 @@ class GlapParser(object):
                     "Atom (primary expression) was expected, but block found"
                 )
             lexer.next()
+            if actions.inmacro:
+                raise GlapSyntaxError(self.context,
+                    "Macro definition inside function is not allowed"
+                )
+            actions.procedure_nesting_level += 1
             lexer.match("|")
             fargs = [lexer.match(GLAP_ID)]
             has_varags = False
@@ -1032,9 +1041,10 @@ class GlapParser(object):
             while not lexer.test("}", None):
                 commands.append(self.parse_command(lexer, actions))
             lexer.match("}")
+            # actions.procedure_nesting_level -= 1
             return actions.run(
                 "c_expr_atom(lambda)",
-                self.context, fargs, has_varargs, commands
+                self.context, t.position(), fargs, has_varargs, commands
             )
         raise GlapSyntaxError(lexer, "Atom (primary expression) was expected")
     #-def
@@ -1081,6 +1091,15 @@ class GlapParser(object):
             return self.parse_c_block(lexer, actions)
         elif tt == "defmacro":
             lexer.next()
+            if actions.inmacro:
+                raise GlapSyntaxError(self.context,
+                    "Nested macros are not allowed"
+                )
+            if actions.procedure_nesting_level != 0:
+                raise GlapSyntaxError(self.context,
+                    "Macros inside functions are not allowed"
+                )
+            actions.inmacro = True
             name = lexer.match(GLAP_ID)
             params = []
             while lexer.test(GLAP_ID):
@@ -1090,11 +1109,18 @@ class GlapParser(object):
             while not lexer.test(")", None):
                 body.append(self.parse_command(lexer, actions))
             lexer.match(")")
+            # actions.inmacro = False
             return actions.run(
-                "c_stmt(defmacro)", self.context, name, params, body
+                "c_stmt(defmacro)",
+                self.context, t.position(), name, params, body
             )
         elif tt == "define":
             lexer.next()
+            if actions.inmacro:
+                raise GlapSyntaxError(self.context,
+                    "Macro definition inside function is not allowed"
+                )
+            actions.procedure_nesting_level += 1
             name = lexer.match(GLAP_ID)
             params = []
             while lexer.test(GLAP_ID):
@@ -1104,9 +1130,11 @@ class GlapParser(object):
                 lexer.next()
                 params.append(lexer.match(GLAP_ID))
                 has_varargs = True
-            body = self.parse_c_block(lexer, actions)
+            body = self.parse_c_block(lexer, actions, True)
+            # actions.procedure_nesting_level -= 1
             return actions.run(
-                "c_stmt(define)", self.context, name, params, has_varargs, body
+                "c_stmt(define)",
+                self.context, t.position(), name, params, has_varargs, body
             )
         elif tt == "if":
             lexer.next()
@@ -1187,17 +1215,19 @@ class GlapParser(object):
         raise GlapSyntaxError(lexer, "Statement was expected")
     #-def
 
-    def parse_c_block(self, lexer, actions):
+    def parse_c_block(self, lexer, actions, keep_varinfo = False):
         """
         """
 
         # c_block -> "{" command* "}"
-        lexer.match("{")
+        loc = lexer.match("{").position()
         commands = []
         while not lexer.test("}", None):
             commands.append(self.parse_command(lexer, actions))
         lexer.match("}")
-        return actions.run("c_stmt(block)", self.context, commands)
+        return actions.run(
+            "c_stmt(block)", self.context, loc, commands, keep_varinfo
+        )
     #-def
 
     # -------------------------------------------------------------------------
