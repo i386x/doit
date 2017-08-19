@@ -288,11 +288,13 @@ class TestTracebackCase(unittest.TestCase):
         testdata = [(
             [],
             Location(),
-            "In <main>:\n"
+            "In <main>:\n" \
+            ">"
         ), (
             [],
             Location("foo.g", 1, 1),
-            "In <main>:\n"
+            "In <main>:\n" \
+            "> At [\"foo.g\":1:1]:"
         ), (
             [ "cmd0" ],
             Location(),

@@ -73,7 +73,7 @@ class TestCommandProcessorErrorCase(unittest.TestCase):
         error_code = ERROR_COMMAND_PROCESSOR
         error_message = "Dummy error message"
         traceback = AuxTraceback(["f1", "f2", "g3"])
-        empty_traceback = AuxTraceback([])
+        none_traceback = None
 
         with self.assertRaises(CommandProcessorError) as eh:
             raise CommandProcessorError(traceback, error_message)
@@ -90,7 +90,7 @@ class TestCommandProcessorErrorCase(unittest.TestCase):
         )
 
         with self.assertRaises(CommandProcessorError) as eh:
-            raise CommandProcessorError(empty_traceback, error_message)
+            raise CommandProcessorError(none_traceback, error_message)
 
         self.assertEqual(
             str(eh.exception),

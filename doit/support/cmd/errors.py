@@ -55,7 +55,7 @@ class CommandProcessorError(DoItError):
         """
         """
 
-        if self.traceback:
+        if self.traceback is not None:
             return "%s %s" % (self.traceback, DoItError.__str__(self))
         return DoItError.__str__(self)
     #-def

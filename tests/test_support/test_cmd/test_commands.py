@@ -213,7 +213,10 @@ class TestExpandCase(unittest.TestCase):
     def test_macros(self):
         p = Printer()
 
+        mo = _n(Throw, _n(GetLocal, _a("Exception")), _a("error"))
+        mo.deferred.append(lambda n: n.set_location("f1.g", 3, 7))
         p.run([
+            DefMacro('T', [], [mo]),
             DefMacro('M', [], [_n(GetLocal, _a('z'))]),
             DefMacro('m', ['x', 'y'], [
                 _n(Foreach, _p('x'), _a([1, 2, 3]), _s(
@@ -224,6 +227,14 @@ class TestExpandCase(unittest.TestCase):
             DefMacro('bad', ['x'], [_p('y')])
         ])
         self.assertEqual(p.output, "")
+
+        with self.assertRaises(CommandProcessorError) as e:
+            p.run([Expand(GetLocal('T'))])
+        self.assertEqual(
+            str(e.exception.traceback),
+            "In <main>:\n" \
+            "> At [\"f1.g\":3:7]:"
+        )
 
         p.run([
             Expand(GetLocal('m'), "z", Expand(GetLocal('M')))

@@ -434,7 +434,7 @@ class Traceback(list):
         """
 
         if len(self) == 0:
-            return "In <main>:\n"
+            self.append("<main>")
         s = "In %s" % self[0]
         i = 1
         while i < len(self):
