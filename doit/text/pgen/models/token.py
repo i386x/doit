@@ -61,6 +61,7 @@ class Token(UserType):
         """
 
         return isinstance(other, type(self)) \
-               and self.ttype == other.ttype and self.data == other.data
+        and self.ttype == other.ttype \
+        and self.data == other.data
     #-def
 #-class
