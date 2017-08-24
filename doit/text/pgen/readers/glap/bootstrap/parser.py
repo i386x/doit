@@ -584,7 +584,7 @@ class GlapParser(object):
         # module_unit -> module | grammar | command
         t = lexer.peek()
         if not t:
-            raise GlapSyntaxError(lexer, "Unexpected end of input")
+            raise GlapSyntaxError(self.context, "Unexpected end of input")
         t = t.ttype
         if t == "module":
             return [self.parse_module(lexer, actions)]
@@ -734,7 +734,7 @@ class GlapParser(object):
         #                     | "{" a_start "}" | "(" rule_rhs_expr[0] ")"
         t = lexer.peek()
         if t is None:
-            raise GlapSyntaxError(lexer, "Unexpected end of input")
+            raise GlapSyntaxError(self.context, "Unexpected end of input")
         ttype = t.ttype
         if ttype == GLAP_ID:
             lexer.next()
@@ -765,7 +765,9 @@ class GlapParser(object):
             r = self.parse_rule_rhs_expr(lexer, actions, 0)
             lexer.match(")")
             return r
-        raise GlapSyntaxError(lexer, "Atom (primary expression) was expected")
+        raise GlapSyntaxError(self.context,
+            "Atom (primary expression) was expected"
+        )
     #-def
 
     # -------------------------------------------------------------------------
@@ -868,14 +870,15 @@ class GlapParser(object):
         optab = self.parse_c_expr.optab
         op = optab.peekprefix(lexer)
         if op and op.level >= level:
+            p = lexer.token.position()
             lexer.next()
             result, _ = self.parse_c_expr(lexer, actions, op.rbp, True)
             result = actions.run(
-                "c_expr(%s)" % op.mask, self.context, result
+                "c_expr(%s)" % op.mask, self.context, p, result
             )
             oplvl = op.level
         else:
-            result = self.parse_c_expr_atom(lexel, actions, lambdas)
+            result = self.parse_c_expr_atom(lexer, actions, lambdas)
             oplvl = optab.atomlevel
         while True:
             op = optab.peekoperator(lexer)
@@ -887,6 +890,7 @@ class GlapParser(object):
             # Handle operators here.
             if op.name == "":
                 # Call expression.
+                p = lexer.token.position()
                 fargs = []
                 while True:
                     if not optab.operandfollows(lexer) and not lexer.test("'"):
@@ -900,35 +904,39 @@ class GlapParser(object):
                     )
                     fargs.append(farg)
                 result = actions.run(
-                    "c_expr(_ _)", self.context, result, fargs
+                    "c_expr(_ _)", self.context, p, result, fargs
                 )
             elif op.name == "[":
                 # Index expression.
+                p = lexer.token.position()
                 lexer.next()
                 iexpr, _ = self.parse_c_expr(lexer, actions, 1, True)
                 lexer.match("]")
                 result = actions.run(
-                    "c_expr(_[_])", self.context, result, iexpr
+                    "c_expr(_[_])", self.context, p, result, iexpr
                 )
             elif op.name == ":":
                 # Access expression.
+                p = lexer.token.position()
                 lexer.next()
                 t_ID = lexer.match(GLAP_ID)
                 result = actions.run(
-                    "c_expr(_:ID)", self.context, result, t_ID
+                    "c_expr(_:ID)", self.context, p, result, t_ID
                 )
             elif op.rbp < 0:
                 # Other unary expression.
+                p = lexer.token.position()
                 lexer.next()
                 result = actions.run(
-                    "c_expr(%s)" % op.mask, self.context, result
+                    "c_expr(%s)" % op.mask, self.context, p, result
                 )
             else:
                 # Binary operator.
+                p = lexer.token.position()
                 lexer.next()
                 rhs, _ = self.parse_c_expr(lexer, actions, op.rbp, True)
                 result = actions.run(
-                    "c_expr(%s)" % op.mask, self.context, result, rhs
+                    "c_expr(%s)" % op.mask, self.context, p, result, rhs
                 )
             oplvl = op.level
         return result, oplvl
@@ -1082,7 +1090,7 @@ class GlapParser(object):
         # c_stmt -> "try" c_block
         #           ( "catch" ID ID? c_block )*
         #           ( "finally" c_block )?
-        # c_stmt -> "throw" c_expr[1] ";"
+        # c_stmt -> "throw" c_expr[1] ( "," c_expr[1] )? ";"
         t = lexer.peek()
         if t is None:
             raise GlapSyntaxError(lexer, "Unexpected end of input")
@@ -1139,79 +1147,95 @@ class GlapParser(object):
         elif tt == "if":
             lexer.next()
             cond, _ = self.parse_c_expr(lexer, actions, 1, False)
-            then_part = self.parse_c_block(lexer, actions)
+            then_part = self.parse_c_block(lexer, actions, True)
             elif_parts = []
             while lexer.test("elif"):
+                l = lexer.token.position()
                 lexer.next()
                 ei_cond, _ = self.parse_c_expr(lexer, actions, 1, False)
-                ei_body = self.parse_c_block(lexer, actions)
-                elif_parts.append((ei_cond, ei_body))
+                ei_body = self.parse_c_block(lexer, actions, True)
+                elif_parts.append((l, ei_cond, ei_body))
             else_part = []
             if lexer.test("else"):
+                l = lexer.token.position()
                 lexer.next()
-                else_part.append(self.parse_c_block(lexer, actions))
+                else_part.append((l, self.parse_c_block(lexer, actions, True)))
             return actions.run(
-                "c_stmt(if)", self.context, then_part, elif_parts, else_part
+                "c_stmt(if)",
+                self.context, t.position(),
+                cond, then_part, elif_parts, else_part
             )
         elif tt == "foreach":
             lexer.next()
-            varname = lexer.match(GLAP_ID)
+            var = lexer.match(GLAP_ID)
             ie, _ = self.parse_c_expr(lexer, actions, 1, False)
-            body = self.parse_c_block(lexer, actions)
+            body = self.parse_c_block(lexer, actions, True)
             return actions.run(
-                "c_stmt(foreach)", self.context, varname, ie, body
+                "c_stmt(foreach)",
+                self.context, t.position(), var, ie, body
             )
         elif tt == "while":
             lexer.next()
             cond, _ = self.parse_c_expr(lexer, actions, 1, False)
-            body = self.parse_c_block(lexer, actions)
+            body = self.parse_c_block(lexer, actions, True)
             return actions.run(
-                "c_stmt(while)", self.context, cond, body
+                "c_stmt(while)", self.context, t.position(), cond, body
             )
         elif tt == "do":
             lexer.next()
-            body = self.parse_c_block(lexer, actions)
+            body = self.parse_c_block(lexer, actions, True)
             lexer.match("while")
             cond, _ = self.parse_c_expr(lexer, actions, 1, False)
             lexer.match(";")
             return actions.run(
-                "c_stmt(do-while)", self.context, body, cond
+                "c_stmt(do-while)", self.context, t.position(), body, cond
             )
         elif tt in ["break", "continue"]:
             lexer.next()
-            return actions.run("c_stmt(%s)" % tt, self.context)
+            return actions.run("c_stmt(%s)" % tt, self.context, t.position())
         elif tt == "return":
             lexer.next()
             if self.parse_c_expr.optab.operandfollows(lexer) \
             and lexer.token.ttype != "{":
                 rv, _ = self.parse_c_expr(lexer, actions, 1, False)
                 lexer.match(";")
-                return actions.run("c_stmt(return(expr))", self.context, rv)
-            return actions.run("c_stmt(return)", self.context)
+                return actions.run(
+                    "c_stmt(return(expr))", self.context, t.position(), rv
+                )
+            return actions.run("c_stmt(return)", self.context, t.position())
         elif tt == "try":
             lexer.next()
-            tryblock = self.parse_c_block(lexer, actions)
+            tryblock = self.parse_c_block(lexer, actions, True)
             catches = []
             while lexer.test("catch"):
+                l = lexer.token.position()
                 lexer.next()
                 exc = lexer.match(GLAP_ID)
                 excvar = None
                 if lexer.test(GLAP_ID):
                     excvar = lexer.match(GLAP_ID)
-                catchblock = self.parse_c_block(lexer, actions)
-                catches.append((exc, excvar, catchblock))
+                catchblock = self.parse_c_block(lexer, actions, True)
+                catches.append((l, exc, excvar, catchblock))
             fnly = []
             if lexer.test("finally"):
+                l = lexer.token.position()
                 lexer.next()
-                fnly.append(self.parse_c_block(lexer, actions))
+                fnly.append((l, self.parse_c_block(lexer, actions, True)))
             return actions.run(
-                "c_stmt(try)", self.context, tryblock, catches, fnly
+                "c_stmt(try)",
+                self.context, t.position(), tryblock, catches, fnly
             )
         elif tt == "throw":
             lexer.next()
             ee, _ = self.parse_c_expr(lexer, actions, 1, True)
+            em = None
+            if lexer.peek(","):
+                lexer.next()
+                em, _ = self.parse_c_expr(lexer, actions, 1, True)
             lexer.match(";")
-            return actions.run("c_stmt(throw)", self.context, ee)
+            return actions.run(
+                "c_stmt(throw)", self.context, t.position(), ee, em
+            )
         raise GlapSyntaxError(lexer, "Statement was expected")
     #-def
 
@@ -1294,7 +1318,7 @@ class GlapParser(object):
                     raise GlapSyntaxError(lexer, "L-expression was expected")
                 lexer.next()
                 expr, _ = self.parse_a_expr(lexer, actions)
-                action[0] = "a_stmt(_ %s _)" % tt
+                action[0] = "a_stmt(_%s_)" % tt
                 action.append(expr)
             lexer.match(";")
             return actions.run(*action), False
@@ -1313,7 +1337,8 @@ class GlapParser(object):
                 lexer.next()
                 else_part.append(self.parse_a_block(lexer, actions))
             return actions.run(
-                "a_stmt(if)", self.context, then_part, elif_parts, else_part
+                "a_stmt(if)",
+                self.context, cond, then_part, elif_parts, else_part
             ), False
         elif tt == "case":
             lexer.next()

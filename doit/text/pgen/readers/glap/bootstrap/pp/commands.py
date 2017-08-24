@@ -33,6 +33,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.support.utils import deep_eq
 from doit.support.cmd.commands import Trackable, DefModule
 
 RULESVARNAME = '@rules'
@@ -50,6 +51,24 @@ class DefRule(Trackable):
         self.label = label
         self.rhs = rhs
         self.is_short = is_short
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.label, other.label) \
+        and deep_eq(self.rhs, other.rhs) \
+        and self.is_short == other.is_short
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -95,6 +114,22 @@ class DefGrammar(DefModule):
 
         DefModule.__init__(self, gname, gbody)
         self.gspecs = gspecs
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and DefModule.__eq__(self, other) \
+        and deep_eq(self.gspecs, other.gspecs)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def create_module(self, processor):

@@ -33,13 +33,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from doit.support.cmd.commands import DefModule
+from doit.support.utils import Functor
+
+from doit.support.cmd.runtime import \
+    Location
+from doit.support.cmd.commands import \
+    Const, \
+    SetLocal, GetLocal, \
+    DefModule
 
 from doit.text.pgen.errors import ParsingError
 from doit.text.pgen.readers.reader import Reader
 
+from doit.text.pgen.models.action import \
+    Block as ABlock
 from doit.text.pgen.models.cfgram import \
-    Epsilon, Sym, Literal
+    Epsilon, Sym, Literal, Var, Range, Action, \
+    SetMinus
 
 from doit.text.pgen.readers.glap.bootstrap.pp.commands import \
     DefRule, DefGrammar
@@ -64,6 +74,26 @@ def make_location(context, loc = -1):
     colno = len(s) + 1
     return stream.name, lineno, colno
 #-def
+
+class SetLocation(Functor):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self, file, lineno, colno):
+        """
+        """
+
+        Functor.__init__(self, file, lineno, colno)
+    #-def
+
+    def __call__(self, node):
+        """
+        """
+
+        node.set_location(*self.args)
+    #-def
+#-class
 
 class GlapLexError(ParsingError):
     """
@@ -268,7 +298,7 @@ class GlapCompileCmdHelper(object):
     """
     """
     UNSPECIFIED = -1
-    NULLARY_EPXR = 0
+    NULLARY_EXPR = 0
     UNARY_EXPR = 1
     BINARY_EXPR = 2
     INDEX_EXPR = 3
@@ -295,7 +325,10 @@ class GlapCompileCmdHelper(object):
     MACRO_VARIABLE = 24
     MACRO_PARAM = 25
     MACRO_STATEMENT = 26
-    __slots__ = [ 'kind', 'node', 'code', 'vars', 'value_holder' ]
+    __slots__ = [
+      'kind', 'node', 'code', 'vars', 'value_holder', 'context', 'location',
+      'errmsg'
+    ]
 
     def __init__(self, context, location, errmsg):
         """
@@ -309,6 +342,17 @@ class GlapCompileCmdHelper(object):
         self.context = context
         self.location = location
         self.errmsg = errmsg
+    #-def
+
+    def remove_duplicated_vars(self):
+        """
+        """
+
+        vars = []
+        for v in self.vars:
+            if v not in vars:
+                vars.append(v)
+        self.vars = vars
     #-def
 
     def value_expr(self):
@@ -329,7 +373,7 @@ class GlapCompileCmdHelper(object):
         inmacro = context.actions.inmacro
         if node.kind >= cls.MACRO_NODE_NULLARY and not inmacro:
             errmsg = "Macro node was detected outside macro definition"
-        if node.kind < MACRO_NODE_NULLARY and inmacro:
+        if node.kind < cls.MACRO_NODE_NULLARY and inmacro:
             errmsg = "Non-macro node was detected inside macro definition"
         if errmsg != "":
             raise GlapSyntaxError(context, ie_(errmsg), loc)
@@ -346,8 +390,7 @@ class GlapCompileCmdHelper(object):
         if inmacro:
             o.kind = cls.MACRO_NODE_UNARY
             o.node = MacroNode(unop, expr.value_expr())
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.UNARY_EXPR
             o.node = unop(expr.value_expr())
@@ -355,6 +398,7 @@ class GlapCompileCmdHelper(object):
         o.code.extend(expr.code)
         o.vars.extend(expr.vars)
         o.value_holder = o.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -370,8 +414,7 @@ class GlapCompileCmdHelper(object):
         if inmacro:
             o.kind = cls.MACRO_NODE_BINARY
             o.node = MacroNode(binop, lhs.value_expr(), rhs.value_expr())
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.BINARY_EXPR
             o.node = binop(lhs.value_expr(), rhs.value_expr())
@@ -381,6 +424,7 @@ class GlapCompileCmdHelper(object):
         o.vars.extend(lhs.vars)
         o.vars.extend(rhs.vars)
         o.value_holder = o.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -396,8 +440,7 @@ class GlapCompileCmdHelper(object):
         if inmacro:
             o.kind = cls.MACRO_NODE_INDEX
             o.node = MacroNode(GetItem, expr.value_expr(), idx.value_expr())
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.INDEX_EXPR
             o.node = GetItem(expr.value_expr(), idx.value_expr())
@@ -407,6 +450,7 @@ class GlapCompileCmdHelper(object):
         o.vars.extend(expr.vars)
         o.vars.extend(idx.vars)
         o.value_holder = o.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -424,8 +468,7 @@ class GlapCompileCmdHelper(object):
             o.node = MacroNode(
                 GetMember, module.value_expr(), member.node.value()
             )
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.ACCESS_EXPR
             o.node = GetMember(module.value_expr(), member.node.value())
@@ -433,6 +476,7 @@ class GlapCompileCmdHelper(object):
         o.code.extend(module.code)
         o.vars.extend(module.vars)
         o.value_holder = o.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -453,11 +497,13 @@ class GlapCompileCmdHelper(object):
             if inplaceop:
                 if inmacro:
                     a = MacroNode(GetLocal, MacroNodeAtom(lhs.node.value()))
-                    l1 = make_location(context, lhs.node.position())
-                    a.deferred.append(lambda n: n.set_location(*l1))
+                    a.deferred.append(SetLocation(*make_location(
+                        context, lhs.node.position()
+                    )))
                     ve = MacroNode(inplaceop, a, rhs.value_expr())
-                    l2 = make_location(context, loc)
-                    ve.deferred.append(lambda n: n.set_location(*l2))
+                    ve.deferred.append(SetLocation(*make_location(
+                        context, loc
+                    )))
                     o.node = MacroNode(
                         SetLocal, MacroNodeAtom(lhs.node.value()), ve
                     )
@@ -482,8 +528,9 @@ class GlapCompileCmdHelper(object):
             if inplaceop:
                 if inmacro:
                     ve = MacroNode(inplaceop, lhs.node, rhs.value_expr())
-                    l1 = make_location(context, loc)
-                    ve.deferred.append(lambda n: n.set_location(*l1))
+                    ve.deferred.append(SetLocation(*make_location(
+                        context, loc
+                    )))
                     o.node = MacroNode(
                         SetItem, lhs.node.nodes[0], lhs.node.nodes[1], ve
                     )
@@ -511,8 +558,9 @@ class GlapCompileCmdHelper(object):
             if inplaceop:
                 if inmacro:
                     ve = MacroNode(inplaceop, lhs.node, rhs.value_expr())
-                    l1 = make_location(context, loc)
-                    ve.deferred.append(lambda n: n.set_location(*l1))
+                    ve.deferred.append(SetLocation(*make_location(
+                        context, loc
+                    )))
                     o.node = MacroNode(
                         SetMember, lhs.node.nodes[0], lhs.node.nodes[1], ve
                     )
@@ -537,8 +585,7 @@ class GlapCompileCmdHelper(object):
                 "Left-hand side of assignment must be l-value", loc
             )
         if inmacro:
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.node.set_location(*make_location(context, loc))
         o.code.extend(lhs.code)
@@ -551,8 +598,9 @@ class GlapCompileCmdHelper(object):
                 o.value_holder = MacroNode(
                     GetLocal, MacroNodeAtom(lhs.node.value())
                 )
-                l3 = make_location(context, lhs.node.position())
-                o.value_holder.deferred.append(lambda n: n.set_location(*l3))
+                o.value_holder.deferred.append(SetLocation(*make_location(
+                    context, lhs.node.position()
+                )))
             else:
                 o.value_holder = GetLocal(lhs.node.value())
                 o.value_holder.set_location(
@@ -560,6 +608,7 @@ class GlapCompileCmdHelper(object):
                 )
         else:
             o.value_holder = lhs.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -578,8 +627,7 @@ class GlapCompileCmdHelper(object):
             o.node = MacroNode(
                 Call, f.value_expr(), *[x.value_expr() for x in fargs]
             )
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.CALL_EXPR
             o.node = Call(f.value_expr(), *[x.value_expr() for x in fargs])
@@ -590,6 +638,7 @@ class GlapCompileCmdHelper(object):
             o.code.extend(x.code)
             o.vars.extend(x.vars)
         o.value_holder = o.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -616,8 +665,9 @@ class GlapCompileCmdHelper(object):
         if context.actions.inmacro:
             o.kind = cls.MACRO_NODE_NULLARY
             o.node = MacroNode(GetLocal, MacroNodeAtom(var.value()))
-            l = make_location(context, var.position())
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(
+                context, var.position()
+            )))
         else:
             o.kind = cls.NULLARY_EXPR
             o.node = GetLocal(var.value())
@@ -639,8 +689,9 @@ class GlapCompileCmdHelper(object):
         o = cls(context, var.position(), "")
         o.kind = cls.MACRO_PARAM
         o.node = MacroNodeParam(var.value())
-        l = make_location(context, var.position())
-        o.node.deferred.append(lambda n: n.set_location(*l))
+        o.node.deferred.append(SetLocation(*make_location(
+            context, var.position()
+        )))
         o.value_holder = o.node
         return o
     #-def
@@ -660,8 +711,7 @@ class GlapCompileCmdHelper(object):
             o.node = MacroNode(
                 Expand, m.value_expr(), *[x.value_expr() for x in margs]
             )
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.EXPAND
             o.node = Expand(m.value_expr(), *[x.value_expr() for x in margs])
@@ -672,6 +722,7 @@ class GlapCompileCmdHelper(object):
             o.code.extend(x.code)
             o.vars.extend(x.vars)
         o.value_holder = o.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -684,11 +735,12 @@ class GlapCompileCmdHelper(object):
         if context.actions.inmacro:
             o.kind = cls.MACRO_NODE_NULLARY
             o.node = MacroNode(Const, MacroNodeAtom(t.value()))
-            l = make_location(context, t.position())
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(
+                context, t.position()
+            )))
         else:
             o.kind = cls.NULLARY_EXPR
-            o.node = Const(t.value())
+            o.node = Const(t.value(True))
             o.node.set_location(*make_location(context, t.position()))
         o.value_holder = o.node
         return o
@@ -706,8 +758,7 @@ class GlapCompileCmdHelper(object):
         if inmacro:
             o.kind = cls.MACRO_NODE_BINARY
             o.node = MacroNode(NewPair, x.value_expr(), y.value_expr())
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.BINARY_EXPR
             o.node = NewPair(x.value_expr(), y.value_expr())
@@ -717,6 +768,7 @@ class GlapCompileCmdHelper(object):
         o.vars.extend(x.vars)
         o.vars.extend(y.vars)
         o.value_holder = o.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -732,8 +784,7 @@ class GlapCompileCmdHelper(object):
         if inmacro:
             o.kind = cls.MACRO_NODE_NARY
             o.node = MacroNode(NewList, *[i.value_expr() for i in items])
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.NARY_EXPR
             o.node = NewList(*[i.value_expr() for i in items])
@@ -742,6 +793,7 @@ class GlapCompileCmdHelper(object):
             o.code.extend(i.code)
             o.vars.extend(i.vars)
         o.value_holder = o.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -763,8 +815,7 @@ class GlapCompileCmdHelper(object):
                 p.deferred.append(k.value_expr().deferred[0])
                 items_.append(p)
             o.node = MacroNode(NewHash, *items_)
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.NARY_EXPR
             o.node = NewHash(*[
@@ -777,6 +828,7 @@ class GlapCompileCmdHelper(object):
             o.vars.extend(k.vars)
             o.vars.extend(v.vars)
         o.value_holder = o.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -808,8 +860,7 @@ class GlapCompileCmdHelper(object):
                 MacroNodeSequence(*body),
                 MacroNodeAtom(bvars)
             )
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.LAMBDA_EXPR
             o.node = Lambda(
@@ -839,13 +890,13 @@ class GlapCompileCmdHelper(object):
         if inmacro:
             o.kind = cls.MACRO_STATEMENT
             o.node = MacroNode(Block, *body)
-            l = make_location(context, loc)
-            o.node.deferred.append(lambda n: n.set_location(*l))
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.STATEMENT
             o.node = Block(*body)
             o.node.set_location(*make_location(context, loc))
         o.value_holder = o.node
+        o.remove_duplicated_vars()
         return o
     #-def
 
@@ -903,12 +954,350 @@ class GlapCompileCmdHelper(object):
         context.actions.procedure_nesting_level -= 1
         return o
     #-def
+
+    @classmethod
+    def make_if(cls, context, loc, cond, then_part, elif_parts, else_part):
+        """
+        """
+
+        inmacro = context.actions.inmacro
+        if_then_parts = [(loc, cond, then_part)]
+        if_then_parts.extend(elif_parts)
+        node = None
+        vars = []
+        while if_then_parts:
+            l, c, t = if_then_parts.pop()
+            if node is None:
+                node = []
+                if else_part:
+                    ll, else_node = else_part[0]
+                    cls.checknode(context, ll, else_node)
+                    if inmacro:
+                        node.extend(else_node.value_expr().nodes)
+                    else:
+                        node.extend(else_node.value_expr().commands)
+                    vars.extend(else_node.vars)
+            # `node' is either [] or [commands] or [macro nodes]
+            cls.checknode(context, l, c)
+            cls.checknode(context, l, t)
+            if inmacro:
+                node = c.code + [MacroNode(
+                    If,
+                    c.value_expr(),
+                    MacroNodeSequence(*t.value_expr().nodes),
+                    MacroNodeSequence(*node)
+                )]
+                node[-1].deferred.append(SetLocation(*make_location(
+                    context, l
+                )))
+            else:
+                node = c.code + [If(
+                    c.value_expr(),
+                    t.value_expr().commands,
+                    node
+                )]
+                node[-1].set_location(*make_location(context, l))
+            vars_ = []
+            vars_.extend(c.vars)
+            vars_.extend(t.vars)
+            vars_.extend(vars)
+            vars = vars_
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_STATEMENT
+        else:
+            o.kind = cls.STATEMENT
+        o.node = node[-1]
+        o.code = node[:-1]
+        o.vars = vars
+        o.value_holder = o.node
+        o.remove_duplicated_vars()
+        return o
+    #-def
+
+    @classmethod
+    def make_foreach(cls, context, loc, var, ie, body):
+        """
+        """
+
+        cls.checknode(context, loc, ie)
+        cls.checknode(context, loc, body)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_STATEMENT
+            o.node = MacroNode(
+                Foreach,
+                MacroNodeAtom(var.value()),
+                ie.value_expr(),
+                MacroNodeSequence(*body.value_expr().nodes)
+            )
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
+        else:
+            o.kind = cls.STATEMENT
+            o.node = Foreach(
+                var.value(), ie.value_expr(), body.value_expr().commands
+            )
+            o.node.set_location(*make_location(context, loc))
+        o.code.extend(ie.code)
+        o.vars.append(var.value())
+        o.vars.extend(ie.vars)
+        o.vars.extend(body.vars)
+        o.value_holder = o.node
+        o.remove_duplicated_vars()
+        return o
+    #-def
+
+    @classmethod
+    def make_while(cls, context, loc, cond, body):
+        """
+        """
+
+        cls.checknode(context, loc, cond)
+        if cond.code:
+            raise GlapSyntaxError(
+                context,
+                ie_("More then one commands in while-condition expression"),
+                loc
+            )
+        cls.checknode(context, loc, body)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_STATEMENT
+            o.node = MacroNode(
+                While,
+                cond.value_expr(),
+                MacroNodeSequence(*body.value_expr().nodes)
+            )
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
+        else:
+            o.kind = cls.STATEMENT
+            o.node = While(
+                cond.value_expr(), body.value_expr().commands
+            )
+            o.node.set_location(*make_location(context, loc))
+        o.vars.extend(cond.vars)
+        o.vars.extend(body.vars)
+        o.value_holder = o.node
+        o.remove_duplicated_vars()
+        return o
+    #-def
+
+    @classmethod
+    def make_dowhile(cls, context, loc, body, cond):
+        """
+        """
+
+        cls.checknode(context, loc, body)
+        cls.checknode(context, loc, cond)
+        if cond.code:
+            raise GlapSyntaxError(
+                context,
+                ie_("More then one commands in while-condition expression"),
+                loc
+            )
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_STATEMENT
+            o.node = MacroNode(
+                DoWhile,
+                MacroNodeSequence(*body.value_expr().nodes),
+                cond.value_expr()
+            )
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
+        else:
+            o.kind = cls.STATEMENT
+            o.node = DoWhile(
+                body.value_expr().commands, cond.value_expr()
+            )
+            o.node.set_location(*make_location(context, loc))
+        o.vars.extend(body.vars)
+        o.vars.extend(cond.vars)
+        o.value_holder = o.node
+        o.remove_duplicated_vars()
+        return o
+    #-def
+
+    @classmethod
+    def make_break(cls, context, loc):
+        """
+        """
+
+        o = cls(context, loc, "")
+        if context.actions.inmacro:
+            o.kind = cls.MACRO_STATEMENT
+            o.node = MacroNode(Break)
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
+        else:
+            o.kind = cls.STATEMENT
+            o.node = Break()
+            o.node.set_location(*make_location(context, loc))
+        o.value_holder = o.node
+        return o
+    #-def
+
+    @classmethod
+    def make_continue(cls, context, loc):
+        """
+        """
+
+        o = cls(context, loc, "")
+        if context.actions.inmacro:
+            o.kind = cls.MACRO_STATEMENT
+            o.node = MacroNode(Continue)
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
+        else:
+            o.kind = cls.STATEMENT
+            o.node = Continue()
+            o.node.set_location(*make_location(context, loc))
+        o.value_holder = o.node
+        return o
+    #-def
+
+    @classmethod
+    def make_return(cls, context, loc):
+        """
+        """
+
+        o = cls(context, loc, "")
+        if context.actions.inmacro:
+            o.kind = cls.MACRO_STATEMENT
+            o.node = MacroNode(Return)
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
+        else:
+            o.kind = cls.STATEMENT
+            o.node = Return()
+            o.node.set_location(*make_location(context, loc))
+        o.value_holder = o.node
+        return o
+    #-def
+
+    @classmethod
+    def make_return_with_value(cls, context, loc, rv):
+        """
+        """
+
+        cls.checknode(context, loc, rv)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_STATEMENT
+            o.node = MacroNode(Return, rv.value_expr())
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
+        else:
+            o.kind = cls.STATEMENT
+            o.node = Return(rv.value_expr())
+            o.node.set_location(*make_location(context, loc))
+        o.code.extend(rv.code)
+        o.vars.extend(rv.vars)
+        o.value_holder = o.node
+        o.remove_duplicated_vars()
+        return o
+    #-def
+
+    @classmethod
+    def make_try(cls, context, loc, tryblock, catches, fnly):
+        """
+        """
+
+        cls.checknode(context, loc, tryblock)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_STATEMENT
+            b = tryblock.value_expr().nodes
+            o.vars.extend(tryblock.vars)
+            c = []
+            for ll, ee, ev, hh in catches:
+                cls.checknode(context, ll, hh)
+                if ev:
+                    ev = ev.value()
+                    o.vars.append(ev)
+                c.append(MacroNodeSequence(
+                    MacroNodeAtom(ee.value()),
+                    MacroNodeAtom(ev),
+                    MacroNodeSequence(*hh.value_expr().nodes)
+                ))
+                o.vars.extend(hh.vars)
+            f = []
+            if fnly:
+                ll, ff = fnly[0]
+                cls.checknode(context, ll, ff)
+                f.extend(ff.value_expr().nodes)
+                o.vars.extend(ff.vars)
+            o.node = MacroNode(
+                TryCatchFinally,
+                MacroNodeSequence(*b),
+                MacroNodeSequence(*c),
+                MacroNodeSequence(*f)
+            )
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
+        else:
+            o.kind = cls.STATEMENT
+            b = tryblock.value_expr().commands
+            o.vars.extend(tryblock.vars)
+            c = []
+            for ll, ee, ev, hh in catches:
+                cls.checknode(context, ll, hh)
+                if ev:
+                    ev = ev.value()
+                    o.vars.append(ev)
+                c.append((ee.value(), ev, hh.value_expr().commands))
+                o.vars.extend(hh.vars)
+            f = []
+            if fnly:
+                ll, ff = fnly[0]
+                cls.checknode(context, ll, ff)
+                f.extend(ff.value_expr().commands)
+                o.vars.extend(ff.vars)
+            o.node = TryCatchFinally(b, c, f)
+            o.node.set_location(*make_location(context, loc))
+        o.value_holder = o.node
+        o.remove_duplicated_vars()
+        return o
+    #-def
+
+    @classmethod
+    def make_throw(cls, context, loc, ee, em):
+        """
+        """
+
+        cls.checknode(context, loc, ee)
+        if em:
+            cls.checknode(context, loc, em)
+        inmacro = context.actions.inmacro
+        o = cls(context, loc, "")
+        if inmacro:
+            o.kind = cls.MACRO_STATEMENT
+            if em:
+                o.node = MacroNode(Throw, ee.value_expr(), em.value_expr())
+            else:
+                o.node = MacroNode(Rethrow, ee.value_expr())
+            o.node.deferred.append(SetLocation(*make_location(context, loc)))
+        else:
+            o.kind = cls.STATEMENT
+            if em:
+                o.node = Throw(ee.value_expr(), em.value_expr())
+            else:
+                o.node = Rethrow(ee.value_expr())
+            o.node.set_location(*make_location(context, loc))
+        o.code.extend(ee.code)
+        o.vars.extend(ee.vars)
+        if em:
+            o.code.extend(em.code)
+            o.vars.extend(em.vars)
+        o.value_holder = o.node
+        o.remove_duplicated_vars()
+        return o
+    #-def
 #-class
 
 class GlapParserActions(object):
     """
     """
-    __slots__ = [ 'context', 'inmacro', 'inproc', 'actions' ]
+    __slots__ = [ 'context', 'inmacro', 'procedure_nesting_level', 'actions' ]
 
     def __init__(self, context):
         """
@@ -937,65 +1326,263 @@ class GlapParserActions(object):
           'rule_rhs_expr_atom(STR..STR)': self.on_rule_rhs_expr_atom_range,
           'rule_rhs_expr_atom(eps)': self.on_rule_rhs_expr_atom_epsilon,
           'rule_rhs_expr_atom(action)': self.on_rule_rhs_expr_atom_action,
-          'c_expr(_=_)': self.on_c_expr_assign,
-          'c_expr(_+=_)': self.on_c_expr_iadd,
-          'c_expr(_-=_)': self.on_c_expr_isub,
-          'c_expr(_*=_)': self.on_c_expr_imult,
-          'c_expr(_/=_)': self.on_c_expr_idiv,
-          'c_expr(_%=_)': self.on_c_expr_imod,
-          'c_expr(_&=_)': self.on_c_expr_iband,
-          'c_expr(_|=_)': self.on_c_expr_ibor,
-          'c_expr(_^=_)': self.on_c_expr_ibxor,
-          'c_expr(_<<=_)': self.on_c_expr_ibshl,
-          'c_expr(_>>=_)': self.on_c_expr_ibshr,
-          'c_expr(_&&=_)': self.on_c_expr_iland,
-          'c_expr(_||=_)': self.on_c_expr_ilor,
-          'c_expr(_.=_)': self.on_c_expr_icat,
-          'c_expr(_++=_)': self.on_c_expr_ijoin,
-          'c_expr(_~~=_)': self.on_c_expr_imerge,
-          'c_expr(_||_)': self.on_c_expr_lor,
-          'c_expr(_&&_)': self.on_c_expr_land,
-          'c_expr(_<_)': self.on_c_expr_lt,
-          'c_expr(_>_)': self.on_c_expr_gt,
-          'c_expr(_<=_)': self.on_c_expr_le,
-          'c_expr(_>=_)': self.on_c_expr_ge,
-          'c_expr(_==_)': self.on_c_expr_eq,
-          'c_expr(_!=_)': self.on_c_expr_ne,
-          'c_expr(_===_)': self.on_c_expr_is,
-          'c_expr(_in_)': self.on_c_expr_in,
-          'c_expr(_|_)': self.on_c_expr_bor,
-          'c_expr(_&_)': self.on_c_expr_band,
-          'c_expr(_^_)': self.on_c_expr_bxor,
-          'c_expr(_<<_)': self.on_c_expr_bshl,
-          'c_expr(_>>_)': self.on_c_expr_bshr,
-          'c_expr(_+_)': self.on_c_expr_add,
-          'c_expr(_-_)': self.on_c_expr_sub,
-          'c_expr(_._)': self.on_c_expr_cat,
-          'c_expr(_++_)': self.on_c_expr_join,
-          'c_expr(_~~_)': self.on_c_expr_merge,
-          'c_expr(_*_)': self.on_c_expr_mult,
-          'c_expr(_/_)': self.on_c_expr_div,
-          'c_expr(_%_)': self.on_c_expr_mod,
-          'c_expr(_ _)': self.on_c_expr_call,
-          'c_expr(-_)': self.on_c_expr_neg,
-          'c_expr(!_)': self.on_c_expr_lnot,
-          'c_expr(~_)': self.on_c_expr_binv,
-          'c_expr(_[_])': self.on_c_expr_index,
-          'c_expr(_:ID)': self.on_c_expr_access,
-          'c_expr_atom(ID)': self.on_c_expr_atom_var,
-          'c_expr_atom($ID)': self.on_c_expr_atom_getval,
-          'c_expr_atom(#ID)': self.on_c_expr_atom_macpar,
-          'c_expr_atom($(_ _))': self.on_c_expr_atom_expand,
-          'c_expr_atom(INT)': self.on_c_expr_atom_int,
-          'c_expr_atom(FLOAT)': self.on_c_expr_atom_float,
-          'c_expr_atom(STR)': self.on_c_expr_atom_str,
-          'c_expr_atom(pair)': self.on_c_expr_atom_pair,
-          'c_expr_atom(list)': self.on_c_expr_atom_list,
-          'c_expr_atom(hash)': self.on_c_expr_atom_hash,
-          'c_expr_atom(lambda)': self.on_c_expr_atom_lambda,
-          'c_stmt(block)': self.on_c_stmt_block,
-          'c_stmt(defmacro)': self.on_c_stmt_defmacro,
-          'c_stmt(define)': self.on_c_stmt_define,
+          'c_expr(_=_)': (lambda *args:
+              GlapCompileCmdHelper.make_assign(*args)
+          ),
+          'c_expr(_+=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, Add)
+          ),
+          'c_expr(_-=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, Sub)
+          ),
+          'c_expr(_*=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, Mul)
+          ),
+          'c_expr(_/=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, Div)
+          ),
+          'c_expr(_%=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, Mod)
+          ),
+          'c_expr(_&=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, BitAnd)
+          ),
+          'c_expr(_|=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, BitOr)
+          ),
+          'c_expr(_^=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, BitXor)
+          ),
+          'c_expr(_<<=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, ShiftL)
+          ),
+          'c_expr(_>>=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, ShiftR)
+          ),
+          'c_expr(_&&=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, And)
+          ),
+          'c_expr(_||=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, Or)
+          ),
+          'c_expr(_.=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, Concat)
+          ),
+          'c_expr(_++=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, Join)
+          ),
+          'c_expr(_~~=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_assign(c, l, x, y, Merge)
+          ),
+          'c_expr(_||_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Or)
+          ),
+          'c_expr(_&&_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, And)
+          ),
+          'c_expr(_<_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Lt)
+          ),
+          'c_expr(_>_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Gt)
+          ),
+          'c_expr(_<=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Le)
+          ),
+          'c_expr(_>=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Ge)
+          ),
+          'c_expr(_==_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Eq)
+          ),
+          'c_expr(_!=_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Ne)
+          ),
+          'c_expr(_===_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Is)
+          ),
+          'c_expr(_in_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Contains)
+          ),
+          'c_expr(_|_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, BitOr)
+          ),
+          'c_expr(_&_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, BitAnd)
+          ),
+          'c_expr(_^_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, BitXor)
+          ),
+          'c_expr(_<<_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, ShiftL)
+          ),
+          'c_expr(_>>_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, ShiftR)
+          ),
+          'c_expr(_+_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Add)
+          ),
+          'c_expr(_-_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Sub)
+          ),
+          'c_expr(_._)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Concat)
+          ),
+          'c_expr(_++_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Join)
+          ),
+          'c_expr(_~~_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Merge)
+          ),
+          'c_expr(_*_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Mul)
+          ),
+          'c_expr(_/_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Div)
+          ),
+          'c_expr(_%_)': (lambda c, l, x, y:
+              GlapCompileCmdHelper.make_binary(c, l, x, y, Mod)
+          ),
+          'c_expr(_ _)': (lambda *args:
+              GlapCompileCmdHelper.make_call(*args)
+          ),
+          'c_expr(-_)': (lambda c, l, e:
+              GlapCompileCmdHelper.make_unary(c, l, e, Neg)
+          ),
+          'c_expr(!_)': (lambda c, l, e:
+              GlapCompileCmdHelper.make_unary(c, l, e, Not)
+          ),
+          'c_expr(~_)': (lambda c, l, e:
+              GlapCompileCmdHelper.make_unary(c, l, e, Inv)
+          ),
+          'c_expr(_[_])': (lambda *args:
+              GlapCompileCmdHelper.make_index(*args)
+          ),
+          'c_expr(_:ID)': (lambda *args:
+              GlapCompileCmdHelper.make_access(*args)
+          ),
+          'c_expr_atom(ID)': (lambda *args:
+              GlapCompileCmdHelper.make_variable(*args)
+          ),
+          'c_expr_atom($ID)': (lambda *args:
+              GlapCompileCmdHelper.make_getvalue(*args)
+          ),
+          'c_expr_atom(#ID)': (lambda *args:
+              GlapCompileCmdHelper.make_macroparam(*args)
+          ),
+          'c_expr_atom($(_ _))': (lambda *args:
+              GlapCompileCmdHelper.make_expand(*args)
+          ),
+          'c_expr_atom(INT)': (lambda *args:
+              GlapCompileCmdHelper.make_literal(*args)
+          ),
+          'c_expr_atom(FLOAT)': (lambda *args:
+              GlapCompileCmdHelper.make_literal(*args)
+          ),
+          'c_expr_atom(STR)': (lambda *args:
+              GlapCompileCmdHelper.make_literal(*args)
+          ),
+          'c_expr_atom(pair)': (lambda *args:
+              GlapCompileCmdHelper.make_pair(*args)
+          ),
+          'c_expr_atom(list)': (lambda *args:
+              GlapCompileCmdHelper.make_list(*args)
+          ),
+          'c_expr_atom(hash)': (lambda *args:
+              GlapCompileCmdHelper.make_hash(*args)
+          ),
+          'c_expr_atom(lambda)': (lambda *args:
+              GlapCompileCmdHelper.make_lambda(*args)
+          ),
+          'c_stmt(block)': (lambda *args:
+              GlapCompileCmdHelper.make_block(*args)
+          ),
+          'c_stmt(defmacro)': (lambda *args:
+              GlapCompileCmdHelper.make_defmacro(*args)
+          ),
+          'c_stmt(define)': (lambda *args:
+              GlapCompileCmdHelper.make_define(*args)
+          ),
+          'c_stmt(if)': (lambda *args:
+              GlapCompileCmdHelper.make_if(*args)
+          ),
+          'c_stmt(foreach)': (lambda *args:
+              GlapCompileCmdHelper.make_foreach(*args)
+          ),
+          'c_stmt(while)': (lambda *args:
+              GlapCompileCmdHelper.make_while(*args)
+          ),
+          'c_stmt(do-while)': (lambda *args:
+              GlapCompileCmdHelper.make_dowhile(*args)
+          ),
+          'c_stmt(break)': (lambda *args:
+              GlapCompileCmdHelper.make_break(*args)
+          ),
+          'c_stmt(continue)': (lambda *args:
+              GlapCompileCmdHelper.make_continue(*args)
+          ),
+          'c_stmt(return)': (lambda *args:
+              GlapCompileCmdHelper.make_return(*args)
+          ),
+          'c_stmt(return(expr))': (lambda *args:
+              GlapCompileCmdHelper.make_return_with_value(*args)
+          ),
+          'c_stmt(try)': (lambda *args:
+              GlapCompileCmdHelper.make_try(*args)
+          ),
+          'c_stmt(throw)': (lambda *args:
+              GlapCompileCmdHelper.make_throw(*args)
+          ),
+          'a_stmt(block)': (lambda _, s: ABlock(s)),
+          'a_stmt(expr)': (lambda _, e: e),
+          'a_stmt(_=_)': (lambda _, l, r: AAssign(l, r)),
+          'a_stmt(_+=_)': (lambda _, l, r: AInplaceAdd(l, r)),
+          'a_stmt(_-=_)': (lambda _, l, r: AInplaceSub(l, r)),
+          'a_stmt(_*=_)': (lambda _, l, r: AInplaceMul(l, r)),
+          'a_stmt(_/=_)': (lambda _, l, r: AInplaceDiv(l, r)),
+          'a_stmt(_%=_)': (lambda _, l, r: AInplaceMod(l, r)),
+          'a_stmt(_&=_)': (lambda _, l, r: AInplaceBitAnd(l, r)),
+          'a_stmt(_|=_)': (lambda _, l, r: AInplaceBitOr(l, r)),
+          'a_stmt(_^=_)': (lambda _, l, r: AInplaceBitXor(l, r)),
+          'a_stmt(_<<=_)': (lambda _, l, r: AInplaceShiftLeft(l, r)),
+          'a_stmt(_>>=_)': (lambda _, l, r: AInplaceShiftRight(l, r)),
+          'a_stmt(if)': (lambda _, c, t, ei, e: AIf(c, t, ei, e)),
+          'a_stmt(case)': (lambda _, se, cs, d: ACase(se, cs, d)),
+          'a_stmt(for)': (lambda _, v, c, b: AFor(v, c, b)),
+          'a_stmt(while)': (lambda _, c, b: AWhile(c, b)),
+          'a_stmt(do-while)': (lambda _, b, c: ADoWhile(b, c)),
+          'a_stmt(break)': (lambda _: ABreak()),
+          'a_stmt(continue)': (lambda _: AContinue()),
+          'a_stmt(return)': (lambda _: AReturn()),
+          'a_stmt(return(expr))': (lambda _, v: AReturnWithValue(v)),
+          'a_expr(_||_)': (lambda _, l, r: ALogOrExpr(l, r)),
+          'a_expr(_&&_)': (lambda _, l, r: ALogAndExpr(l, r)),
+          'a_expr(_<_)': (lambda _, l, r: ALtExpr(l, r)),
+          'a_expr(_>_)': (lambda _, l, r: AGtExpr(l, r)),
+          'a_expr(_<=_)': (lambda _, l, r: ALeExpr(l, r)),
+          'a_expr(_>=_)': (lambda _, l, r: AGeExpr(l, r)),
+          'a_expr(_==_)': (lambda _, l, r: AEqExpr(l, r)),
+          'a_expr(_!=_)': (lambda _, l, r: ANotEqExpr(l, r)),
+          'a_expr(_|_)': (lambda _, l, r: ABitOrExpr(l, r)),
+          'a_expr(_&_)': (lambda _, l, r: ABitAndExpr(l, r)),
+          'a_expr(_^_)': (lambda _, l, r: ABitXorExpr(l, r)),
+          'a_expr(_<<_)': (lambda _, l, r: AShiftLeftExpr(l, r)),
+          'a_expr(_>>_)': (lambda _, l, r: AShiftRightExpr(l, r)),
+          'a_expr(_+_)': (lambda _, l, r: AAddExpr(l, r)),
+          'a_expr(_-_)': (lambda _, l, r: ASubExpr(l, r)),
+          'a_expr(_*_)': (lambda _, l, r: AMulExpr(l, r)),
+          'a_expr(_/_)': (lambda _, l, r: ADivExpr(l, r)),
+          'a_expr(_%_)': (lambda _, l, r: AModExpr(l, r)),
+          'a_expr(-_)': (lambda _, e: ANegExpr(e)),
+          'a_expr(~_)': (lambda _, e: AInvExpr(e)),
+          'a_expr(!_)': (lambda _, e: ANotExpr(e)),
+          'a_expr(_(_))': (lambda _, f, al: ACallExpr(f, al)),
+          'a_expr(_[_])': (lambda _, e, i: AIndexExpr(e, i)),
+          'a_expr(_.ID)': (lambda _, e, i: AAccessExpr(e, i)),
+          'a_expr_atom(ID)': (lambda _, v: AId(v.value())),
+          'a_expr_atom(INT)': (lambda _, v: AIntLiteral(v.value())),
+          'a_expr_atom(FLOAT)': (lambda _, v: AFloatLiteral(v.value())),
+          'a_expr_atom(STR)': (lambda _, v: AStringLiteral(v.value())),
           'unwrap': self.on_unwrap
         }
     #-def
@@ -1183,434 +1770,16 @@ class GlapParserActions(object):
         return node
     #-def
 
-    def on_rule_rhs_expr_atom_action(self, context, loc, action):
+    def on_rule_rhs_expr_atom_action(self, context, loc, actions):
         """
         """
 
+        l = make_location(context, loc)
+        action = ABlock(actions)
+        action.set_location(*l)
         node = Action(action)
-        node.set_location(*make_location(context, loc))
+        node.set_location(*l)
         return node
-    #-def
-
-    def on_c_expr_assign(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs)
-    #-def
-
-    def on_c_expr_iadd(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Add)
-    #-def
-
-    def on_c_expr_isub(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Sub)
-    #-def
-
-    def on_c_expr_imult(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Mul)
-    #-def
-
-    def on_c_expr_idiv(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Div)
-    #-def
-
-    def on_c_expr_imod(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Mod)
-    #-def
-
-    def on_c_expr_iband(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, BitAnd)
-    #-def
-
-    def on_c_expr_ibor(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, BitOr)
-    #-def
-
-    def on_c_expr_ibxor(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, BitXor)
-    #-def
-
-    def on_c_expr_ibshl(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, ShiftL)
-    #-def
-
-    def on_c_expr_ibshr(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, ShiftR)
-    #-def
-
-    def on_c_expr_iland(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, And)
-    #-def
-
-    def on_c_expr_ilor(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Or)
-    #-def
-
-    def on_c_expr_icat(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Concat)
-    #-def
-
-    def on_c_expr_ijoin(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Join)
-    #-def
-
-    def on_c_expr_imerge(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_assign(context, loc, lhs, rhs, Merge)
-    #-def
-
-    def on_c_expr_lor(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Or)
-    #-def
-
-    def on_c_expr_land(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, And)
-    #-def
-
-    def on_c_expr_lt(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Lt)
-    #-def
-
-    def on_c_expr_gt(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Gt)
-    #-def
-
-    def on_c_expr_le(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Le)
-    #-def
-
-    def on_c_expr_ge(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Ge)
-    #-def
-
-    def on_c_expr_eq(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Eq)
-    #-def
-
-    def on_c_expr_ne(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Ne)
-    #-def
-
-    def on_c_expr_is(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Is)
-    #-def
-
-    def on_c_expr_in(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Contains)
-    #-def
-
-    def on_c_expr_bor(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, BitOr)
-    #-def
-
-    def on_c_expr_band(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, BitAnd)
-    #-def
-
-    def on_c_expr_bxor(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, BitXor)
-    #-def
-
-    def on_c_expr_bshl(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, ShiftL)
-    #-def
-
-    def on_c_expr_bshr(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, ShiftR)
-    #-def
-
-    def on_c_expr_add(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Add)
-    #-def
-
-    def on_c_expr_sub(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Sub)
-    #-def
-
-    def on_c_expr_cat(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Concat)
-    #-def
-
-    def on_c_expr_join(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Join)
-    #-def
-
-    def on_c_expr_merge(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Merge)
-    #-def
-
-    def on_c_expr_mult(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Mul)
-    #-def
-
-    def on_c_expr_div(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Div)
-    #-def
-
-    def on_c_expr_mod(self, context, loc, lhs, rhs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_binary(context, loc, lhs, rhs, Mod)
-    #-def
-
-    def on_c_expr_call(self, context, loc, f, fargs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_call(context, loc, f, fargs)
-    #-def
-
-    def on_c_expr_neg(self, context, loc, expr):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_unary(context, loc, expr, Neg)
-    #-def
-
-    def on_c_expr_lnot(self, context, loc, expr):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_unary(context, loc, expr, Not)
-    #-def
-
-    def on_c_expr_binv(self, context, loc, expr):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_unary(context, loc, expr, Inv)
-    #-def
-
-    def on_c_expr_index(self, context, loc, expr, idx):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_index(context, loc, expr, idx)
-    #-def
-
-    def on_c_expr_access(self, context, loc, module, member):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_access(context, loc, module, member)
-    #-def
-
-    def on_c_expr_atom_var(self, context, var):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_variable(var)
-    #-def
-
-    def on_c_expr_atom_getval(self, context, var):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_getvalue(context, var)
-    #-def
-
-    def on_c_expr_atom_macpar(self, context, var):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_macroparam(context, var)
-    #-def
-
-    def on_c_expr_atom_expand(self, context, loc, m, margs):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_expand(context, loc, m, margs)
-    #-def
-
-    def on_c_expr_atom_int(self, context, t):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_literal(context, t)
-    #-def
-
-    def on_c_expr_atom_float(self, context, t):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_literal(context, t)
-    #-def
-
-    def on_c_expr_atom_str(self, context, t):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_literal(context, t)
-    #-def
-
-    def on_c_expr_atom_pair(self, context, loc, x, y):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_pair(context, loc, x, y)
-    #-def
-
-    def on_c_expr_atom_list(self, context, loc, items):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_list(context, loc, items)
-    #-def
-
-    def on_c_expr_atom_hash(self, context, loc, items):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_hash(context, loc, items)
-    #-def
-
-    def on_c_expr_atom_lambda(
-        self, context, loc, fargs, has_varargs, commands
-    ):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_lambda(
-            context, loc, fargs, has_varargs, commands
-        )
-    #-def
-
-    def on_c_stmt_block(self, context, loc, commands):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_block(context, loc, commands)
-    #-def
-
-    def on_c_stmt_defmacro(self, context, loc, name, params, body):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_defmacro(
-            context, loc, name, params, body
-        )
-    #-def
-
-    def on_c_stmt_define(self, context, loc, name, params, has_varargs, body):
-        """
-        """
-
-        return GlapCompileCmdHelper.make_define(
-            context, loc, name, params, has_varargs, body
-        )
     #-def
 
     def on_unwrap(self, context, command):
@@ -1629,7 +1798,8 @@ class GlapParserActions(object):
         elif kind <= GlapCompileCmdHelper.EXPAND:
             unwrapped = []
             unwrapped.extend(command.code)
-            unwrapped.append(command.value_expr())
+            if kind != GlapCompileCmdHelper.ASSIGN_EXPR:
+                unwrapped.append(command.value_expr())
             return unwrapped
         elif kind == GlapCompileCmdHelper.VARIABLE:
             raise GlapSyntaxError(context, ie_("Standalone variable"))

@@ -33,6 +33,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.support.utils import deep_eq
+
 from doit.support.cmd.errors import \
     CommandError
 
@@ -117,6 +119,23 @@ class Evaluable(object):
         """
 
         self.location = Location(file, line, column)
+        return self
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and self.location == other.location \
+        and deep_eq(self.properties, other.properties)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 

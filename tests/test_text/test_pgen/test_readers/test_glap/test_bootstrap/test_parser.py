@@ -36,7 +36,25 @@ IN THE SOFTWARE.\
 
 import unittest
 
+from doit.support.cmd.runtime import \
+    Location
+from doit.support.cmd.commands import \
+    Const, \
+    SetLocal, \
+    DefModule
+
 from doit.text.pgen.errors import ParsingError
+
+from doit.text.pgen.models.action import \
+    Block as ABlock
+from doit.text.pgen.models.cfgram import \
+    Epsilon, Sym, Literal, Var, Range, Action, \
+    DoNotRecord, Complement, \
+    Iteration, PositiveIteration, Optional, \
+    Label, Catenation, SetMinus, Alternation
+
+from doit.text.pgen.readers.glap.bootstrap.pp.commands import \
+    DefRule, DefGrammar
 
 from doit.text.pgen.readers.glap.bootstrap import \
     make_location, \
@@ -94,26 +112,6 @@ class FakeLexer(object):
         self.token = None
     #-def
 #-class
-
-name_001 = "sample_001.g"
-sample_001 = """\
--- Sample grammar
-
-module sample_001
-  grammar X
-    start -> "a"+;
-  end
-end
-"""
-ast_001 = None
-
-name_002 = "sample_002.g"
-sample_002 = """\
-module sample_002
-  x = "\\u012f";
-end
-"""
-ast_002 = None
 
 class TestMakeLocationCase(unittest.TestCase):
 
@@ -813,10 +811,717 @@ class TestGlapLexerCase(unittest.TestCase):
     #-def
 #-class
 
-test_samples = [
-  (True, name_001, sample_001, ast_001),
-  (True, name_002, sample_002, ast_002)
-]
+test_samples = []
+
+name_001 = "sample_001.g"
+sample_001 = """\
+-- Sample grammar
+
+module sample_001
+  grammar X
+    start -> "a"+;
+  end
+end
+"""
+ast_001 = DefModule("sample_001", [
+    DefGrammar("X", [], [
+        DefRule(
+            "start",
+            Sym("a") .set_location(name_001, 5, 14)\
+            ['+']    .set_location(name_001, 5, 17),
+            False
+        ).set_location(name_001, 5, 5)
+    ]).set_location(name_001, 4, 3)
+]).set_location(name_001, 3, 1)
+test_samples.append((True, name_001, sample_001, ast_001))
+
+name_002 = "sample_002.g"
+sample_002 = """\
+module sample_002
+  x = "\\u012f";
+end
+"""
+ast_002 = DefModule("sample_002", [
+    SetLocal(
+        "x",
+        Const("\u012f").set_location(name_002, 2, 7)
+    ).set_location(name_002, 2, 5)
+]).set_location(name_002, 1, 1)
+test_samples.append((True, name_002, sample_002, ast_002))
+
+name_003 = "sample_003.g"
+sample_003 = """\
+-- Module expected.
+"""
+ast_003 = None
+test_samples.append((False, name_003, sample_003, ast_003))
+
+name_004 = "sample_004.g"
+sample_004 = """\
+module A
+end
+
+-- Expected end of input.
+module B
+end
+"""
+ast_004 = None
+test_samples.append((False, name_004, sample_004, ast_004))
+
+name_005 = "sample_005.g"
+sample_005 = """\
+module
+end
+"""
+ast_005 = None
+test_samples.append((False, name_005, sample_005, ast_005))
+
+name_006 = "sample_006.g"
+sample_006 = """\
+module A
+
+"""
+ast_006 = None
+test_samples.append((False, name_006, sample_006, ast_006))
+
+name_007 = "sample_007.g"
+sample_007 = """\
+module A
+
+  module B
+  end
+
+  module C
+  end
+
+end
+"""
+ast_007 = DefModule("A", [
+    DefModule("B", []).set_location(name_007, 3, 3),
+    DefModule("C", []).set_location(name_007, 6, 3)
+]).set_location(name_007, 1, 1)
+test_samples.append((True, name_007, sample_007, ast_007))
+
+name_008 = "sample_008.g"
+sample_008 = """\
+module A
+  grammar 1 end
+end
+"""
+ast_008 = None
+test_samples.append((False, name_008, sample_008, ast_008))
+
+name_009 = "sample_009.g"
+sample_009 = """\
+module A
+  grammar G( end
+end
+"""
+ast_009 = None
+test_samples.append((False, name_009, sample_009, ast_009))
+
+name_010 = "sample_010.g"
+sample_010 = """\
+module A
+  grammar G () end
+end
+"""
+ast_010 = DefModule("A", [
+    DefGrammar("G", [], []).set_location(name_010, 2, 3)
+]).set_location(name_010, 1, 1)
+test_samples.append((True, name_010, sample_010, ast_010))
+
+name_011 = "sample_011.g"
+sample_011 = """\
+module A
+  grammar G (1) end
+end
+"""
+ast_011 = None
+test_samples.append((False, name_011, sample_011, ast_011))
+
+name_012 = "sample_012.g"
+sample_012 = """\
+module A
+  grammar G (G1) end
+end
+"""
+ast_012 = DefModule("A", [
+    DefGrammar("G", [("G1", Location(name_012, 2, 14))], [
+    ]).set_location(name_012, 2, 3)
+]).set_location(name_012, 1, 1)
+test_samples.append((True, name_012, sample_012, ast_012))
+
+name_013 = "sample_013.g"
+sample_013 = """\
+module A
+  grammar G (G1,) end
+end
+"""
+ast_013 = None
+test_samples.append((False, name_013, sample_013, ast_013))
+
+name_014 = "sample_014.g"
+sample_014 = """\
+module A
+  grammar G (G1, G2) end
+end
+"""
+ast_014 = DefModule("A", [
+    DefGrammar("G", [
+        ("G1", Location(name_014, 2, 14)),
+        ("G2", Location(name_014, 2, 18))
+    ], [
+    ]).set_location(name_014, 2, 3)
+]).set_location(name_014, 1, 1)
+test_samples.append((True, name_014, sample_014, ast_014))
+
+name_015 = "sample_015.g"
+sample_015 = """\
+module A
+  grammar G
+    .x = 1;
+    a -> "b";
+    .y = 2;
+    .z = 3;
+    b -> "c";
+    c -> "d";
+    d: "e";
+  end
+end
+"""
+ast_015 = DefModule("A", [
+    DefGrammar("G", [], [
+        SetLocal(
+            "x",
+            Const(1).set_location(name_015, 3, 10)
+        ).set_location(name_015, 3, 8),
+        DefRule(
+            "a",
+            Sym("b").set_location(name_015, 4, 10),
+            False
+        ).set_location(name_015, 4, 5),
+        SetLocal(
+            "y",
+            Const(2).set_location(name_015, 5, 10)
+        ).set_location(name_015, 5, 8),
+        SetLocal(
+            "z",
+            Const(3).set_location(name_015, 6, 10)
+        ).set_location(name_015, 6, 8),
+        DefRule(
+            "b",
+            Sym("c").set_location(name_015, 7, 10),
+            False
+        ).set_location(name_015, 7, 5),
+        DefRule(
+            "c",
+            Sym("d").set_location(name_015, 8, 10),
+            False
+        ).set_location(name_015, 8, 5),
+        DefRule(
+            "d",
+            Sym("e").set_location(name_015, 9, 8),
+            True
+        ).set_location(name_015, 9, 5)
+    ]).set_location(name_015, 2, 3)
+]).set_location(name_015, 1, 1)
+test_samples.append((True, name_015, sample_015, ast_015))
+
+name_016 = "sample_016.g"
+sample_016 = """\
+module A
+  grammar G
+    a - "a";
+  end
+end
+"""
+ast_016 = None
+test_samples.append((False, name_016, sample_016, ast_016))
+
+name_017 = "sample_017.g"
+sample_017 = """\
+module A
+  grammar G
+    a -> "a" | "b";
+    b -> "a" | "b" | "c";
+  end
+end
+"""
+ast_017 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            Alternation(
+                Sym("a").set_location(name_017, 3, 10),
+                Sym("b").set_location(name_017, 3, 16)
+            ).set_location(name_017, 3, 14),
+            False
+        ).set_location(name_017, 3, 5),
+        DefRule(
+            "b",
+            Alternation(
+                Alternation(
+                    Sym("a").set_location(name_017, 4, 10),
+                    Sym("b").set_location(name_017, 4, 16)
+                ).set_location(name_017, 4, 14),
+                Sym("c").set_location(name_017, 4, 22)
+            ).set_location(name_017, 4, 20),
+            False
+        ).set_location(name_017, 4, 5)
+    ]).set_location(name_017, 2, 3)
+]).set_location(name_017, 1, 1)
+test_samples.append((True, name_017, sample_017, ast_017))
+
+name_018 = "sample_018.g"
+sample_018 = """\
+module A
+  grammar G
+    a -> "a" | "b" - "c" - "d";
+  end
+end
+"""
+ast_018 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            Alternation(
+                Sym("a").set_location(name_018, 3, 10),
+                SetMinus(
+                    SetMinus(
+                        Sym("b").set_location(name_018, 3, 16),
+                        Sym("c").set_location(name_018, 3, 22)
+                    ).set_location(name_018, 3, 20),
+                    Sym("d").set_location(name_018, 3, 28)
+                ).set_location(name_018, 3, 26)
+            ).set_location(name_018, 3, 14),
+            False
+        ).set_location(name_018, 3, 5)
+    ]).set_location(name_018, 2, 3)
+]).set_location(name_018, 1, 1)
+test_samples.append((True, name_018, sample_018, ast_018))
+
+name_019 = "sample_019.g"
+sample_019 = """\
+module A
+  grammar G
+    a->"a""b""c""d";
+  end
+end
+"""
+ast_019 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            Catenation(
+                Catenation(
+                    Catenation(
+                        Sym("a").set_location(name_019, 3, 8),
+                        Sym("b").set_location(name_019, 3, 11)
+                    ).set_location(name_019, 3, 11),
+                    Sym("c").set_location(name_019, 3, 14)
+                ).set_location(name_019, 3, 14),
+                Sym("d").set_location(name_019, 3, 17)
+            ).set_location(name_019, 3, 17),
+            False
+        ).set_location(name_019, 3, 5)
+    ]).set_location(name_019, 2, 3)
+]).set_location(name_019, 1, 1)
+test_samples.append((True, name_019, sample_019, ast_019))
+
+name_020 = "sample_020.g"
+sample_020 = """\
+module A
+  grammar G(_G)
+    a -> "a" - "b" "c" | "d";
+  end
+end
+"""
+ast_020 = DefModule("A", [
+    DefGrammar("G", [("_G", Location(name_020, 2, 13))], [
+        DefRule(
+            "a",
+            Alternation(
+                SetMinus(
+                    Sym("a").set_location(name_020, 3, 10),
+                    Catenation(
+                        Sym("b").set_location(name_020, 3, 16),
+                        Sym("c").set_location(name_020, 3, 20)
+                    ).set_location(name_020, 3, 20)
+                ).set_location(name_020, 3, 14),
+                Sym("d").set_location(name_020, 3, 26)
+            ).set_location(name_020, 3, 24),
+            False
+        ).set_location(name_020, 3, 5)
+    ]).set_location(name_020, 2, 3)
+]).set_location(name_020, 1, 1)
+test_samples.append((True, name_020, sample_020, ast_020))
+
+name_021 = "sample_021.g"
+sample_021 = """\
+module A
+  grammar G
+    a -> "a"*;
+  end
+end
+"""
+ast_021 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            Iteration(
+                Sym("a").set_location(name_021, 3, 10)
+            ).set_location(name_021, 3, 13),
+            False
+        ).set_location(name_021, 3, 5)
+    ]).set_location(name_021, 2, 3)
+]).set_location(name_021, 1, 1)
+test_samples.append((True, name_021, sample_021, ast_021))
+
+name_022 = "sample_022.g"
+sample_022 = """\
+module A
+  grammar G
+    a -> "a"+;
+  end
+end
+"""
+ast_022 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            PositiveIteration(
+                Sym("a").set_location(name_022, 3, 10)
+            ).set_location(name_022, 3, 13),
+            False
+        ).set_location(name_022, 3, 5)
+    ]).set_location(name_022, 2, 3)
+]).set_location(name_022, 1, 1)
+test_samples.append((True, name_022, sample_022, ast_022))
+
+name_023 = "sample_023.g"
+sample_023 = """\
+module A
+  grammar G
+    a -> "a" ?;
+  end
+end
+"""
+ast_023 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            Optional(
+                Sym("a").set_location(name_023, 3, 10)
+            ).set_location(name_023, 3, 14),
+            False
+        ).set_location(name_023, 3, 5)
+    ]).set_location(name_023, 2, 3)
+]).set_location(name_023, 1, 1)
+test_samples.append((True, name_023, sample_023, ast_023))
+
+name_024 = "sample_024.g"
+sample_024 = """\
+module A
+  grammar G
+    a -> "a"* "b"? | "c"+ + - "d"*+?;
+  end
+end
+"""
+ast_024 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            Alternation(
+                Catenation(
+                    Iteration(
+                        Sym("a").set_location(name_024, 3, 10)
+                    ).set_location(name_024, 3, 13),
+                    Optional(
+                        Sym("b").set_location(name_024, 3, 15)
+                    ).set_location(name_024, 3, 18)
+                ).set_location(name_024, 3, 15),
+                SetMinus(
+                    PositiveIteration(
+                        PositiveIteration(
+                            Sym("c").set_location(name_024, 3, 22)
+                        ).set_location(name_024, 3, 25)
+                    ).set_location(name_024, 3, 27),
+                    Optional(
+                        PositiveIteration(
+                            Iteration(
+                                Sym("d").set_location(name_024, 3, 31)
+                            ).set_location(name_024, 3, 34)
+                        ).set_location(name_024, 3, 35)
+                    ).set_location(name_024, 3, 36)
+                ).set_location(name_024, 3, 29)
+            ).set_location(name_024, 3, 20),
+            False
+        ).set_location(name_024, 3, 5)
+    ]).set_location(name_024, 2, 3)
+]).set_location(name_024, 1, 1)
+test_samples.append((True, name_024, sample_024, ast_024))
+
+name_025 = "sample_025.g"
+sample_025 = """\
+module A
+  grammar G
+    a -> -"a";
+    b -> ~"b";
+  end
+end
+"""
+ast_025 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            DoNotRecord(
+                Sym("a").set_location(name_025, 3, 11)
+            ).set_location(name_025, 3, 10),
+            False
+        ).set_location(name_025, 3, 5),
+        DefRule(
+            "b",
+            Complement(
+                Sym("b").set_location(name_025, 4, 11)
+            ).set_location(name_025, 4, 10),
+            False
+        ).set_location(name_025, 4, 5)
+    ]).set_location(name_025, 2, 3)
+]).set_location(name_025, 1, 1)
+test_samples.append((True, name_025, sample_025, ast_025))
+
+name_026 = "sample_026.g"
+sample_026 = """\
+module A
+  grammar G
+    a -> -~"a" - - -"b";
+  end
+end
+"""
+ast_026 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            SetMinus(
+                DoNotRecord(
+                    Complement(
+                        Sym("a").set_location(name_026, 3, 12)
+                    ).set_location(name_026, 3, 11)
+                ).set_location(name_026, 3, 10),
+                DoNotRecord(
+                    DoNotRecord(
+                        Sym("b").set_location(name_026, 3, 21)
+                    ).set_location(name_026, 3, 20)
+                ).set_location(name_026, 3, 18)
+            ).set_location(name_026, 3, 16),
+            False
+        ).set_location(name_026, 3, 5)
+    ]).set_location(name_026, 2, 3)
+]).set_location(name_026, 1, 1)
+test_samples.append((True, name_026, sample_026, ast_026))
+
+name_027 = "sample_027.g"
+sample_027 = """\
+module A
+  grammar G
+    a -> "a"'letter_a;
+  end
+end
+"""
+ast_027 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            Label(
+                Sym("a").set_location(name_027, 3, 10),
+                Var("letter_a").set_location(name_027, 3, 14)
+            ).set_location(name_027, 3, 13),
+            False
+        ).set_location(name_027, 3, 5)
+    ]).set_location(name_027, 2, 3)
+]).set_location(name_027, 1, 1)
+test_samples.append((True, name_027, sample_027, ast_027))
+
+name_028 = "sample_028.g"
+sample_028 = """\
+module A
+  grammar G
+    a -> "a" ' letter_a ' x;
+  end
+end
+"""
+ast_028 = None
+test_samples.append((False, name_028, sample_028, ast_028))
+
+name_029 = "sample_029.g"
+sample_029 = """\
+module A
+  grammar G
+    a -> "a"''letter_a;
+  end
+end
+"""
+ast_029 = None
+test_samples.append((False, name_029, sample_029, ast_029))
+
+name_030 = "sample_030.g"
+sample_030 = """\
+module A
+  grammar G
+    a -> letter_a;
+    b -> eps;
+    c -> (a);
+    d -> {};
+  end
+end
+"""
+ast_030 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            Var("letter_a").set_location(name_030, 3, 10),
+            False
+        ).set_location(name_030, 3, 5),
+        DefRule(
+            "b",
+            Epsilon().set_location(name_030, 4, 10),
+            False
+        ).set_location(name_030, 4, 5),
+        DefRule(
+            "c",
+            Var("a").set_location(name_030, 5, 11),
+            False
+        ).set_location(name_030, 5, 5),
+        DefRule(
+            "d",
+            Action(
+                ABlock([]).set_location(name_030, 6, 10)
+            ).set_location(name_030, 6, 10),
+            False
+        ).set_location(name_030, 6, 5)
+    ]).set_location(name_030, 2, 3)
+]).set_location(name_030, 1, 1)
+test_samples.append((True, name_030, sample_030, ast_030))
+
+name_031 = "sample_031.g"
+sample_031 = """\
+module A
+  grammar G
+    a -> #
+  end
+end
+"""
+ast_031 = None
+test_samples.append((False, name_031, sample_031, ast_031))
+
+name_032 = "sample_032.g"
+sample_032 = """\
+module A
+  grammar G
+    a ->
+"""
+ast_032 = None
+test_samples.append((False, name_032, sample_032, ast_032))
+
+name_033 = "sample_033.g"
+sample_033 = """\
+module A
+  grammar G
+    a -> "b".."c";
+  end
+end
+"""
+ast_033 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            Range(
+                Sym("b").set_location(name_033, 3, 10),
+                Sym("c").set_location(name_033, 3, 15)
+            ).set_location(name_033, 3, 10),
+            False
+        ).set_location(name_033, 3, 5)
+    ]).set_location(name_033, 2, 3)
+]).set_location(name_033, 1, 1)
+test_samples.append((True, name_033, sample_033, ast_033))
+
+name_034 = "sample_034.g"
+sample_034 = """\
+module A
+  grammar G
+    a -> "" | "ab";
+  end
+end
+"""
+ast_034 = DefModule("A", [
+    DefGrammar("G", [], [
+        DefRule(
+            "a",
+            Alternation(
+                Epsilon().set_location(name_034, 3, 10),
+                Literal("ab").set_location(name_034, 3, 15)
+            ).set_location(name_034, 3, 13),
+            False
+        ).set_location(name_034, 3, 5)
+    ]).set_location(name_034, 2, 3)
+]).set_location(name_034, 1, 1)
+test_samples.append((True, name_034, sample_034, ast_034))
+
+name_035 = "sample_035.g"
+sample_035 = """\
+module A
+  grammar G
+    a -> "" .. "a";
+  end
+end
+"""
+ast_035 = None
+test_samples.append((False, name_035, sample_035, ast_035))
+
+name_036 = "sample_036.g"
+sample_036 = """\
+module A
+  grammar G
+    a -> "ab" .. "a";
+  end
+end
+"""
+ast_036 = None
+test_samples.append((False, name_036, sample_036, ast_036))
+
+name_037 = "sample_037.g"
+sample_037 = """\
+module A
+  grammar G
+    a -> "a" .. "";
+  end
+end
+"""
+ast_037 = None
+test_samples.append((False, name_037, sample_037, ast_037))
+
+name_038 = "sample_038.g"
+sample_038 = """\
+module A
+  grammar G
+    a -> "a" .. "aa";
+  end
+end
+"""
+ast_038 = None
+test_samples.append((False, name_038, sample_038, ast_038))
+
+name_039 = "sample_039.g"
+sample_039 = """\
+module A
+  grammar G
+    a -> "b" .. "a";
+  end
+end
+"""
+ast_039 = None
+test_samples.append((False, name_039, sample_039, ast_039))
 
 class TestGlapParserCase(unittest.TestCase):
 

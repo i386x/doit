@@ -42,7 +42,8 @@ from ..common import RAISE_FROM_ENTER, SUPRESS, ContextManagerMock, \
 from doit.support.errors import DoItAssertionError
 
 from doit.support.utils import \
-    ordinal_suffix, timestamp, WithStatementExceptionHandler, Collection
+    ordinal_suffix, deep_eq, timestamp, \
+    Functor, WithStatementExceptionHandler, Collection
 
 class Struct(object):
     __slots__ = [ '__kwargs' ]
@@ -100,6 +101,22 @@ class TimeModuleMock(ModuleContext):
     #-def
 #-class
 
+class FunctorA(Functor):
+    __slots__ = []
+
+    def __init__(self, a, b, c = 3):
+        Functor.__init__(self, a, b, c = c)
+    #-def
+#-class
+
+class FunctorB(Functor):
+    __slots__ = []
+
+    def __init__(self, a, b, c = 3):
+        Functor.__init__(self, a, b, c = c)
+    #-def
+#-class
+
 class TestOrdinalSuffixCase(unittest.TestCase):
 
     def test_ordinal_suffix(self):
@@ -147,6 +164,50 @@ class TestOrdinalSuffixCase(unittest.TestCase):
             for c in cases:
                 self.assertEqual(ordinal_suffix(b + c[0]), c[1])
                 self.assertEqual(ordinal_suffix(-(b + c[0])), c[1])
+    #-def
+#-class
+
+class TestDeepEqCase(unittest.TestCase):
+
+    def test_deep_eq(self):
+        x1 = lambda x: x
+
+        self.assertTrue(x1, x1)
+
+        self.assertTrue(deep_eq([], []))
+        self.assertTrue(deep_eq([], ()))
+        self.assertTrue(deep_eq((), []))
+        self.assertTrue(deep_eq((), ()))
+
+        self.assertFalse(deep_eq({}, ()))
+        self.assertFalse(deep_eq([], {}))
+        self.assertTrue(deep_eq({}, {}))
+
+        self.assertTrue(deep_eq([[]], [()]))
+        self.assertFalse(deep_eq([], [()]))
+
+        self.assertTrue(deep_eq([[1, 2], [3]], [(1, 2), (3,)]))
+        self.assertTrue(deep_eq([[1, 2], [3, (4, 5)]], [(1, 2), (3, [4, 5])]))
+        self.assertFalse(deep_eq(
+            [[1, 2], [3, (4, 5)]],
+            [(1, 2), (3, [4, [5]])]
+        ))
+
+        self.assertTrue(deep_eq({'a': 1, 2: 0}, {2: 0, 'a': 1}))
+        self.assertFalse(deep_eq({'a': 1, 2: 0}, {2: 0, 'a': 0}))
+        self.assertFalse(deep_eq({'a': 1, 2: 0}, {2: 0, 'x': 1}))
+        self.assertFalse(deep_eq({'a': 1, 2: 0}, {2: 0, 'a': 1, 1: 1}))
+        self.assertTrue(deep_eq(
+            {'a': 1, 'b': [1, {'c': 'x', 'd': (1, 2, {1: (3,)})}]},
+            {'a': 1, 'b': [1, {'c': 'x', 'd': (1, 2, {1: (3,)})}]}
+        ))
+        self.assertFalse(deep_eq(
+            {'a': 1, 'b': [1, {'c': 'x', 'd': (1, 2, {1: (3,)})}]},
+            {'a': 1, 'b': [1, {'c': 'x', 'd': (1, 2, {1: (3, 4)})}]}
+        ))
+
+        self.assertTrue(deep_eq(1, 1))
+        self.assertFalse(deep_eq(1, 2))
     #-def
 #-class
 
@@ -219,6 +280,18 @@ class TestTimeStampCase(unittest.TestCase):
         self.assertEqual(t['dsthour'], 0)
         self.assertEqual(t['dstmin'], 0)
         self.assertEqual(t['dstsec'], 0)
+    #-def
+#-class
+
+class TestFunctorCase(unittest.TestCase):
+
+    def test_equality(self):
+        f1 = FunctorA(1, 2, c = 4)
+        f2 = FunctorB(1, 2, c = 4)
+        f3 = FunctorA(1, 2, 4)
+
+        self.assertNotEqual(f1, f2)
+        self.assertEqual(f1, f3)
     #-def
 #-class
 
@@ -445,7 +518,9 @@ class TestCollectionCase(unittest.TestCase):
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestOrdinalSuffixCase))
+    suite.addTest(unittest.makeSuite(TestDeepEqCase))
     suite.addTest(unittest.makeSuite(TestTimeStampCase))
+    suite.addTest(unittest.makeSuite(TestFunctorCase))
     suite.addTest(unittest.makeSuite(TestWithStatementExceptionHandlerCase))
     suite.addTest(unittest.makeSuite(TestCollectionCase))
     return suite

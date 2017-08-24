@@ -41,6 +41,7 @@ from doit.support.cmd.errors import \
 
 from doit.support.cmd.runtime import \
     isderived, \
+    Location, \
     Pair, \
     List, \
     HashMap, \
@@ -49,6 +50,7 @@ from doit.support.cmd.runtime import \
     Procedure
 
 from doit.support.cmd.eval import \
+    MetaInfo, \
     Environment, \
     CommandProcessor
 
@@ -321,6 +323,29 @@ class TTryCatch(Command):
             return None
         except CommandError as ce:
             return [ce]
+    #-def
+#-class
+
+class TestMetaInfoCase(unittest.TestCase):
+
+    def test_equality(self):
+        m1 = MetaInfo()
+        m2 = MetaInfo()
+        m3 = MetaInfo()
+        m3.qname = "x::y"
+        m3.location = Location("t", 1, 2)
+        m4 = MetaInfo()
+        m4.qname = "x::y"
+        m4.location = Location("t", 1, 3)
+        m5 = MetaInfo()
+        m5.qname = "x::y"
+        m5.location = Location("t", 1, 3)
+
+        self.assertEqual(m1, m2)
+        self.assertNotEqual(m1, 1)
+        self.assertNotEqual(m3, m4)
+        self.assertEqual(m4, m4)
+        self.assertEqual(m4, m5)
     #-def
 #-class
 
@@ -843,6 +868,7 @@ class TestCommandProcessorCase(unittest.TestCase):
 
 def suite():
     suite = unittest.TestSuite()
+    suite.addTest(unittest.makeSuite(TestMetaInfoCase))
     suite.addTest(unittest.makeSuite(TestEnvironmentCase))
     suite.addTest(unittest.makeSuite(TestCommandProcessorCase))
     return suite

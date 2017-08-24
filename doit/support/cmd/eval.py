@@ -77,6 +77,22 @@ class MetaInfo(object):
         self.qname = ""
         self.location = Location()
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and self.qname == other.qname \
+        and self.location == other.location
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Environment(dict):

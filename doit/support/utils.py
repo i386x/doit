@@ -40,7 +40,8 @@ from doit.support.errors import doit_assert
 _assert = doit_assert
 
 def ordinal_suffix(n):
-    """Returns a suffix of the given ordinal number.
+    """Returns a suffix (`st`, `nd`, ...) of the given ordinal number (1, 2,
+    ...).
 
     :param int n: Ordinal number.
 
@@ -54,6 +55,39 @@ def ordinal_suffix(n):
         "rd" if (n % 10) == 3 and (n % 100) != 13 else \
         "th"
     )
+#-def
+
+def deep_eq(x, y):
+    """Deeply compares `x` and `y` for equality.
+
+    :param object x: First object.
+    :param object y: Second object.
+
+    :returns: :obj:`True` if `x` is equal to `y`, :obj:`False` otherwise \
+        (:class:`bool`).
+    """
+
+    if x is y:
+        return True
+    if isinstance(x, (tuple, list)) and isinstance(y, (tuple, list)):
+        if len(x) != len(y):
+            return False
+        i = 0
+        while i < len(x):
+            if not deep_eq(x[i], y[i]):
+                return False
+            i += 1
+        return True
+    if isinstance(x, dict) and isinstance(y, dict):
+        if len(x) != len(y):
+            return False
+        for k in x:
+            if k not in y:
+                return False
+            if not deep_eq(x[k], y[k]):
+                return False
+        return True
+    return x == y
 #-def
 
 def timestamp():
@@ -104,6 +138,65 @@ def timestamp():
     stamp['dstsec'] = second(dstoffs)
     return stamp
 #-def
+
+class Functor(object):
+    """Base class for implementing function objects.
+
+    :ivar args: List of arguments.
+    :vartype args: tuple
+    :ivar kwargs: Key-value arguments.
+    :vartype kwargs: dict
+    """
+    __slots__ = [ 'args', 'kwargs' ]
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the function object.
+
+        :param tuple args: List of arguments.
+        :param dict kwargs: Key-value arguments.
+        """
+
+        self.args = args
+        self.kwargs = kwargs
+    #-def
+
+    def __eq__(self, other):
+        """Implements ``self == other``.
+
+        :param object other: Right-hand side argument of ``==``.
+
+        :returns: :obj:`True` if this instance is equal to `other` \
+            (:class:`bool`).
+        """
+
+        if not isinstance(other, self.__class__):
+            return False
+        if not deep_eq(self.args, other.args):
+            return False
+        if not deep_eq(self.kwargs, other.kwargs):
+            return False
+        return True
+    #-def
+
+    def __ne__(self, other):
+        """Implements ``self != other``.
+
+        :param object other: Right-hand side argument of ``!=``.
+
+        :returns: :obj:`True` if this instance is not equal to `other` \
+            (:class:`bool`).
+        """
+
+        return not self.__eq__(other)
+    #-def
+
+    def __call__(self):
+        """Implements ``self()``. To be redefined by user.
+        """
+
+        pass
+    #-def
+#-class
 
 class WithStatementExceptionHandler(object):
     """Implements exception handler which catch any exception raised inside

@@ -105,6 +105,14 @@ class Break(NullaryVisitableNode):
     #-def
 #-class
 
+class Continue(NullaryVisitableNode):
+    __slots__ = []
+
+    def __init__(self):
+        NullaryVisitableNode.__init__(self)
+    #-def
+#-class
+
 class Neg(UnaryVisitableNode):
     __slots__ = []
 
@@ -131,6 +139,11 @@ class If(TernaryVisitableNode):
 
 class TestVisitableNodeCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertEqual(VisitableNode(), VisitableNode())
+        self.assertNotEqual(VisitableNode(), 1)
+    #-def
+
     def test_visit_is_not_implemented(self):
         n = VisitableNode()
 
@@ -148,6 +161,15 @@ class TestVisitableNodeCase(unittest.TestCase):
 
 class TestVisitableLeafCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(VisitableLeaf(1), 1)
+        self.assertNotEqual(VisitableLeaf(1), Atom(1))
+        self.assertNotEqual(VisitableLeaf(1), VisitableLeaf(2))
+        self.assertNotEqual(Atom(1), Atom(2))
+        self.assertEqual(VisitableLeaf(1), VisitableLeaf(1))
+        self.assertEqual(Atom(1), Atom(1))
+    #-def
+
     def test_visit_and_traverse(self):
         n = Atom(42)
 
@@ -158,6 +180,15 @@ class TestVisitableLeafCase(unittest.TestCase):
 
 class TestNullaryVisitableNodeCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(NullaryVisitableNode(), 1)
+        self.assertNotEqual(NullaryVisitableNode(), Break())
+        self.assertNotEqual(NullaryVisitableNode(), Continue())
+        self.assertNotEqual(Break(), Continue())
+        self.assertEqual(NullaryVisitableNode(), NullaryVisitableNode())
+        self.assertEqual(Break(), Break())
+    #-def
+
     def test_visit_and_traverse(self):
         n = Break()
 
@@ -167,6 +198,16 @@ class TestNullaryVisitableNodeCase(unittest.TestCase):
 #-class
 
 class TestUnaryVisitableNodeCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertNotEqual(UnaryVisitableNode(Atom(1)), 1)
+        self.assertNotEqual(
+            UnaryVisitableNode(Atom(1)), UnaryVisitableNode(Atom(2))
+        )
+        self.assertEqual(
+            UnaryVisitableNode(Atom(1)), UnaryVisitableNode(Atom(1))
+        )
+    #-def
 
     def test_bad_node(self):
         with self.assertRaises(DoItAssertionError):
@@ -184,6 +225,22 @@ class TestUnaryVisitableNodeCase(unittest.TestCase):
 #-class
 
 class TestBinaryVisitableNodeCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertNotEqual(BinaryVisitableNode(Atom(1), Atom(2)), 1)
+        self.assertNotEqual(
+            BinaryVisitableNode(Atom(1), Atom(2)),
+            BinaryVisitableNode(Atom(0), Atom(2))
+        )
+        self.assertNotEqual(
+            BinaryVisitableNode(Atom(1), Atom(2)),
+            BinaryVisitableNode(Atom(1), Atom(3))
+        )
+        self.assertEqual(
+            BinaryVisitableNode(Atom(1), Atom(2)),
+            BinaryVisitableNode(Atom(1), Atom(2))
+        )
+    #-def
 
     def test_bad_node(self):
         with self.assertRaises(DoItAssertionError):
@@ -208,6 +265,26 @@ class TestBinaryVisitableNodeCase(unittest.TestCase):
 #-class
 
 class TestTernaryVisitableNodeCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertNotEqual(TernaryVisitableNode(Atom(1), Atom(2), Atom(3)), 1)
+        self.assertNotEqual(
+            TernaryVisitableNode(Atom(1), Atom(2), Atom(3)),
+            TernaryVisitableNode(Atom(-1), Atom(2), Atom(3))
+        )
+        self.assertNotEqual(
+            TernaryVisitableNode(Atom(1), Atom(2), Atom(3)),
+            TernaryVisitableNode(Atom(1), Atom(-2), Atom(3))
+        )
+        self.assertNotEqual(
+            TernaryVisitableNode(Atom(1), Atom(2), Atom(3)),
+            TernaryVisitableNode(Atom(1), Atom(2), Atom(-3))
+        )
+        self.assertEqual(
+            TernaryVisitableNode(Atom(1), Atom(2), Atom(3)),
+            TernaryVisitableNode(Atom(1), Atom(2), Atom(3))
+        )
+    #-def
 
     def test_bad_node(self):
         with self.assertRaises(DoItAssertionError):

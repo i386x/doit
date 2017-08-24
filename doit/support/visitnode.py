@@ -34,6 +34,7 @@ IN THE SOFTWARE.\
 """
 
 from doit.support.errors import doit_assert, not_implemented
+from doit.support.utils import deep_eq
 
 _assert = doit_assert
 
@@ -47,6 +48,20 @@ class VisitableNode(object):
         """
 
         pass
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def visit(self, f, *args):
@@ -77,6 +92,22 @@ class VisitableLeaf(VisitableNode):
         self.__value = value
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and VisitableNode.__eq__(self, other) \
+        and deep_eq(self.__value, other.__value)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def visit(self, f, *args):
         """
         """
@@ -102,6 +133,21 @@ class NullaryVisitableNode(VisitableNode):
         """
 
         VisitableNode.__init__(self)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and VisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def visit(self, f, *args):
@@ -131,6 +177,22 @@ class UnaryVisitableNode(VisitableNode):
         _assert(isinstance(node, VisitableNode), "Visitable node expected")
         VisitableNode.__init__(self)
         self.__node = node
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and VisitableNode.__eq__(self, other) \
+        and deep_eq(self.__node, other.__node)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def visit(self, f, *args):
@@ -163,6 +225,23 @@ class BinaryVisitableNode(VisitableNode):
         VisitableNode.__init__(self)
         self.__node1 = node1
         self.__node2 = node2
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and VisitableNode.__eq__(self, other) \
+        and deep_eq(self.__node1, other.__node1) \
+        and deep_eq(self.__node2, other.__node2)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def visit(self, f, *args):
@@ -198,6 +277,24 @@ class TernaryVisitableNode(VisitableNode):
         self.__node1 = node1
         self.__node2 = node2
         self.__node3 = node3
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and VisitableNode.__eq__(self, other) \
+        and deep_eq(self.__node1, other.__node1) \
+        and deep_eq(self.__node2, other.__node2) \
+        and deep_eq(self.__node3, other.__node3)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def visit(self, f, *args):

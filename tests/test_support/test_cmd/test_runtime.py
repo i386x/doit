@@ -41,6 +41,7 @@ from doit.support.cmd.errors import \
 from doit.support.cmd.runtime import \
     isderived, \
     Location, \
+    Evaluable, \
     BaseIterator, \
     FiniteIterator, \
     Iterable, \
@@ -102,6 +103,30 @@ class TestLocationCase(unittest.TestCase):
         x, y, z = loc1
         self.assertEqual((x, y, z), ("A", 1, 2))
         self.assertEqual(str(loc1), 'at ["A":1:2]')
+    #-def
+#-class
+
+class TestEvaluableCase(unittest.TestCase):
+
+    def test_equality(self):
+        x = Evaluable()
+        y = Evaluable()
+        z = Evaluable()
+        z.set_location("g", 2, 5)
+        z.properties['a'] = "xyz"
+        zz = Evaluable()
+        zz.set_location("g", 2, 5)
+        zz.properties['b'] = "xyz"
+        zzz = Evaluable()
+        zzz.set_location("g", 2, 5)
+        zzz.properties['a'] = "xyz"
+
+        self.assertEqual(x, y)
+        self.assertEqual(x, x)
+        self.assertNotEqual(x, 1)
+        self.assertNotEqual(x, z)
+        self.assertNotEqual(zz, z)
+        self.assertEqual(zzz, z)
     #-def
 #-class
 
@@ -352,6 +377,7 @@ class TestProcedureTemplateCase(unittest.TestCase):
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestLocationCase))
+    suite.addTest(unittest.makeSuite(TestEvaluableCase))
     suite.addTest(unittest.makeSuite(TestIteratorCase))
     suite.addTest(unittest.makeSuite(TestIterableCase))
     suite.addTest(unittest.makeSuite(TestUserTypeCase))

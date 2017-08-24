@@ -33,6 +33,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
+from doit.support.utils import deep_eq
+
 from doit.support.cmd.errors import \
     CommandError
 
@@ -317,6 +319,25 @@ class Command(Evaluable):
         return False
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Evaluable.__eq__(self, other) \
+        and self.name == other.name \
+        and self.qname == other.qname \
+        and self.isloop() == other.isloop() \
+        and self.isfunc() == other.isfunc()
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def __str__(self):
         """
         """
@@ -387,6 +408,22 @@ class Const(Command):
         self.constval = constval
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Command.__eq__(self, other) \
+        and deep_eq(self.constval, other.constval)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -427,6 +464,20 @@ class Trackable(Command):
         Command.__init__(self)
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return Command.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def enter(self, processor, inlz):
         """
         """
@@ -460,6 +511,38 @@ class MacroNode(object):
         self.deferred = []
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        if not isinstance(other, self.__class__):
+            return False
+        if not self.ctor is other.ctor:
+            return False
+        if len(self.nodes) != len(other.nodes):
+            return False
+        i = 0
+        while i < len(self.nodes):
+            if not deep_eq(self.nodes[i], other.nodes[i]):
+                return False
+            i += 1
+        if len(self.deferred) != len(other.deferred):
+            return False
+        i = 0
+        while i < len(self.deferred):
+            if not self.deferred[i] == other.deferred[i]:
+                return False
+            i += 1
+        return True
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def substitute(self, p2v):
         """
         """
@@ -482,6 +565,36 @@ class MacroNodeSequence(MacroNode):
 
         MacroNode.__init__(self, (lambda *args: list(args)), *nodes)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        if not isinstance(other, self.__class__):
+            return False
+        if len(self.nodes) != len(other.nodes):
+            return False
+        i = 0
+        while i < len(self.nodes):
+            if not deep_eq(self.nodes[i], other.nodes[i]):
+                return False
+            i += 1
+        if len(self.deferred) != len(other.deferred):
+            return False
+        i = 0
+        while i < len(self.deferred):
+            if not self.deferred[i] == other.deferred[i]:
+                return False
+            i += 1
+        return True
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class MacroNodeAtom(MacroNode):
@@ -494,6 +607,24 @@ class MacroNodeAtom(MacroNode):
         """
 
         MacroNode.__init__(self, None, atom)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        if not isinstance(other, self.__class__):
+            return False
+        if not deep_eq(self.nodes[0], other.nodes[0]):
+            return False
+        return True
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def substitute(self, p2v):
@@ -514,6 +645,21 @@ class MacroNodeParam(MacroNode):
         """
 
         MacroNode.__init__(self, None, param)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and self.nodes[0] == other.nodes[0]
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def substitute(self, p2v):
@@ -561,6 +707,23 @@ class Expand(Command):
         Command.__init__(self)
         self.macro = macro
         self.args = args
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Command.__eq__(self, other) \
+        and self.macro == other.macro \
+        and deep_eq(self.args, other.args)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -611,6 +774,24 @@ class SetLocal(Trackable):
         self.depth = depth
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and self.varname == other.varname \
+        and deep_eq(self.value, other.value) \
+        and self.depth == other.depth
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -648,6 +829,22 @@ class GetLocal(Trackable):
         self.varname = name
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and self.varname == other.varname
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -680,6 +877,24 @@ class DefMacro(Trackable):
         self.mname = mname
         self.params = params
         self.body = body
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and self.mname == other.mname \
+        and deep_eq(self.params, other.params) \
+        and deep_eq(self.body, other.body)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -717,6 +932,23 @@ class DefError(Trackable):
         Trackable.__init__(self)
         self.ename = ename
         self.ebase = ebase
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and self.ename == other.ename \
+        and deep_eq(self.ebase, other.ebase)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -764,6 +996,26 @@ class Define(Trackable):
         self.body = body
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and self.pname == other.pname \
+        and deep_eq(self.bvars, other.bvars) \
+        and deep_eq(self.params, other.params) \
+        and self.vararg == other.vararg \
+        and deep_eq(self.body, other.body)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -802,6 +1054,23 @@ class DefModule(Trackable):
         Trackable.__init__(self)
         self.mname = mname
         self.body = body
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and self.mname == other.mname \
+        and deep_eq(self.body, other.body)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -1172,6 +1441,22 @@ class Operation(Trackable):
 
         Trackable.__init__(self)
         self.operands = operands
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.operands, other.operands)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -2796,6 +3081,22 @@ class Block(Trackable):
         self.commands = commands
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.commands, other.commands)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def enter(self, processor, inlz):
         """
         """
@@ -2831,6 +3132,24 @@ class If(Trackable):
         self.e = e
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.c, other.c) \
+        and deep_eq(self.t, other.t) \
+        and deep_eq(self.e, other.e)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -2863,6 +3182,21 @@ class Loop(Trackable):
         Trackable.__init__(self)
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def isloop(self):
         """
         """
@@ -2885,6 +3219,25 @@ class Foreach(Loop):
         self.qvar = var
         self.itexp = itexp
         self.body = tuple(body)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Loop.__eq__(self, other) \
+        and self.var == other.var \
+        and self.qvar == other.qvar \
+        and deep_eq(self.itexp, other.itexp) \
+        and deep_eq(self.body, other.body)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -2961,6 +3314,23 @@ class While(Loop):
         self.b = tuple(b)
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Loop.__eq__(self, other) \
+        and deep_eq(self.c, other.c) \
+        and deep_eq(self.b, other.b)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -3004,6 +3374,23 @@ class DoWhile(Loop):
         Loop.__init__(self)
         self.b = tuple(b)
         self.c = c
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Loop.__eq__(self, other) \
+        and deep_eq(self.b, other.b) \
+        and deep_eq(self.c, other.c)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -3165,6 +3552,23 @@ class Call(Trackable):
         self.args = args
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and self.proc == other.proc \
+        and deep_eq(self.args, other.args)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -3253,6 +3657,23 @@ class ECall(Trackable):
         self.args = args
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and self.proc == other.proc \
+        and deep_eq(self.args, other.args)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -3319,6 +3740,22 @@ class Return(Command):
         self.expr = expr
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Command.__eq__(self, other) \
+        and deep_eq(self.expr, other.expr)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -3347,6 +3784,24 @@ class TryCatchFinally(Trackable):
         self.b = tuple(b)
         self.h = h
         self.f = f
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.b, other.b) \
+        and deep_eq(self.h, other.h) \
+        and deep_eq(self.f, other.f)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -3397,6 +3852,23 @@ class Throw(Trackable):
         self.msg = msg
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.ecls, other.ecls) \
+        and deep_eq(self.msg, other.msg)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -3443,6 +3915,22 @@ class Rethrow(Trackable):
 
         Trackable.__init__(self)
         self.e = e
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.e, other.e)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -3508,6 +3996,24 @@ class SetItem(Trackable):
         self.value = value
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.container, other.container) \
+        and deep_eq(self.index, other.index) \
+        and deep_eq(self.value, other.value)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -3559,6 +4065,23 @@ class DelItem(Trackable):
         Trackable.__init__(self)
         self.container = container
         self.index = index
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.container, other.container) \
+        and deep_eq(self.index, other.index)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -3614,6 +4137,23 @@ class Append(Trackable):
         self.v = v
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.l, other.l) \
+        and deep_eq(self.v, other.v)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -3657,6 +4197,24 @@ class Insert(Trackable):
         self.l = l
         self.i = i
         self.v = v
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.l, other.l) \
+        and deep_eq(self.i, other.i) \
+        and deep_eq(self.v, other.v)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -3710,6 +4268,23 @@ class Remove(Trackable):
         self.x = x
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.l, other.l) \
+        and deep_eq(self.x, other.x)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -3753,6 +4328,23 @@ class RemoveAll(Trackable):
         Trackable.__init__(self)
         self.l = l
         self.x = x
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.l, other.l) \
+        and deep_eq(self.x, other.x)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -3799,6 +4391,24 @@ class Each(Trackable):
         self.l = l
         self.f = f
         self.args = args
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.l, other.l) \
+        and deep_eq(self.f, other.f) \
+        and deep_eq(self.args, other.args)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -3885,6 +4495,24 @@ class Visit(Trackable):
         self.args = args
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.ut, other.ut) \
+        and deep_eq(self.f, other.f) \
+        and deep_eq(self.args, other.args)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -3958,6 +4586,22 @@ class Print(Trackable):
 
         Trackable.__init__(self)
         self.args = args
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.args, other.args)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):
@@ -4094,6 +4738,24 @@ class SetMember(Trackable):
         self.value = value
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.module, other.module) \
+        and deep_eq(self.member, other.member) \
+        and deep_eq(self.value, other.value)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def expand(self, processor):
         """
         """
@@ -4139,6 +4801,23 @@ class GetMember(Trackable):
         Trackable.__init__(self)
         self.module = module
         self.member = member
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Trackable.__eq__(self, other) \
+        and deep_eq(self.module, other.module) \
+        and deep_eq(self.member, other.member)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def expand(self, processor):

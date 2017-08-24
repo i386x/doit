@@ -195,6 +195,39 @@ class TestCommandCase(unittest.TestCase):
             )
         )
     #-def
+
+    def test_equality(self):
+        c1 = Command()
+        c2 = Command()
+        c3 = Command()
+        c3.set_location("a", 1, 2)
+        c3.properties[1] = 2
+        c3.name = "MyCmd"
+        c3.qname = "::MyCmd"
+        c4 = Command()
+        c4.set_location("b", 1, 2)
+        c4.properties[1] = 2
+        c4.name = "MyCmd"
+        c4.qname = "::MyCmd"
+        c5 = Command()
+        c5.set_location("a", 1, 2)
+        c5.properties[1] = 2
+        c5.name = "MyCmd"
+        c5.qname = "::MyCmd"
+
+        self.assertEqual(c1, c1)
+        self.assertEqual(c1, c2)
+        self.assertNotEqual(c3, c4)
+        self.assertEqual(c3, c5)
+    #-def
+#-class
+
+class TestConstCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertEqual(Const(1), Const(1))
+        self.assertNotEqual(Const(1), Const(2))
+    #-def
 #-class
 
 class TestVersionCase(unittest.TestCase):
@@ -209,6 +242,77 @@ class TestVersionCase(unittest.TestCase):
 #-class
 
 class TestExpandCase(unittest.TestCase):
+
+    def test_equality(self):
+        # MacroNode
+        n1 = _n(Return, _a(1))
+        n1.deferred.append(1)
+        n1.deferred.append(2)
+        n2 = _n(Return, _a(1))
+        n2.deferred.append(1)
+        n2.deferred.append(3)
+        n3 = _n(Return, _a(1))
+        n3.deferred.append(1)
+        n3.deferred.append(3)
+
+        self.assertNotEqual(_n(Return), Return)
+        self.assertNotEqual(_n(Return), _n(Throw))
+        self.assertNotEqual(_n(Return), _n(Return, _a(1)))
+        self.assertNotEqual(_n(Return, _a(1)), _n(Return, _a(2)))
+        self.assertNotEqual(n1, n2)
+        self.assertEqual(_n(Return), _n(Return))
+        self.assertEqual(n2, n3)
+
+        # MacroNodeSequence
+        nn1 = _n(Block, _s(_n(Return), _n(Throw, _a(1))))
+        nn2 = _n(Block, _s(_n(Return), _n(Throw, _a(1))))
+        nn3 = _s(_n(Return, _a(1)), _n(Return, _a(2)), _s(_n(Throw)))
+        nn3.deferred.append(1)
+        nn4 = _s(_n(Return, _a(1)), _n(Return, _a(2)), _s(_n(Throw)))
+        nn4.deferred.append(1)
+        nn5 = _s(_n(Return, _a(1)), _n(Return, _a(2)), _s(_n(Throw)))
+        nn5.deferred.append(2)
+        nn6 = _s(_n(Return, _a(1)), _n(Return, _a(2)))
+        nn7 = _s(_n(Return, _a(1)), _n(Return, _a(3)), _s(_n(Throw)))
+        nn7.deferred.append(1)
+        nn8 = _s(_n(Return, _a(1)), _n(Return, _a(2)), _s(_n(Throw)))
+
+        self.assertNotEqual(nn1, 0)
+        self.assertEqual(nn1, nn2)
+        self.assertEqual(nn3, nn4)
+        self.assertNotEqual(nn4, nn5)
+        self.assertNotEqual(nn4, nn6)
+        self.assertNotEqual(nn4, nn7)
+        self.assertNotEqual(nn4, nn8)
+
+        # MacroNodeAtom
+        self.assertNotEqual(_a(1), _s(_a(1)))
+        self.assertNotEqual(_a((1, 2)), _a([1, 2, 3]))
+        self.assertEqual(_a((1, 2)), _a([1, 2]))
+
+        # MacroNodeParam
+        self.assertNotEqual(_p('t'), _a('t'))
+        self.assertNotEqual(_p('t'), _p('p'))
+        self.assertEqual(_p('t'), _p('t'))
+
+        # Expand
+        self.assertNotEqual(Expand(1, 2, 3), 1)
+        self.assertNotEqual(Expand(1, 2, 3), Expand(1, 2))
+        self.assertEqual(Expand(1, 2, 3), Expand(1, 2, 3))
+
+        # DefMacro
+        self.assertNotEqual(
+            DefMacro('x', ['a', 'b'], _s(_p('a'), _p('b'))), 1
+        )
+        self.assertNotEqual(
+            DefMacro('x', ['a', 'b'], _s(_p('a'), _p('b'))),
+            DefMacro('x', ['a', 'b'], _s(_p('a'), _p('c')))
+        )
+        self.assertEqual(
+            DefMacro('x', ['a', 'b'], _s(_p('a'), _p('b'))),
+            DefMacro('x', ['a', 'b'], _s(_p('a'), _p('b')))
+        )
+    #-def
 
     def test_macros(self):
         p = Printer()
@@ -255,6 +359,18 @@ class TestExpandCase(unittest.TestCase):
 
 class TestSetLocalCase(unittest.TestCase):
 
+    def test_equality(self):
+        x = SetLocal('a', 'b', 3)
+        x.set_location("f", 1, 2)
+
+        self.assertNotEqual(SetLocal('a', 'b', 3), 1)
+        self.assertNotEqual(SetLocal('a', 'b', 3), SetLocal('a', 'b', 2))
+        self.assertNotEqual(SetLocal('a', 'b', 3), SetLocal('a', 'x', 3))
+        self.assertNotEqual(SetLocal('a', 'b', 3), SetLocal('b', 'b', 3))
+        self.assertEqual(SetLocal('a', 'b', 3), SetLocal('a', 'b', 3))
+        self.assertNotEqual(SetLocal('a', 'b', 3), x)
+    #-def
+
     def test_SetLocal(self):
         p = CommandProcessor()
 
@@ -267,6 +383,12 @@ class TestSetLocalCase(unittest.TestCase):
 
 class TestGetLocalCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(GetLocal('a'), 1)
+        self.assertNotEqual(GetLocal('a'), GetLocal('b'))
+        self.assertEqual(GetLocal('a'), GetLocal('a'))
+    #-def
+
     def test_GetLocal(self):
         p = CommandProcessor()
 
@@ -276,6 +398,12 @@ class TestGetLocalCase(unittest.TestCase):
 #-class
 
 class TestOperationsCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertNotEqual(Add(1, 2), Sub(1, 2))
+        self.assertNotEqual(Add(1, 2), Add(1, 3))
+        self.assertEqual(Add(1, 2), Add(1, 2))
+    #-def
 
     def test_unknown_operation(self):
         p = CommandProcessor()
@@ -1698,6 +1826,36 @@ class TestOperationsCase(unittest.TestCase):
 
 class TestBlockCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(
+            Block(
+                SetLocal("x", "def"),
+                SetLocal("y", 1)
+            ),
+            SetLocal("y", 1)
+        )
+        self.assertNotEqual(
+            Block(
+                SetLocal("x", "def"),
+                SetLocal("y", 1)
+            ),
+            Block(
+                SetLocal("x", "def"),
+                SetLocal("y", 2)
+            )
+        )
+        self.assertEqual(
+            Block(
+                SetLocal("x", "def"),
+                SetLocal("y", 1)
+            ),
+            Block(
+                SetLocal("x", "def"),
+                SetLocal("y", 1)
+            )
+        )
+    #-def
+
     def test_Block(self):
         p = CommandProcessor()
 
@@ -1716,6 +1874,24 @@ class TestBlockCase(unittest.TestCase):
 
 class TestIfCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(
+            If(True, [1], [2]), 1
+        )
+        self.assertNotEqual(
+            If(True, [1], [2]), If(False, [1], [2])
+        )
+        self.assertNotEqual(
+            If(True, [1], [2]), If(True, [0], [2])
+        )
+        self.assertNotEqual(
+            If(True, [1], [2]), If(True, [1], [1])
+        )
+        self.assertEqual(
+            If(True, [1], [2]), If(True, [1], [2])
+        )
+    #-def
+
     def test_If(self):
         p = CommandProcessor()
 
@@ -1731,6 +1907,112 @@ class TestIfCase(unittest.TestCase):
 #-class
 
 class TestLoopCase(unittest.TestCase):
+
+    def test_equality(self):
+        # Foreach
+        self.assertNotEqual(
+            Foreach("i", [], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("i")))
+            ]),
+            1
+        )
+        self.assertNotEqual(
+            Foreach("i", [], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("i")))
+            ]),
+            Foreach("j", [], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("i")))
+            ])
+        )
+        self.assertNotEqual(
+            Foreach("i", [1, 2], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("i")))
+            ]),
+            Foreach("i", [1, 3], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("i")))
+            ])
+        )
+        self.assertNotEqual(
+            Foreach("i", [1, 2], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("i")))
+            ]),
+            Foreach("i", [1, 2], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("j")))
+            ])
+        )
+        self.assertEqual(
+            Foreach("i", [1, 2], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("i")))
+            ]),
+            Foreach("i", [1, 2], [
+                SetLocal("x", Add(GetLocal("x"), GetLocal("i")))
+            ])
+        )
+
+        # While
+        self.assertNotEqual(
+            While(Gt(GetLocal('x'), 0), [
+                SetLocal('x', Sub(GetLocal('x'), 1))
+            ]),
+            0
+        )
+        self.assertNotEqual(
+            While(Gt(GetLocal('x'), 0), [
+                SetLocal('x', Sub(GetLocal('x'), 1))
+            ]),
+            While(Gt(GetLocal('x'), 1), [
+                SetLocal('x', Sub(GetLocal('x'), 1))
+            ])
+        )
+        self.assertNotEqual(
+            While(Gt(GetLocal('x'), 0), [
+                SetLocal('x', Sub(GetLocal('x'), 1))
+            ]),
+            While(Gt(GetLocal('x'), 0), [
+                SetLocal('x', Sub(GetLocal('y'), 1))
+            ])
+        )
+        self.assertEqual(
+            While(Gt(GetLocal('x'), 0), [
+                SetLocal('x', Sub(GetLocal('x'), 1))
+            ]),
+            While(Gt(GetLocal('x'), 0), [
+                SetLocal('x', Sub(GetLocal('x'), 1))
+            ])
+        )
+
+        # DoWhile
+        self.assertNotEqual(
+            DoWhile([
+                SetLocal('x', 2)
+            ], False),
+            1
+        )
+        self.assertNotEqual(
+            DoWhile([
+                SetLocal('x', 2)
+            ], False),
+            DoWhile([
+                SetLocal('x', 0)
+            ], False)
+        )
+        self.assertNotEqual(
+            DoWhile([
+                SetLocal('x', 2)
+            ], False),
+            DoWhile([
+                SetLocal('x', 2)
+            ], True)
+        )
+        self.assertEqual(
+            DoWhile([
+                SetLocal('x', 2)
+            ], False),
+            DoWhile([
+                SetLocal('x', 2)
+            ], False)
+        )
+    #-def
 
     def test_Foreach(self):
         p = CommandProcessor()
@@ -1988,6 +2270,96 @@ class TestLoopCase(unittest.TestCase):
 
 class TestCallCase(unittest.TestCase):
 
+    def test_equality(self):
+        # Define
+        x = Define("sum", ["a"], ["x", "y"], True, [GetLocal("a")])
+        x.set_location("f", 1, 2)
+
+        self.assertNotEqual(
+            Define("sum", ["a"], ["x", "y"], True, [GetLocal("a")]),
+            GetLocal("a")
+        )
+        self.assertNotEqual(
+            Define("sum", ["a"], ["x", "y"], True, [GetLocal("a")]),
+            x
+        )
+        self.assertNotEqual(
+            Define("sum", ["a"], ["x", "y"], True, [GetLocal("a")]),
+            Define("diff", ["a"], ["x", "y"], True, [GetLocal("a")])
+        )
+        self.assertNotEqual(
+            Define("sum", ["a"], ["x", "y"], True, [GetLocal("a")]),
+            Define("sum", ["b"], ["x", "y"], True, [GetLocal("a")])
+        )
+        self.assertNotEqual(
+            Define("sum", ["a"], ["x", "y"], True, [GetLocal("a")]),
+            Define("sum", ["a"], ["x", "z"], True, [GetLocal("a")])
+        )
+        self.assertNotEqual(
+            Define("sum", ["a"], ["x", "y"], True, [GetLocal("a")]),
+            Define("sum", ["a"], ["x", "y"], False, [GetLocal("a")])
+        )
+        self.assertNotEqual(
+            Define("sum", ["a"], ["x", "y"], True, [GetLocal("a")]),
+            Define("sum", ["a"], ["x", "y"], True, [GetLocal("b")])
+        )
+        self.assertEqual(
+            Define("sum", ["a"], ["x", "y"], True, [GetLocal("a")]),
+            Define("sum", ["a"], ["x", "y"], True, [GetLocal("a")])
+        )
+
+        # Call
+        self.assertNotEqual(
+            Call(GetLocal("my_proc")), 1
+        )
+        self.assertNotEqual(
+            Call(GetLocal("my_proc"), 1, 2),
+            Call(GetLocal("my_proc_"), 1, 2)
+        )
+        self.assertNotEqual(
+            Call(GetLocal("my_proc"), 1, 2),
+            Call(GetLocal("my_proc"), 1, 2, 3)
+        )
+        self.assertEqual(
+            Call(GetLocal("my_proc"), 1, 2),
+            Call(GetLocal("my_proc"), 1, 2)
+        )
+
+        # ECall
+        self.assertNotEqual(
+            ECall(GetLocal("my_proc")), 1
+        )
+        self.assertNotEqual(
+            ECall(GetLocal("my_proc"), 1, 2),
+            ECall(GetLocal("my_proc_"), 1, 2)
+        )
+        self.assertNotEqual(
+            ECall(GetLocal("my_proc"), 1, 2),
+            ECall(GetLocal("my_proc"), 1, 2, 3)
+        )
+        self.assertEqual(
+            ECall(GetLocal("my_proc"), 1, 2),
+            ECall(GetLocal("my_proc"), 1, 2)
+        )
+
+        # Return
+        self.assertNotEqual(
+            Return(GetLocal("x")), 1
+        )
+        self.assertNotEqual(
+            Return(GetLocal("x")), Return()
+        )
+        self.assertNotEqual(
+            Return(GetLocal("x")), Return(GetLocal("y"))
+        )
+        self.assertEqual(
+            Return(GetLocal("x")), Return(GetLocal("x"))
+        )
+        self.assertEqual(
+            Return(), Return()
+        )
+    #-def
+
     def test_Call(self):
         p = CommandProcessor()
 
@@ -2188,6 +2560,192 @@ class TestCallCase(unittest.TestCase):
 #-class
 
 class TestTryCatchFinallyCase(unittest.TestCase):
+
+    def test_equality(self):
+        # DefError
+        self.assertNotEqual(DefError('E', GetLocal('E')), GetLocal('E'))
+        self.assertNotEqual(
+            DefError('E', GetLocal('E')), DefError('E', GetLocal('F'))
+        )
+        self.assertEqual(
+            DefError('E', GetLocal('E')), DefError('E', GetLocal('E'))
+        )
+
+        # TryCatchFinally
+        self.assertNotEqual(
+            TryCatchFinally([
+                Add(1, 2),
+                Sub(4, 3),
+                Div(0, "z"),
+                Mod(4, 3),
+                Break(),
+                Return(),
+                Continue()
+            ], [
+                ('TypeError', 'e', [
+                    SetLocal('x', GetLocal('e'))
+                ])
+            ], [
+                SetLocal('y', 3)
+            ]),
+            1
+        )
+        self.assertNotEqual(
+            TryCatchFinally([
+                Add(1, 2),
+                Sub(4, 3),
+                Div(0, "z"),
+                Mod(4, 3),
+                Break(),
+                Return(),
+                Continue()
+            ], [
+                ('TypeError', 'e', [
+                    SetLocal('x', GetLocal('e'))
+                ])
+            ], [
+                SetLocal('y', 3)
+            ]),
+            TryCatchFinally([
+                Add(1, 2),
+                Sub(4, 3),
+                Div(0, "z"),
+                Mod(4, 3),
+                Break(),
+                Return()
+            ], [
+                ('TypeError', 'e', [
+                    SetLocal('x', GetLocal('e'))
+                ])
+            ], [
+                SetLocal('y', 3)
+            ])
+        )
+        self.assertNotEqual(
+            TryCatchFinally([
+                Add(1, 2),
+                Sub(4, 3),
+                Div(0, "z"),
+                Mod(4, 3),
+                Break(),
+                Return(),
+                Continue()
+            ], [
+                ('TypeError', 'e', [
+                    SetLocal('x', GetLocal('e'))
+                ])
+            ], [
+                SetLocal('y', 3)
+            ]),
+            TryCatchFinally([
+                Add(1, 2),
+                Sub(4, 3),
+                Div(0, "z"),
+                Mod(4, 3),
+                Break(),
+                Return(),
+                Continue()
+            ], [
+                ('TypeError', 'e', [
+                    SetLocal('y', GetLocal('e'))
+                ])
+            ], [
+                SetLocal('y', 3)
+            ])
+        )
+        self.assertNotEqual(
+            TryCatchFinally([
+                Add(1, 2),
+                Sub(4, 3),
+                Div(0, "z"),
+                Mod(4, 3),
+                Break(),
+                Return(),
+                Continue()
+            ], [
+                ('TypeError', 'e', [
+                    SetLocal('x', GetLocal('e'))
+                ])
+            ], [
+                SetLocal('y', 3)
+            ]),
+            TryCatchFinally([
+                Add(1, 2),
+                Sub(4, 3),
+                Div(0, "z"),
+                Mod(4, 3),
+                Break(),
+                Return(),
+                Continue()
+            ], [
+                ('TypeError', 'e', [
+                    SetLocal('x', GetLocal('e'))
+                ])
+            ], [
+                SetLocal('x', 3)
+            ])
+        )
+        self.assertEqual(
+            TryCatchFinally([
+                Add(1, 2),
+                Sub(4, 3),
+                Div(0, "z"),
+                Mod(4, 3),
+                Break(),
+                Return(),
+                Continue()
+            ], [
+                ('TypeError', 'e', [
+                    SetLocal('x', GetLocal('e'))
+                ])
+            ], [
+                SetLocal('y', 3)
+            ]),
+            TryCatchFinally([
+                Add(1, 2),
+                Sub(4, 3),
+                Div(0, "z"),
+                Mod(4, 3),
+                Break(),
+                Return(),
+                Continue()
+            ], [
+                ('TypeError', 'e', [
+                    SetLocal('x', GetLocal('e'))
+                ])
+            ], [
+                SetLocal('y', 3)
+            ])
+        )
+
+        # Throw
+        self.assertNotEqual(
+            Throw(GetLocal('TypeError'), "catch me!"), 1
+        )
+        self.assertNotEqual(
+            Throw(GetLocal('TypeError'), "catch me!"),
+            Throw(GetLocal('TypeError'), "catch me?")
+        )
+        self.assertNotEqual(
+            Throw(GetLocal('TypeError'), "catch me!"),
+            Throw(GetLocal('Error'), "catch me!")
+        )
+        self.assertEqual(
+            Throw(GetLocal('TypeError'), "catch me!"),
+            Throw(GetLocal('TypeError'), "catch me!")
+        )
+
+        # Rethrow
+        self.assertNotEqual(
+            Rethrow(GetLocal("e")), 1
+        )
+        self.assertNotEqual(
+            Rethrow(GetLocal("e")), Rethrow(GetLocal("f"))
+        )
+        self.assertEqual(
+            Rethrow(GetLocal("e")), Rethrow(GetLocal("e"))
+        )
+    #-def
 
     def test_TryCatchFinally(self):
         p = CommandProcessor()
@@ -2777,6 +3335,28 @@ class TestTryCatchFinallyCase(unittest.TestCase):
 
 class TestSetItemCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(
+            SetItem(GetLocal('x'), 1, "u"), 1
+        )
+        self.assertNotEqual(
+            SetItem(GetLocal('x'), 1, "u"),
+            SetItem(GetLocal('y'), 1, "u")
+        )
+        self.assertNotEqual(
+            SetItem(GetLocal('x'), 1, "u"),
+            SetItem(GetLocal('x'), 2, "u")
+        )
+        self.assertNotEqual(
+            SetItem(GetLocal('x'), 1, "u"),
+            SetItem(GetLocal('x'), 1, "v")
+        )
+        self.assertEqual(
+            SetItem(GetLocal('x'), 1, "u"),
+            SetItem(GetLocal('x'), 1, "u")
+        )
+    #-def
+
     def test_SetItem(self):
         p = CommandProcessor()
 
@@ -2815,6 +3395,21 @@ class TestSetItemCase(unittest.TestCase):
 
 class TestDelItemCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(
+            DelItem(0, "c"), 1
+        )
+        self.assertNotEqual(
+            DelItem(0, "c"), DelItem(1, "c")
+        )
+        self.assertNotEqual(
+            DelItem(0, "c"), DelItem(0, "d")
+        )
+        self.assertEqual(
+            DelItem(0, "c"), DelItem(0, "c")
+        )
+    #-def
+
     def test_DelItem(self):
         p = CommandProcessor()
 
@@ -2841,6 +3436,21 @@ class TestDelItemCase(unittest.TestCase):
 
 class TestAppendCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(
+            Append(GetLocal('x'), 42), 1
+        )
+        self.assertNotEqual(
+            Append(GetLocal('x'), 42), Append(GetLocal('y'), 42)
+        )
+        self.assertNotEqual(
+            Append(GetLocal('x'), 42), Append(GetLocal('x'), 41)
+        )
+        self.assertEqual(
+            Append(GetLocal('x'), 42), Append(GetLocal('x'), 42)
+        )
+    #-def
+
     def test_Append(self):
         p = CommandProcessor()
 
@@ -2858,6 +3468,24 @@ class TestAppendCase(unittest.TestCase):
 #-class
 
 class TestInsertCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertNotEqual(
+            Insert([1, 2], 3, 1), 1
+        )
+        self.assertNotEqual(
+            Insert([1, 2], 3, 1), Insert([1, 2, 3], 3, 1)
+        )
+        self.assertNotEqual(
+            Insert([1, 2], 3, 1), Insert([1, 2], 4, 1)
+        )
+        self.assertNotEqual(
+            Insert([1, 2], 3, 1), Insert([1, 2], 3, 0)
+        )
+        self.assertEqual(
+            Insert([1, 2], 3, 1), Insert([1, 2], 3, 1)
+        )
+    #-def
 
     def test_Insert(self):
         p = CommandProcessor()
@@ -2886,6 +3514,21 @@ class TestInsertCase(unittest.TestCase):
 
 class TestRemoveCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(
+            Remove(GetLocal('x'), 'a'), 1
+        )
+        self.assertNotEqual(
+            Remove(GetLocal('x'), 'a'), Remove(GetLocal('y'), 'a')
+        )
+        self.assertNotEqual(
+            Remove(GetLocal('x'), 'a'), Remove(GetLocal('x'), 'b')
+        )
+        self.assertEqual(
+            Remove(GetLocal('x'), 'a'), Remove(GetLocal('x'), 'a')
+        )
+    #-def
+
     def test_Remove(self):
         p = CommandProcessor()
 
@@ -2905,6 +3548,21 @@ class TestRemoveCase(unittest.TestCase):
 
 class TestRemoveAllCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(
+            RemoveAll(GetLocal('x'), 'a'), 1
+        )
+        self.assertNotEqual(
+            RemoveAll(GetLocal('x'), 'a'), RemoveAll(GetLocal('y'), 'a')
+        )
+        self.assertNotEqual(
+            RemoveAll(GetLocal('x'), 'a'), RemoveAll(GetLocal('x'), 'b')
+        )
+        self.assertEqual(
+            RemoveAll(GetLocal('x'), 'a'), RemoveAll(GetLocal('x'), 'a')
+        )
+    #-def
+
     def test_RemoveAll(self):
         p = CommandProcessor()
 
@@ -2921,6 +3579,77 @@ class TestRemoveAllCase(unittest.TestCase):
 #-class
 
 class TestEachCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertNotEqual(
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 2, GetLocal('x')),
+            1
+        )
+        self.assertNotEqual(
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 2, GetLocal('x')),
+            Each([3, 5, 7, 9], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 2, GetLocal('x'))
+        )
+        self.assertNotEqual(
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 2, GetLocal('x')),
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('y'))
+                ))
+            ], []), 2, GetLocal('x'))
+        )
+        self.assertNotEqual(
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 2, GetLocal('x')),
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 3, GetLocal('x'))
+        )
+        self.assertNotEqual(
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 2, GetLocal('x')),
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 2, GetLocal('y'))
+        )
+        self.assertEqual(
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 2, GetLocal('x')),
+            Each([3, 5, 7], Lambda(['x', 'k', 'l'], False, [
+                Append(GetLocal('l'), Mul(
+                    GetLocal('k'), Mul(GetLocal('x'), GetLocal('x'))
+                ))
+            ], []), 2, GetLocal('x'))
+        )
+    #-def
 
     def test_Each(self):
         p = CommandProcessor()
@@ -2955,6 +3684,86 @@ class TestEachCase(unittest.TestCase):
 #-class
 
 class TestVisitCase(unittest.TestCase):
+
+    def test_equality(self):
+        u = UT_000()
+        f = Lambda(['n', 'args'], True, [
+            If(Eq(GetLocal('n'), 0), [
+                Return(
+                    Concat("(0: ",
+                    Concat(GetItem(GetLocal('args'), 0),
+                    Concat(" ",
+                    Concat(GetItem(GetLocal('args'), 1),
+                    Concat(" ",
+                    Concat(ToStr(GetItem(GetLocal('args'), 2)),
+                    Concat(" ",
+                    Concat(GetItem(GetLocal('args'), 3), ")"
+                    ))))))))
+                )
+            ], [If(Eq(GetLocal('n'), 1), [
+                Return(
+                    Concat("(1: ",
+                    Concat(ToStr(GetItem(GetLocal('args'), 0)),
+                    Concat(" ",
+                    Concat(ToStr(GetItem(GetLocal('args'), 1)),
+                    Concat(" ",
+                    Concat(GetItem(GetLocal('args'), 2), ")"
+                    ))))))
+                )
+            ], [
+                Return()
+            ])])
+        ], [])
+        g = Lambda(['n', 'args'], True, [
+            If(Eq(GetLocal('n'), 0), [
+                Return(
+                    Concat("(0: ",
+                    Concat(GetItem(GetLocal('args'), 0),
+                    Concat(" ",
+                    Concat(GetItem(GetLocal('args'), 1),
+                    Concat(" ",
+                    Concat(ToStr(GetItem(GetLocal('args'), 2)),
+                    Concat(" ",
+                    Concat(GetItem(GetLocal('args'), 3), ")"
+                    ))))))))
+                )
+            ], [If(Eq(GetLocal('n'), 1), [
+                Return(
+                    Concat("(1: ",
+                    Concat(ToStr(GetItem(GetLocal('args'), 0)),
+                    Concat(" ",
+                    Concat(ToStr(GetItem(GetLocal('args'), 1)),
+                    Concat(" ",
+                    Concat(GetItem(GetLocal('args'), 2), ")."
+                    ))))))
+                )
+            ], [
+                Return()
+            ])])
+        ], [])
+
+        self.assertNotEqual(
+            Visit(u, f, 0, "x", "y"), 1
+        )
+        self.assertNotEqual(
+            Visit(0, f, 0, "x", "y"), Visit(u, f, 0, "x", "y")
+        )
+        self.assertNotEqual(
+            Visit(u, f, 0, "x", "y"), Visit(u, g, 0, "x", "y")
+        )
+        self.assertNotEqual(
+            Visit(u, f, 0, "x", "y"), Visit(u, f, 1, "x", "y")
+        )
+        self.assertNotEqual(
+            Visit(u, f, 0, "x", "y"), Visit(u, f, 0, "_x", "y")
+        )
+        self.assertNotEqual(
+            Visit(u, f, 0, "x", "y"), Visit(u, f, 0, "x", "_y")
+        )
+        self.assertEqual(
+            Visit(u, f, 0, "x", "y"), Visit(u, f, 0, "x", "y")
+        )
+    #-def
 
     def test_Visit(self):
         p = CommandProcessor()
@@ -2998,6 +3807,31 @@ class TestVisitCase(unittest.TestCase):
 
 class TestPrintCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(
+            Print(
+                "(", 1, " + ", GetLocal("x"), " = ", Add(1, GetLocal("x")), ")"
+            ),
+            1
+        )
+        self.assertNotEqual(
+            Print(
+                "(", 1, " + ", GetLocal("x"), " = ", Add(1, GetLocal("x")), ")"
+            ),
+            Print(
+                "(", 1, " + ", GetLocal("x"), " = ", Add(1, GetLocal("x"))
+            )
+        )
+        self.assertEqual(
+            Print(
+                "(", 1, " + ", GetLocal("x"), " = ", Add(1, GetLocal("x")), ")"
+            ),
+            Print(
+                "(", 1, " + ", GetLocal("x"), " = ", Add(1, GetLocal("x")), ")"
+            )
+        )
+    #-def
+
     def test_Print(self):
         p = Printer()
 
@@ -3009,6 +3843,59 @@ class TestPrintCase(unittest.TestCase):
 #-class
 
 class TestModuleCase(unittest.TestCase):
+
+    def test_equality(self):
+        # DefModule
+        self.assertNotEqual(DefModule("m", [GetLocal("u")]), SetLocal("m", 1))
+        self.assertNotEqual(
+            DefModule("m", [GetLocal("u")]), DefModule("M", [GetLocal("u")])
+        )
+        self.assertNotEqual(
+            DefModule("m", [GetLocal("t")]), DefModule("m", [GetLocal("u")])
+        )
+        self.assertEqual(
+            DefModule("m", [GetLocal("u")]), DefModule("m", [GetLocal("u")])
+        )
+
+        # SetMember
+        self.assertNotEqual(
+            SetMember(GetMember(GetLocal('E'), 'F'), 'p', 42),
+            1
+        )
+        self.assertNotEqual(
+            SetMember(GetMember(GetLocal('E'), 'F'), 'p', 42),
+            SetMember(GetMember(GetLocal('E'), 'X'), 'p', 42)
+        )
+        self.assertNotEqual(
+            SetMember(GetMember(GetLocal('E'), 'F'), 'p', 42),
+            SetMember(GetMember(GetLocal('E'), 'F'), '_p', 42)
+        )
+        self.assertNotEqual(
+            SetMember(GetMember(GetLocal('E'), 'F'), 'p', 42),
+            SetMember(GetMember(GetLocal('E'), 'F'), 'p', 41)
+        )
+        self.assertEqual(
+            SetMember(GetMember(GetLocal('E'), 'F'), 'p', 42),
+            SetMember(GetMember(GetLocal('E'), 'F'), 'p', 42)
+        )
+
+        # GetMember
+        self.assertNotEqual(
+            GetMember(GetMember(GetLocal(""), 'A'), 'x'), 1
+        )
+        self.assertNotEqual(
+            GetMember(GetMember(GetLocal(""), 'A'), 'x'),
+            GetMember(GetMember(GetLocal(""), 'B'), 'x')
+        )
+        self.assertNotEqual(
+            GetMember(GetMember(GetLocal(""), 'A'), 'x'),
+            GetMember(GetMember(GetLocal(""), 'A'), 'y')
+        )
+        self.assertEqual(
+            GetMember(GetMember(GetLocal(""), 'A'), 'x'),
+            GetMember(GetMember(GetLocal(""), 'A'), 'x')
+        )
+    #-def
 
     def test_modules(self):
         p = Printer()
@@ -3140,6 +4027,7 @@ class TestModuleCase(unittest.TestCase):
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestCommandCase))
+    suite.addTest(unittest.makeSuite(TestConstCase))
     suite.addTest(unittest.makeSuite(TestVersionCase))
     suite.addTest(unittest.makeSuite(TestExpandCase))
     suite.addTest(unittest.makeSuite(TestSetLocalCase))
