@@ -40,8 +40,12 @@ from doit.support.cmd.runtime import \
     Location
 from doit.support.cmd.commands import \
     Const, \
-    SetLocal, \
-    DefModule
+    SetLocal, GetLocal, \
+    DefModule, \
+    Add, Sub, Mul, Div, Mod, \
+    BitAnd, BitOr, BitXor, ShiftL, ShiftR, \
+    And, Or, \
+    Concat, Join, Merge
 
 from doit.text.pgen.errors import ParsingError
 
@@ -1522,6 +1526,310 @@ end
 """
 ast_039 = None
 test_samples.append((False, name_039, sample_039, ast_039))
+
+name_040 = "sample_040.g"
+sample_040 = """\
+module A
+  x = y;
+end
+"""
+ast_040 = DefModule("A", [
+    SetLocal(
+        "x",
+        GetLocal("y").set_location(name_040, 2, 7)
+    ).set_location(name_040, 2, 5)
+]).set_location(name_040, 1, 1)
+test_samples.append((True, name_040, sample_040, ast_040))
+
+name_041 = "sample_041.g"
+sample_041 = """\
+module A
+  x += y;
+end
+"""
+ast_041 = DefModule("A", [
+    SetLocal(
+        "x",
+        Add(
+            GetLocal("x").set_location(name_041, 2, 3),
+            GetLocal("y").set_location(name_041, 2, 8)
+        ).set_location(name_041, 2, 5)
+    ).set_location(name_041, 2, 5)
+]).set_location(name_041, 1, 1)
+test_samples.append((True, name_041, sample_041, ast_041))
+
+name_042 = "sample_042.g"
+sample_042 = """\
+module A
+  x = y += z;
+end
+"""
+ast_042 = DefModule("A", [
+    SetLocal(
+        "y",
+        Add(
+            GetLocal("y").set_location(name_042, 2, 7),
+            GetLocal("z").set_location(name_042, 2, 12)
+        ).set_location(name_042, 2, 9)
+    ).set_location(name_042, 2, 9),
+    SetLocal(
+        "x",
+        GetLocal("y").set_location(name_042, 2, 7)
+    ).set_location(name_042, 2, 5)
+]).set_location(name_042, 1, 1)
+test_samples.append((True, name_042, sample_042, ast_042))
+
+name_043 = "sample_043.g"
+sample_043 = """\
+module A
+  x -= y;
+end
+"""
+ast_043 = DefModule("A", [
+    SetLocal(
+        "x",
+        Sub(
+            GetLocal("x").set_location(name_043, 2, 3),
+            GetLocal("y").set_location(name_043, 2, 8)
+        ).set_location(name_043, 2, 5)
+    ).set_location(name_043, 2, 5)
+]).set_location(name_043, 1, 1)
+test_samples.append((True, name_043, sample_043, ast_043))
+
+name_044 = "sample_044.g"
+sample_044 = """\
+module A
+  x *= y;
+end
+"""
+ast_044 = DefModule("A", [
+    SetLocal(
+        "x",
+        Mul(
+            GetLocal("x").set_location(name_044, 2, 3),
+            GetLocal("y").set_location(name_044, 2, 8)
+        ).set_location(name_044, 2, 5)
+    ).set_location(name_044, 2, 5)
+]).set_location(name_044, 1, 1)
+test_samples.append((True, name_044, sample_044, ast_044))
+
+name_045 = "sample_045.g"
+sample_045 = """\
+module A
+  x /= y;
+end
+"""
+ast_045 = DefModule("A", [
+    SetLocal(
+        "x",
+        Div(
+            GetLocal("x").set_location(name_045, 2, 3),
+            GetLocal("y").set_location(name_045, 2, 8)
+        ).set_location(name_045, 2, 5)
+    ).set_location(name_045, 2, 5)
+]).set_location(name_045, 1, 1)
+test_samples.append((True, name_045, sample_045, ast_045))
+
+name_046 = "sample_046.g"
+sample_046 = """\
+module A
+  x %= y;
+end
+"""
+ast_046 = DefModule("A", [
+    SetLocal(
+        "x",
+        Mod(
+            GetLocal("x").set_location(name_046, 2, 3),
+            GetLocal("y").set_location(name_046, 2, 8)
+        ).set_location(name_046, 2, 5)
+    ).set_location(name_046, 2, 5)
+]).set_location(name_046, 1, 1)
+test_samples.append((True, name_046, sample_046, ast_046))
+
+name_047 = "sample_047.g"
+sample_047 = """\
+module A
+  x &= y;
+end
+"""
+ast_047 = DefModule("A", [
+    SetLocal(
+        "x",
+        BitAnd(
+            GetLocal("x").set_location(name_047, 2, 3),
+            GetLocal("y").set_location(name_047, 2, 8)
+        ).set_location(name_047, 2, 5)
+    ).set_location(name_047, 2, 5)
+]).set_location(name_047, 1, 1)
+test_samples.append((True, name_047, sample_047, ast_047))
+
+name_048 = "sample_048.g"
+sample_048 = """\
+module A
+  x |= y;
+end
+"""
+ast_048 = DefModule("A", [
+    SetLocal(
+        "x",
+        BitOr(
+            GetLocal("x").set_location(name_048, 2, 3),
+            GetLocal("y").set_location(name_048, 2, 8)
+        ).set_location(name_048, 2, 5)
+    ).set_location(name_048, 2, 5)
+]).set_location(name_048, 1, 1)
+test_samples.append((True, name_048, sample_048, ast_048))
+
+name_049 = "sample_049.g"
+sample_049 = """\
+module A
+  x ^= y;
+end
+"""
+ast_049 = DefModule("A", [
+    SetLocal(
+        "x",
+        BitXor(
+            GetLocal("x").set_location(name_049, 2, 3),
+            GetLocal("y").set_location(name_049, 2, 8)
+        ).set_location(name_049, 2, 5)
+    ).set_location(name_049, 2, 5)
+]).set_location(name_049, 1, 1)
+test_samples.append((True, name_049, sample_049, ast_049))
+
+name_050 = "sample_050.g"
+sample_050 = """\
+module A
+  x <<= y;
+end
+"""
+ast_050 = DefModule("A", [
+    SetLocal(
+        "x",
+        ShiftL(
+            GetLocal("x").set_location(name_050, 2, 3),
+            GetLocal("y").set_location(name_050, 2, 9)
+        ).set_location(name_050, 2, 5)
+    ).set_location(name_050, 2, 5)
+]).set_location(name_050, 1, 1)
+test_samples.append((True, name_050, sample_050, ast_050))
+
+name_051 = "sample_051.g"
+sample_051 = """\
+module A
+  x >>= y;
+end
+"""
+ast_051 = DefModule("A", [
+    SetLocal(
+        "x",
+        ShiftR(
+            GetLocal("x").set_location(name_051, 2, 3),
+            GetLocal("y").set_location(name_051, 2, 9)
+        ).set_location(name_051, 2, 5)
+    ).set_location(name_051, 2, 5)
+]).set_location(name_051, 1, 1)
+test_samples.append((True, name_051, sample_051, ast_051))
+
+name_052 = "sample_052.g"
+sample_052 = """\
+module A
+  x &&= y;
+end
+"""
+ast_052 = DefModule("A", [
+    SetLocal(
+        "x",
+        And(
+            GetLocal("x").set_location(name_052, 2, 3),
+            GetLocal("y").set_location(name_052, 2, 9)
+        ).set_location(name_052, 2, 5)
+    ).set_location(name_052, 2, 5)
+]).set_location(name_052, 1, 1)
+test_samples.append((True, name_052, sample_052, ast_052))
+
+name_053 = "sample_053.g"
+sample_053 = """\
+module A
+  x ||= y;
+end
+"""
+ast_053 = DefModule("A", [
+    SetLocal(
+        "x",
+        Or(
+            GetLocal("x").set_location(name_053, 2, 3),
+            GetLocal("y").set_location(name_053, 2, 9)
+        ).set_location(name_053, 2, 5)
+    ).set_location(name_053, 2, 5)
+]).set_location(name_053, 1, 1)
+test_samples.append((True, name_053, sample_053, ast_053))
+
+name_054 = "sample_054.g"
+sample_054 = """\
+module A
+  x .= y;
+end
+"""
+ast_054 = DefModule("A", [
+    SetLocal(
+        "x",
+        Concat(
+            GetLocal("x").set_location(name_054, 2, 3),
+            GetLocal("y").set_location(name_054, 2, 8)
+        ).set_location(name_054, 2, 5)
+    ).set_location(name_054, 2, 5)
+]).set_location(name_054, 1, 1)
+test_samples.append((True, name_054, sample_054, ast_054))
+
+name_055 = "sample_055.g"
+sample_055 = """\
+module A
+  x ++= y;
+end
+"""
+ast_055 = DefModule("A", [
+    SetLocal(
+        "x",
+        Join(
+            GetLocal("x").set_location(name_055, 2, 3),
+            GetLocal("y").set_location(name_055, 2, 9)
+        ).set_location(name_055, 2, 5)
+    ).set_location(name_055, 2, 5)
+]).set_location(name_055, 1, 1)
+test_samples.append((True, name_055, sample_055, ast_055))
+
+name_056 = "sample_056.g"
+sample_056 = """\
+module A
+  x ~~= y;
+end
+"""
+ast_056 = DefModule("A", [
+    SetLocal(
+        "x",
+        Merge(
+            GetLocal("x").set_location(name_056, 2, 3),
+            GetLocal("y").set_location(name_056, 2, 9)
+        ).set_location(name_056, 2, 5)
+    ).set_location(name_056, 2, 5)
+]).set_location(name_056, 1, 1)
+test_samples.append((True, name_056, sample_056, ast_056))
+
+name_057 = "sample_057.g"
+sample_057 = """\
+module A
+  x || y;
+end
+"""
+ast_057 = DefModule("A", [
+    Or(
+        GetLocal("x").set_location(name_057, 2, 3),
+        GetLocal("y").set_location(name_057, 2, 8)
+    ).set_location(name_057, 2, 5)
+]).set_location(name_057, 1, 1)
+test_samples.append((True, name_057, sample_057, ast_057))
 
 class TestGlapParserCase(unittest.TestCase):
 

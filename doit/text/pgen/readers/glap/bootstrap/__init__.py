@@ -40,7 +40,11 @@ from doit.support.cmd.runtime import \
 from doit.support.cmd.commands import \
     Const, \
     SetLocal, GetLocal, \
-    DefModule
+    DefModule, \
+    Add, Sub, Mul, Div, Mod, \
+    BitAnd, BitOr, BitXor, ShiftL, ShiftR, \
+    And, Or, \
+    Concat, Join, Merge
 
 from doit.text.pgen.errors import ParsingError
 from doit.text.pgen.readers.reader import Reader
@@ -647,12 +651,20 @@ class GlapCompileCmdHelper(object):
         """
         """
 
-        o = cls(context, var.position(), "Missing '$' before variable's name")
+        o = cls(context, var.position(), "")
+        o.node = var
         if context.actions.inmacro:
             o.kind = cls.MACRO_VARIABLE
+            o.value_holder = MacroNode(GetLocal, MacroNodeAtom(var.value()))
+            o.value_holder.deferred.append(
+                SetLocation(*make_location(context, var.position()))
+            )
         else:
             o.kind = cls.VARIABLE
-        o.node = var
+            o.value_holder = GetLocal(var.value())
+            o.value_holder.set_location(
+                *make_location(context, var.position())
+            )
         return o
     #-def
 
