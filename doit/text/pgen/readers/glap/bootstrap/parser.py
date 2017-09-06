@@ -882,6 +882,9 @@ class GlapParser(object):
             oplvl = optab.atomlevel
         while True:
             op = optab.peekoperator(lexer)
+            # Fix the "a 'b" case:
+            if not op and lexer.test("'"):
+                op = optab.operators.get("", None)
             if not op or op.lbp > oplvl or op.level < level:
                 break
             if not lambdas and lexer.token.ttype == "{":
@@ -965,7 +968,7 @@ class GlapParser(object):
         # c_fargs -> ID+ ( "..." ID )?
         t = lexer.peek()
         if t is None:
-            GlapSyntaxError(lexer, "Unexpected end of input")
+            raise GlapSyntaxError(self.context, "Unexpected end of input")
         ttype = t.ttype
         if ttype == GLAP_ID:
             lexer.next()
@@ -1006,6 +1009,7 @@ class GlapParser(object):
             lexer.match(")")
             return r
         elif ttype == "[":
+            lexer.next()
             is_hash = False
             items = []
             while not lexer.test("]", None):
@@ -1026,24 +1030,20 @@ class GlapParser(object):
             )
         elif ttype == "{":
             if not lambdas:
-                raise GlapSyntaxError(lexer,
+                raise GlapSyntaxError(self.context,
                     "Atom (primary expression) was expected, but block found"
                 )
             lexer.next()
-            if actions.inmacro:
-                raise GlapSyntaxError(self.context,
-                    "Macro definition inside function is not allowed"
-                )
             actions.procedure_nesting_level += 1
             lexer.match("|")
             fargs = [lexer.match(GLAP_ID)]
-            has_varags = False
+            has_varargs = False
             while lexer.test(GLAP_ID):
                 fargs.append(lexer.match(GLAP_ID))
             if lexer.test("..."):
                 lexer.next()
                 fargs.append(lexer.match(GLAP_ID))
-                has_varags = True
+                has_varargs = True
             lexer.match("|")
             commands = []
             while not lexer.test("}", None):
@@ -1054,7 +1054,9 @@ class GlapParser(object):
                 "c_expr_atom(lambda)",
                 self.context, t.position(), fargs, has_varargs, commands
             )
-        raise GlapSyntaxError(lexer, "Atom (primary expression) was expected")
+        raise GlapSyntaxError(self.context,
+            "Atom (primary expression) was expected"
+        )
     #-def
 
     def parse_c_maccall(self, lexer, actions):
@@ -1084,21 +1086,20 @@ class GlapParser(object):
         # c_stmt -> "foreach" ID c_expr[1] c_block
         # c_stmt -> "while" c_expr[1] c_block
         # c_stmt -> "do" c_block "while" c_expr[1] ";"
-        # c_stmt -> "break"
-        # c_stmt -> "continue"
-        # c_stmt -> "return" ( c_expr[1] ";" )?
+        # c_stmt -> "break" ";"
+        # c_stmt -> "continue" ";"
+        # c_stmt -> "return" ( c_expr[1] )? ";"
         # c_stmt -> "try" c_block
         #           ( "catch" ID ID? c_block )*
         #           ( "finally" c_block )?
         # c_stmt -> "throw" c_expr[1] ( "," c_expr[1] )? ";"
         t = lexer.peek()
         if t is None:
-            raise GlapSyntaxError(lexer, "Unexpected end of input")
+            raise GlapSyntaxError(self.context, "Unexpected end of input")
         tt = t.ttype
         if tt == "{":
             return self.parse_c_block(lexer, actions)
         elif tt == "defmacro":
-            lexer.next()
             if actions.inmacro:
                 raise GlapSyntaxError(self.context,
                     "Nested macros are not allowed"
@@ -1107,6 +1108,7 @@ class GlapParser(object):
                 raise GlapSyntaxError(self.context,
                     "Macros inside functions are not allowed"
                 )
+            lexer.next()
             actions.inmacro = True
             name = lexer.match(GLAP_ID)
             params = []
@@ -1123,11 +1125,11 @@ class GlapParser(object):
                 self.context, t.position(), name, params, body
             )
         elif tt == "define":
-            lexer.next()
             if actions.inmacro:
                 raise GlapSyntaxError(self.context,
-                    "Macro definition inside function is not allowed"
+                    "Function definition inside macro is not allowed"
                 )
+            lexer.next()
             actions.procedure_nesting_level += 1
             name = lexer.match(GLAP_ID)
             params = []
@@ -1192,17 +1194,20 @@ class GlapParser(object):
             )
         elif tt in ["break", "continue"]:
             lexer.next()
+            lexer.match(";")
             return actions.run("c_stmt(%s)" % tt, self.context, t.position())
         elif tt == "return":
             lexer.next()
-            if self.parse_c_expr.optab.operandfollows(lexer) \
-            and lexer.token.ttype != "{":
-                rv, _ = self.parse_c_expr(lexer, actions, 1, False)
-                lexer.match(";")
+            if lexer.test(";"):
+                lexer.next()
                 return actions.run(
-                    "c_stmt(return(expr))", self.context, t.position(), rv
+                    "c_stmt(return)", self.context, t.position()
                 )
-            return actions.run("c_stmt(return)", self.context, t.position())
+            rv, _ = self.parse_c_expr(lexer, actions, 1, False)
+            lexer.match(";")
+            return actions.run(
+                "c_stmt(return(expr))", self.context, t.position(), rv
+            )
         elif tt == "try":
             lexer.next()
             tryblock = self.parse_c_block(lexer, actions, True)
@@ -1229,14 +1234,14 @@ class GlapParser(object):
             lexer.next()
             ee, _ = self.parse_c_expr(lexer, actions, 1, True)
             em = None
-            if lexer.peek(","):
+            if lexer.test(","):
                 lexer.next()
                 em, _ = self.parse_c_expr(lexer, actions, 1, True)
             lexer.match(";")
             return actions.run(
                 "c_stmt(throw)", self.context, t.position(), ee, em
             )
-        raise GlapSyntaxError(lexer, "Statement was expected")
+        raise GlapSyntaxError(self.context, "Statement was expected")
     #-def
 
     def parse_c_block(self, lexer, actions, keep_varinfo = False):

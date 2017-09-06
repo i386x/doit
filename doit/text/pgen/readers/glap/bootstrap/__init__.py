@@ -39,12 +39,23 @@ from doit.support.cmd.runtime import \
     Location
 from doit.support.cmd.commands import \
     Const, \
+    MacroNode, MacroNodeSequence, MacroNodeAtom, MacroNodeParam, \
+    Expand, \
     SetLocal, GetLocal, \
-    DefModule, \
-    Add, Sub, Mul, Div, Mod, \
-    BitAnd, BitOr, BitXor, ShiftL, ShiftR, \
-    And, Or, \
-    Concat, Join, Merge
+    DefMacro, Define, DefModule, \
+    Add, Sub, Mul, Div, Mod, Neg, \
+    BitAnd, BitOr, BitXor, ShiftL, ShiftR, Inv, \
+    Lt, Gt, Le, Ge, Eq, Ne, Is, \
+    And, Or, Not, \
+    NewPair, NewList, NewHashMap, \
+    Concat, Join, Merge, \
+    Contains, \
+    GetItem, \
+    Lambda, \
+    Block, If, Foreach, While, DoWhile, Break, Continue, \
+    Call, Return, \
+    TryCatchFinally, Throw, Rethrow, \
+    GetMember
 
 from doit.text.pgen.errors import ParsingError
 from doit.text.pgen.readers.reader import Reader
@@ -464,18 +475,17 @@ class GlapCompileCmdHelper(object):
         """
 
         cls.checknode(context, loc, module)
-        cls.checknode(context, loc, member)
         inmacro = context.actions.inmacro
         o = cls(context, loc, "")
         if inmacro:
             o.kind = cls.MACRO_NODE_ACCESS
             o.node = MacroNode(
-                GetMember, module.value_expr(), member.node.value()
+                GetMember, module.value_expr(), member.value()
             )
             o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.ACCESS_EXPR
-            o.node = GetMember(module.value_expr(), member.node.value())
+            o.node = GetMember(module.value_expr(), member.value())
             o.node.set_location(*make_location(context, loc))
         o.code.extend(module.code)
         o.vars.extend(module.vars)
@@ -826,11 +836,11 @@ class GlapCompileCmdHelper(object):
                 p = MacroNode(NewPair, k.value_expr(), v.value_expr())
                 p.deferred.append(k.value_expr().deferred[0])
                 items_.append(p)
-            o.node = MacroNode(NewHash, *items_)
+            o.node = MacroNode(NewHashMap, *items_)
             o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.NARY_EXPR
-            o.node = NewHash(*[
+            o.node = NewHashMap(*[
                 (k.value_expr(), v.value_expr()) for k, v in items
             ])
             o.node.set_location(*make_location(context, loc))
@@ -861,7 +871,8 @@ class GlapCompileCmdHelper(object):
         bvars = []
         for cmd in commands:
             body.extend(cmd.code)
-            body.append(cmd.value_expr())
+            if cmd.kind not in (cls.ASSIGN_EXPR, cls.MACRO_NODE_ASSIGN):
+                body.append(cmd.value_expr())
             bvars.extend(cmd.vars)
         if inmacro:
             o.kind = cls.MACRO_NODE_LAMBDA
@@ -898,7 +909,8 @@ class GlapCompileCmdHelper(object):
             body.extend(cmd.code)
             if keep_varinfo:
                 o.vars.extend(cmd.vars)
-            body.append(cmd.value_expr())
+            if cmd.kind not in (cls.ASSIGN_EXPR, cls.MACRO_NODE_ASSIGN):
+                body.append(cmd.value_expr())
         if inmacro:
             o.kind = cls.MACRO_STATEMENT
             o.node = MacroNode(Block, *body)
@@ -954,13 +966,12 @@ class GlapCompileCmdHelper(object):
                 ie_("Unballanced `define's"), loc
             )
         cls.checknode(context, loc, body)
+        params_ = [p.value() for p in params]
+        bvars_ = [v for v in body.vars if v not in params_]
         body_ = body.value_expr().commands
         o = cls(context, loc, "")
         o.kind = cls.DEFINE_STATEMENT
-        o.node = Define(
-            name.value(), body.vars, [p.value() for p in params], has_varargs,
-            body_
-        )
+        o.node = Define(name.value(), bvars_, params_, has_varargs, body_)
         o.node.set_location(*make_location(context, loc))
         o.value_holder = o.node
         context.actions.procedure_nesting_level -= 1
@@ -1807,14 +1818,12 @@ class GlapParserActions(object):
         kind = command.kind
         if kind < 0:
             raise GlapSyntaxError(context, ie_("Unspecified node"))
-        elif kind <= GlapCompileCmdHelper.EXPAND:
+        elif kind <= GlapCompileCmdHelper.VARIABLE:
             unwrapped = []
             unwrapped.extend(command.code)
             if kind != GlapCompileCmdHelper.ASSIGN_EXPR:
                 unwrapped.append(command.value_expr())
             return unwrapped
-        elif kind == GlapCompileCmdHelper.VARIABLE:
-            raise GlapSyntaxError(context, ie_("Standalone variable"))
         elif kind <= GlapCompileCmdHelper.DEFINE_STATEMENT:
             return [command.value_expr()]
         raise GlapSyntaxError(context,

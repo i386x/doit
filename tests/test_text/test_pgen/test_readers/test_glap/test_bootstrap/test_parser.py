@@ -40,12 +40,23 @@ from doit.support.cmd.runtime import \
     Location
 from doit.support.cmd.commands import \
     Const, \
+    MacroNode, MacroNodeSequence, MacroNodeAtom, MacroNodeParam, \
+    Expand, \
     SetLocal, GetLocal, \
-    DefModule, \
-    Add, Sub, Mul, Div, Mod, \
-    BitAnd, BitOr, BitXor, ShiftL, ShiftR, \
-    And, Or, \
-    Concat, Join, Merge
+    DefMacro, Define, DefModule, \
+    Add, Sub, Mul, Div, Mod, Neg, \
+    BitAnd, BitOr, BitXor, ShiftL, ShiftR, Inv, \
+    Lt, Gt, Le, Ge, Eq, Ne, Is, \
+    And, Or, Not, \
+    NewPair, NewList, NewHashMap, \
+    Concat, Join, Merge, \
+    Contains, \
+    GetItem, \
+    Lambda, \
+    Block, If, Foreach, While, DoWhile, Break, Continue, \
+    Call, Return, \
+    TryCatchFinally, Throw, Rethrow, \
+    GetMember
 
 from doit.text.pgen.errors import ParsingError
 
@@ -61,7 +72,7 @@ from doit.text.pgen.readers.glap.bootstrap.pp.commands import \
     DefRule, DefGrammar
 
 from doit.text.pgen.readers.glap.bootstrap import \
-    make_location, \
+    make_location, SetLocation, \
     GlapLexError, GlapSyntaxError, \
     GlapContext, \
     GlapStream, \
@@ -1830,6 +1841,1699 @@ ast_057 = DefModule("A", [
     ).set_location(name_057, 2, 5)
 ]).set_location(name_057, 1, 1)
 test_samples.append((True, name_057, sample_057, ast_057))
+
+name_058 = "sample_058.g"
+sample_058 = """\
+module A
+  x && y;
+end
+"""
+ast_058 = DefModule("A", [
+    And(
+        GetLocal("x").set_location(name_058, 2, 3),
+        GetLocal("y").set_location(name_058, 2, 8)
+    ).set_location(name_058, 2, 5)
+]).set_location(name_058, 1, 1)
+test_samples.append((True, name_058, sample_058, ast_058))
+
+name_059 = "sample_059.g"
+sample_059 = """\
+module A
+  a && b || c && d || e && f && g;
+end
+"""
+ast_059 = DefModule("A", [
+    Or(
+        Or(
+            And(
+                GetLocal("a").set_location(name_059, 2, 3),
+                GetLocal("b").set_location(name_059, 2, 8)
+            ).set_location(name_059, 2, 5),
+            And(
+                GetLocal("c").set_location(name_059, 2, 13),
+                GetLocal("d").set_location(name_059, 2, 18)
+            ).set_location(name_059, 2, 15)
+        ).set_location(name_059, 2, 10),
+        And(
+            And(
+                GetLocal("e").set_location(name_059, 2, 23),
+                GetLocal("f").set_location(name_059, 2, 28)
+            ).set_location(name_059, 2, 25),
+            GetLocal("g").set_location(name_059, 2, 33)
+        ).set_location(name_059, 2, 30)
+    ).set_location(name_059, 2, 20)
+]).set_location(name_059, 1, 1)
+test_samples.append((True, name_059, sample_059, ast_059))
+
+name_060 = "sample_060.g"
+sample_060 = """\
+module A
+  a < b;
+end
+"""
+ast_060 = DefModule("A", [
+    Lt(
+        GetLocal("a").set_location(name_060, 2, 3),
+        GetLocal("b").set_location(name_060, 2, 7)
+    ).set_location(name_060, 2, 5)
+]).set_location(name_060, 1, 1)
+test_samples.append((True, name_060, sample_060, ast_060))
+
+name_061 = "sample_061.g"
+sample_061 = """\
+module A
+  a > b;
+end
+"""
+ast_061 = DefModule("A", [
+    Gt(
+        GetLocal("a").set_location(name_061, 2, 3),
+        GetLocal("b").set_location(name_061, 2, 7)
+    ).set_location(name_061, 2, 5)
+]).set_location(name_061, 1, 1)
+test_samples.append((True, name_061, sample_061, ast_061))
+
+name_062 = "sample_062.g"
+sample_062 = """\
+module A
+  a <= b;
+end
+"""
+ast_062 = DefModule("A", [
+    Le(
+        GetLocal("a").set_location(name_062, 2, 3),
+        GetLocal("b").set_location(name_062, 2, 8)
+    ).set_location(name_062, 2, 5)
+]).set_location(name_062, 1, 1)
+test_samples.append((True, name_062, sample_062, ast_062))
+
+name_063 = "sample_063.g"
+sample_063 = """\
+module A
+  a >= b;
+end
+"""
+ast_063 = DefModule("A", [
+    Ge(
+        GetLocal("a").set_location(name_063, 2, 3),
+        GetLocal("b").set_location(name_063, 2, 8)
+    ).set_location(name_063, 2, 5)
+]).set_location(name_063, 1, 1)
+test_samples.append((True, name_063, sample_063, ast_063))
+
+name_064 = "sample_064.g"
+sample_064 = """\
+module A
+  a == b;
+end
+"""
+ast_064 = DefModule("A", [
+    Eq(
+        GetLocal("a").set_location(name_064, 2, 3),
+        GetLocal("b").set_location(name_064, 2, 8)
+    ).set_location(name_064, 2, 5)
+]).set_location(name_064, 1, 1)
+test_samples.append((True, name_064, sample_064, ast_064))
+
+name_065 = "sample_065.g"
+sample_065 = """\
+module A
+  a != b;
+end
+"""
+ast_065 = DefModule("A", [
+    Ne(
+        GetLocal("a").set_location(name_065, 2, 3),
+        GetLocal("b").set_location(name_065, 2, 8)
+    ).set_location(name_065, 2, 5)
+]).set_location(name_065, 1, 1)
+test_samples.append((True, name_065, sample_065, ast_065))
+
+name_066 = "sample_066.g"
+sample_066 = """\
+module A
+  a === b;
+end
+"""
+ast_066 = DefModule("A", [
+    Is(
+        GetLocal("a").set_location(name_066, 2, 3),
+        GetLocal("b").set_location(name_066, 2, 9)
+    ).set_location(name_066, 2, 5)
+]).set_location(name_066, 1, 1)
+test_samples.append((True, name_066, sample_066, ast_066))
+
+name_067 = "sample_067.g"
+sample_067 = """\
+module A
+  a in b;
+end
+"""
+ast_067 = DefModule("A", [
+    Contains(
+        GetLocal("a").set_location(name_067, 2, 3),
+        GetLocal("b").set_location(name_067, 2, 8)
+    ).set_location(name_067, 2, 5)
+]).set_location(name_067, 1, 1)
+test_samples.append((True, name_067, sample_067, ast_067))
+
+name_068 = "sample_068.g"
+sample_068 = """\
+module A
+  a < x && x < b;
+end
+"""
+ast_068 = DefModule("A", [
+    And(
+        Lt(
+            GetLocal("a").set_location(name_068, 2, 3),
+            GetLocal("x").set_location(name_068, 2, 7)
+        ).set_location(name_068, 2, 5),
+        Lt(
+            GetLocal("x").set_location(name_068, 2, 12),
+            GetLocal("b").set_location(name_068, 2, 16)
+        ).set_location(name_068, 2, 14)
+    ).set_location(name_068, 2, 9)
+]).set_location(name_068, 1, 1)
+test_samples.append((True, name_068, sample_068, ast_068))
+
+name_069 = "sample_069.g"
+sample_069 = """\
+module A
+  a < x < b;
+end
+"""
+ast_069 = None
+test_samples.append((False, name_069, sample_069, ast_069))
+
+name_070 = "sample_070.g"
+sample_070 = """\
+module A
+  a | b;
+end
+"""
+ast_070 = DefModule("A", [
+    BitOr(
+        GetLocal("a").set_location(name_070, 2, 3),
+        GetLocal("b").set_location(name_070, 2, 7)
+    ).set_location(name_070, 2, 5)
+]).set_location(name_070, 1, 1)
+test_samples.append((True, name_070, sample_070, ast_070))
+
+name_071 = "sample_071.g"
+sample_071 = """\
+module A
+  a & b;
+end
+"""
+ast_071 = DefModule("A", [
+    BitAnd(
+        GetLocal("a").set_location(name_071, 2, 3),
+        GetLocal("b").set_location(name_071, 2, 7)
+    ).set_location(name_071, 2, 5)
+]).set_location(name_071, 1, 1)
+test_samples.append((True, name_071, sample_071, ast_071))
+
+name_072 = "sample_072.g"
+sample_072 = """\
+module A
+  a ^ b;
+end
+"""
+ast_072 = DefModule("A", [
+    BitXor(
+        GetLocal("a").set_location(name_072, 2, 3),
+        GetLocal("b").set_location(name_072, 2, 7)
+    ).set_location(name_072, 2, 5)
+]).set_location(name_072, 1, 1)
+test_samples.append((True, name_072, sample_072, ast_072))
+
+name_073 = "sample_073.g"
+sample_073 = """\
+module A
+  a | b | c;
+  a | b & c;
+  a | b ^ c;
+
+  a & b | c;
+  a & b & c;
+  a & b ^ c;
+
+  a ^ b | c;
+  a ^ b & c;
+  a ^ b ^ c;
+end
+"""
+ast_073 = DefModule("A", [
+    # a | b | c == (a | b) | c
+    BitOr(
+        BitOr(
+            GetLocal("a").set_location(name_073, 2, 3),
+            GetLocal("b").set_location(name_073, 2, 7)
+        ).set_location(name_073, 2, 5),
+        GetLocal("c").set_location(name_073, 2, 11)
+    ).set_location(name_073, 2, 9),
+    # a | b & c == a | (b & c)
+    BitOr(
+        GetLocal("a").set_location(name_073, 3, 3),
+        BitAnd(
+            GetLocal("b").set_location(name_073, 3, 7),
+            GetLocal("c").set_location(name_073, 3, 11)
+        ).set_location(name_073, 3, 9)
+    ).set_location(name_073, 3, 5),
+    # a | b ^ c == a | (b ^ c)
+    BitOr(
+        GetLocal("a").set_location(name_073, 4, 3),
+        BitXor(
+            GetLocal("b").set_location(name_073, 4, 7),
+            GetLocal("c").set_location(name_073, 4, 11)
+        ).set_location(name_073, 4, 9)
+    ).set_location(name_073, 4, 5),
+
+    # a & b | c == (a & b) | c
+    BitOr(
+        BitAnd(
+            GetLocal("a").set_location(name_073, 6, 3),
+            GetLocal("b").set_location(name_073, 6, 7)
+        ).set_location(name_073, 6, 5),
+        GetLocal("c").set_location(name_073, 6, 11)
+    ).set_location(name_073, 6, 9),
+    # a & b & c == (a & b) & c
+    BitAnd(
+        BitAnd(
+            GetLocal("a").set_location(name_073, 7, 3),
+            GetLocal("b").set_location(name_073, 7, 7)
+        ).set_location(name_073, 7, 5),
+        GetLocal("c").set_location(name_073, 7, 11)
+    ).set_location(name_073, 7, 9),
+    # a & b ^ c == a & (b ^ c)
+    BitAnd(
+        GetLocal("a").set_location(name_073, 8, 3),
+        BitXor(
+            GetLocal("b").set_location(name_073, 8, 7),
+            GetLocal("c").set_location(name_073, 8, 11)
+        ).set_location(name_073, 8, 9)
+    ).set_location(name_073, 8, 5),
+
+    # a ^ b | c == (a ^ b) | c
+    BitOr(
+        BitXor(
+            GetLocal("a").set_location(name_073, 10, 3),
+            GetLocal("b").set_location(name_073, 10, 7)
+        ).set_location(name_073, 10, 5),
+        GetLocal("c").set_location(name_073, 10, 11)
+    ).set_location(name_073, 10, 9),
+    # a ^ b & c == (a ^ b) & c
+    BitAnd(
+        BitXor(
+            GetLocal("a").set_location(name_073, 11, 3),
+            GetLocal("b").set_location(name_073, 11, 7)
+        ).set_location(name_073, 11, 5),
+        GetLocal("c").set_location(name_073, 11, 11)
+    ).set_location(name_073, 11, 9),
+    # a ^ b ^ c == (a ^ b) ^ c
+    BitXor(
+        BitXor(
+            GetLocal("a").set_location(name_073, 12, 3),
+            GetLocal("b").set_location(name_073, 12, 7)
+        ).set_location(name_073, 12, 5),
+        GetLocal("c").set_location(name_073, 12, 11)
+    ).set_location(name_073, 12, 9)
+]).set_location(name_073, 1, 1)
+test_samples.append((True, name_073, sample_073, ast_073))
+
+name_074 = "sample_074.g"
+sample_074 = """\
+module A
+  a << b;
+end
+"""
+ast_074 = DefModule("A", [
+    ShiftL(
+        GetLocal("a").set_location(name_074, 2, 3),
+        GetLocal("b").set_location(name_074, 2, 8)
+    ).set_location(name_074, 2, 5)
+]).set_location(name_074, 1, 1)
+test_samples.append((True, name_074, sample_074, ast_074))
+
+name_075 = "sample_075.g"
+sample_075 = """\
+module A
+  a >> b;
+end
+"""
+ast_075 = DefModule("A", [
+    ShiftR(
+        GetLocal("a").set_location(name_075, 2, 3),
+        GetLocal("b").set_location(name_075, 2, 8)
+    ).set_location(name_075, 2, 5)
+]).set_location(name_075, 1, 1)
+test_samples.append((True, name_075, sample_075, ast_075))
+
+name_076 = "sample_076.g"
+sample_076 = """\
+module A
+  a + b;
+end
+"""
+ast_076 = DefModule("A", [
+    Add(
+        GetLocal("a").set_location(name_076, 2, 3),
+        GetLocal("b").set_location(name_076, 2, 7)
+    ).set_location(name_076, 2, 5)
+]).set_location(name_076, 1, 1)
+test_samples.append((True, name_076, sample_076, ast_076))
+
+name_077 = "sample_077.g"
+sample_077 = """\
+module A
+  a - b;
+end
+"""
+ast_077 = DefModule("A", [
+    Sub(
+        GetLocal("a").set_location(name_077, 2, 3),
+        GetLocal("b").set_location(name_077, 2, 7)
+    ).set_location(name_077, 2, 5)
+]).set_location(name_077, 1, 1)
+test_samples.append((True, name_077, sample_077, ast_077))
+
+name_078 = "sample_078.g"
+sample_078 = """\
+module A
+  a . b;
+end
+"""
+ast_078 = DefModule("A", [
+    Concat(
+        GetLocal("a").set_location(name_078, 2, 3),
+        GetLocal("b").set_location(name_078, 2, 7)
+    ).set_location(name_078, 2, 5)
+]).set_location(name_078, 1, 1)
+test_samples.append((True, name_078, sample_078, ast_078))
+
+name_079 = "sample_079.g"
+sample_079 = """\
+module A
+  a ++ b;
+end
+"""
+ast_079 = DefModule("A", [
+    Join(
+        GetLocal("a").set_location(name_079, 2, 3),
+        GetLocal("b").set_location(name_079, 2, 8)
+    ).set_location(name_079, 2, 5)
+]).set_location(name_079, 1, 1)
+test_samples.append((True, name_079, sample_079, ast_079))
+
+name_080 = "sample_080.g"
+sample_080 = """\
+module A
+  a ~~ b;
+end
+"""
+ast_080 = DefModule("A", [
+    Merge(
+        GetLocal("a").set_location(name_080, 2, 3),
+        GetLocal("b").set_location(name_080, 2, 8)
+    ).set_location(name_080, 2, 5)
+]).set_location(name_080, 1, 1)
+test_samples.append((True, name_080, sample_080, ast_080))
+
+name_081 = "sample_081.g"
+sample_081 = """\
+module A
+  a * b;
+end
+"""
+ast_081 = DefModule("A", [
+    Mul(
+        GetLocal("a").set_location(name_081, 2, 3),
+        GetLocal("b").set_location(name_081, 2, 7)
+    ).set_location(name_081, 2, 5)
+]).set_location(name_081, 1, 1)
+test_samples.append((True, name_081, sample_081, ast_081))
+
+name_082 = "sample_082.g"
+sample_082 = """\
+module A
+  a / b;
+end
+"""
+ast_082 = DefModule("A", [
+    Div(
+        GetLocal("a").set_location(name_082, 2, 3),
+        GetLocal("b").set_location(name_082, 2, 7)
+    ).set_location(name_082, 2, 5)
+]).set_location(name_082, 1, 1)
+test_samples.append((True, name_082, sample_082, ast_082))
+
+name_083 = "sample_083.g"
+sample_083 = """\
+module A
+  a % b;
+end
+"""
+ast_083 = DefModule("A", [
+    Mod(
+        GetLocal("a").set_location(name_083, 2, 3),
+        GetLocal("b").set_location(name_083, 2, 7)
+    ).set_location(name_083, 2, 5)
+]).set_location(name_083, 1, 1)
+test_samples.append((True, name_083, sample_083, ast_083))
+
+name_084 = "sample_084.g"
+sample_084 = """\
+module A
+  a b;
+end
+"""
+ast_084 = DefModule("A", [
+    Call(
+        GetLocal("a").set_location(name_084, 2, 3),
+        GetLocal("b").set_location(name_084, 2, 5)
+    ).set_location(name_084, 2, 5)
+]).set_location(name_084, 1, 1)
+test_samples.append((True, name_084, sample_084, ast_084))
+
+name_085 = "sample_085.g"
+sample_085 = """\
+module A
+  a b c;
+end
+"""
+ast_085 = DefModule("A", [
+    Call(
+        GetLocal("a").set_location(name_085, 2, 3),
+        GetLocal("b").set_location(name_085, 2, 5),
+        GetLocal("c").set_location(name_085, 2, 7)
+    ).set_location(name_085, 2, 5)
+]).set_location(name_085, 1, 1)
+test_samples.append((True, name_085, sample_085, ast_085))
+
+name_086 = "sample_086.g"
+sample_086 = """\
+module A
+  a b 'c;
+end
+"""
+ast_086 = DefModule("A", [
+    Call(
+        GetLocal("a").set_location(name_086, 2, 3),
+        GetLocal("b").set_location(name_086, 2, 5),
+        GetLocal("c").set_location(name_086, 2, 8)
+    ).set_location(name_086, 2, 5)
+]).set_location(name_086, 1, 1)
+test_samples.append((True, name_086, sample_086, ast_086))
+
+name_087 = "sample_087.g"
+sample_087 = """\
+module A
+  a 'b 'c;
+end
+"""
+ast_087 = DefModule("A", [
+    Call(
+        GetLocal("a").set_location(name_087, 2, 3),
+        GetLocal("b").set_location(name_087, 2, 6),
+        GetLocal("c").set_location(name_087, 2, 9)
+    ).set_location(name_087, 2, 5)
+]).set_location(name_087, 1, 1)
+test_samples.append((True, name_087, sample_087, ast_087))
+
+name_088 = "sample_088.g"
+sample_088 = """\
+module A
+  -a; !b; ~c; -!~d; e - - -f;
+end
+"""
+ast_088 = DefModule("A", [
+    Neg(
+        GetLocal("a").set_location(name_088, 2, 4)
+    ).set_location(name_088, 2, 3),
+    Not(
+        GetLocal("b").set_location(name_088, 2, 8)
+    ).set_location(name_088, 2, 7),
+    Inv(
+        GetLocal("c").set_location(name_088, 2, 12)
+    ).set_location(name_088, 2, 11),
+    Neg(
+        Not(
+            Inv(
+                GetLocal("d").set_location(name_088, 2, 18)
+            ).set_location(name_088, 2, 17)
+        ).set_location(name_088, 2, 16)
+    ).set_location(name_088, 2, 15),
+    Sub(
+        GetLocal("e").set_location(name_088, 2, 21),
+        Neg(
+            Neg(
+                GetLocal("f").set_location(name_088, 2, 28)
+            ).set_location(name_088, 2, 27)
+        ).set_location(name_088, 2, 25)
+    ).set_location(name_088, 2, 23)
+]).set_location(name_088, 1, 1)
+test_samples.append((True, name_088, sample_088, ast_088))
+
+name_089 = "sample_089.g"
+sample_089 = """\
+module A
+  a[b]; c[d][e]; f[g[h]];
+end
+"""
+ast_089 = DefModule("A", [
+    GetItem(
+        GetLocal("a").set_location(name_089, 2, 3),
+        GetLocal("b").set_location(name_089, 2, 5)
+    ).set_location(name_089, 2, 4),
+    GetItem(
+        GetItem(
+            GetLocal("c").set_location(name_089, 2, 9),
+            GetLocal("d").set_location(name_089, 2, 11)
+        ).set_location(name_089, 2, 10),
+        GetLocal("e").set_location(name_089, 2, 14)
+    ).set_location(name_089, 2, 13),
+    GetItem(
+        GetLocal("f").set_location(name_089, 2, 18),
+        GetItem(
+            GetLocal("g").set_location(name_089, 2, 20),
+            GetLocal("h").set_location(name_089, 2, 22)
+        ).set_location(name_089, 2, 21)
+    ).set_location(name_089, 2, 19)
+]).set_location(name_089, 1, 1)
+test_samples.append((True, name_089, sample_089, ast_089))
+
+name_090 = "sample_090.g"
+sample_090 = """\
+module A
+  a:b; c:d:e:f;
+end
+"""
+ast_090 = DefModule("A", [
+    GetMember(
+        GetLocal("a").set_location(name_090, 2, 3), "b"
+    ).set_location(name_090, 2, 4),
+    GetMember(
+        GetMember(
+            GetMember(
+                GetLocal("c").set_location(name_090, 2, 8),
+                "d"
+            ).set_location(name_090, 2, 9),
+            "e"
+        ).set_location(name_090, 2, 11),
+        "f"
+    ).set_location(name_090, 2, 13)
+]).set_location(name_090, 1, 1)
+test_samples.append((True, name_090, sample_090, ast_090))
+
+name_091 = "sample_091.g"
+sample_091 = """\
+module A
+  !
+"""
+ast_091 = None
+test_samples.append((False, name_091, sample_091, ast_091))
+
+name_092 = "sample_092.g"
+sample_092 = """\
+module A
+  a;
+end
+"""
+ast_092 = DefModule("A", [
+    GetLocal("a").set_location(name_092, 2, 3)
+]).set_location(name_092, 1, 1)
+test_samples.append((True, name_092, sample_092, ast_092))
+
+name_093 = "sample_093.g"
+sample_093 = """\
+module A
+  $1;
+end
+"""
+ast_093 = None
+test_samples.append((False, name_093, sample_093, ast_093))
+
+name_094 = "sample_094.g"
+sample_094 = """\
+module A
+  $a;
+end
+"""
+ast_094 = DefModule("A", [
+    GetLocal("a").set_location(name_094, 2, 4)
+]).set_location(name_094, 1, 1)
+test_samples.append((True, name_094, sample_094, ast_094))
+
+name_095 = "sample_095.g"
+sample_095 = """\
+module A
+  #1;
+end
+"""
+ast_095 = None
+test_samples.append((False, name_095, sample_095, ast_095))
+
+name_096 = "sample_096.g"
+sample_096 = """\
+module A
+  #a;
+end
+"""
+ast_096 = None
+test_samples.append((False, name_096, sample_096, ast_096))
+
+name_097 = "sample_097.g"
+sample_097 = """\
+module A
+  $(a = 1);
+end
+"""
+ast_097 = None
+test_samples.append((False, name_097, sample_097, ast_097))
+
+name_098 = "sample_098.g"
+sample_098 = """\
+module A
+  $(a); $(a b); $(a `b);
+end
+"""
+ast_098 = DefModule("A", [
+    Expand(
+        GetLocal("a").set_location(name_098, 2, 5)
+    ).set_location(name_098, 2, 3),
+    Expand(
+        Call(
+            GetLocal("a").set_location(name_098, 2, 11),
+            GetLocal("b").set_location(name_098, 2, 13)
+        ).set_location(name_098, 2, 13)
+    ).set_location(name_098, 2, 9),
+    Expand(
+        GetLocal("a").set_location(name_098, 2, 19),
+        GetLocal("b").set_location(name_098, 2, 22)
+    ).set_location(name_098, 2, 17)
+]).set_location(name_098, 1, 1)
+test_samples.append((True, name_098, sample_098, ast_098))
+
+name_099 = "sample_099.g"
+sample_099 = """\
+module A
+  $(a `b = 1);
+end
+"""
+ast_099 = None
+test_samples.append((False, name_099, sample_099, ast_099))
+
+name_100 = "sample_100.g"
+sample_100 = """\
+module A
+  1; 1.5; "abc";
+end
+"""
+ast_100 = DefModule("A", [
+    Const(1).set_location(name_100, 2, 3),
+    Const(1.5).set_location(name_100, 2, 6),
+    Const("abc").set_location(name_100, 2, 11)
+]).set_location(name_100, 1, 1)
+test_samples.append((True, name_100, sample_100, ast_100))
+
+name_101 = "sample_101.g"
+sample_101 = """\
+module A
+  (a);
+end
+"""
+ast_101 = DefModule("A", [
+    GetLocal("a").set_location(name_101, 2, 4)
+]).set_location(name_101, 1, 1)
+test_samples.append((True, name_101, sample_101, ast_101))
+
+name_102 = "sample_102.g"
+sample_102 = """\
+module A
+  (a = 1);
+end
+"""
+ast_102 = None
+test_samples.append((False, name_102, sample_102, ast_102))
+
+name_103 = "sample_103.g"
+sample_103 = """\
+module A
+  (a, );
+end
+"""
+ast_103 = None
+test_samples.append((False, name_103, sample_103, ast_103))
+
+name_104 = "sample_104.g"
+sample_104 = """\
+module A
+  (a, b = 2);
+end
+"""
+ast_104 = None
+test_samples.append((False, name_104, sample_104, ast_104))
+
+name_105 = "sample_105.g"
+sample_105 = """\
+module A
+  (1, 2);
+end
+"""
+ast_105 = DefModule("A", [
+    NewPair(
+        Const(1).set_location(name_105, 2, 4),
+        Const(2).set_location(name_105, 2, 7)
+    ).set_location(name_105, 2, 3)
+]).set_location(name_105, 1, 1)
+test_samples.append((True, name_105, sample_105, ast_105))
+
+name_106 = "sample_106.g"
+sample_106 = """\
+module A
+  (a, b, c);
+end
+"""
+ast_106 = None
+test_samples.append((False, name_106, sample_106, ast_106))
+
+name_107 = "sample_107.g"
+sample_107 = """\
+module A
+  [];
+end
+"""
+ast_107 = DefModule("A", [
+    NewList(
+    ).set_location(name_107, 2, 3)
+]).set_location(name_107, 1, 1)
+test_samples.append((True, name_107, sample_107, ast_107))
+
+name_108 = "sample_108.g"
+sample_108 = """\
+module A
+  [
+end
+"""
+ast_108 = None
+test_samples.append((False, name_108, sample_108, ast_108))
+
+name_109 = "sample_109.g"
+sample_109 = """\
+module A
+  [1];
+end
+"""
+ast_109 = DefModule("A", [
+    NewList(
+        Const(1).set_location(name_109, 2, 4)
+    ).set_location(name_109, 2, 3)
+]).set_location(name_109, 1, 1)
+test_samples.append((True, name_109, sample_109, ast_109))
+
+name_110 = "sample_110.g"
+sample_110 = """\
+module A
+  [1
+end
+"""
+ast_110 = None
+test_samples.append((False, name_110, sample_110, ast_110))
+
+name_111 = "sample_111.g"
+sample_111 = """\
+module A
+  [a = 1];
+end
+"""
+ast_111 = None
+test_samples.append((False, name_111, sample_111, ast_111))
+
+name_112 = "sample_112.g"
+sample_112 = """\
+module A
+  [1, 2];
+end
+"""
+ast_112 = DefModule("A", [
+    NewList(
+        Const(1).set_location(name_112, 2, 4),
+        Const(2).set_location(name_112, 2, 7)
+    ).set_location(name_112, 2, 3)
+]).set_location(name_112, 1, 1)
+test_samples.append((True, name_112, sample_112, ast_112))
+
+name_113 = "sample_113.g"
+sample_113 = """\
+module A
+  [1, 2, 3];
+end
+"""
+ast_113 = DefModule("A", [
+    NewList(
+        Const(1).set_location(name_113, 2, 4),
+        Const(2).set_location(name_113, 2, 7),
+        Const(3).set_location(name_113, 2, 10)
+    ).set_location(name_113, 2, 3)
+]).set_location(name_113, 1, 1)
+test_samples.append((True, name_113, sample_113, ast_113))
+
+name_114 = "sample_114.g"
+sample_114 = """\
+module A
+  [a,];
+end
+"""
+ast_114 = None
+test_samples.append((False, name_114, sample_114, ast_114))
+
+name_115 = "sample_115.g"
+sample_115 = """\
+module A
+  [a, b => c];
+end
+"""
+ast_115 = None
+test_samples.append((False, name_115, sample_115, ast_115))
+
+name_116 = "sample_116.g"
+sample_116 = """\
+module A
+  [a => ];
+end
+"""
+ast_116 = None
+test_samples.append((False, name_116, sample_116, ast_116))
+
+name_117 = "sample_117.g"
+sample_117 = """\
+module A
+  [1 => 2, 3];
+end
+"""
+ast_117 = None
+test_samples.append((False, name_117, sample_117, ast_117))
+
+name_118 = "sample_118.g"
+sample_118 = """\
+module A
+  [1 => 2];
+  [3 => 4, 5 => 6];
+  ["a" => "b", "c" => "d", "e" => "f"];
+end
+"""
+ast_118 = DefModule("A", [
+    NewHashMap(
+        (
+            Const(1).set_location(name_118, 2, 4),
+            Const(2).set_location(name_118, 2, 9)
+        )
+    ).set_location(name_118, 2, 3),
+    NewHashMap(
+        (
+            Const(3).set_location(name_118, 3, 4),
+            Const(4).set_location(name_118, 3, 9)
+        ),
+        (
+            Const(5).set_location(name_118, 3, 12),
+            Const(6).set_location(name_118, 3, 17)
+        )
+    ).set_location(name_118, 3, 3),
+    NewHashMap(
+        (
+            Const("a").set_location(name_118, 4, 4),
+            Const("b").set_location(name_118, 4, 11)
+        ),
+        (
+            Const("c").set_location(name_118, 4, 16),
+            Const("d").set_location(name_118, 4, 23)
+        ),
+        (
+            Const("e").set_location(name_118, 4, 28),
+            Const("f").set_location(name_118, 4, 35)
+        )
+    ).set_location(name_118, 4, 3)
+]).set_location(name_118, 1, 1)
+test_samples.append((True, name_118, sample_118, ast_118))
+
+name_119 = "sample_119.g"
+sample_119 = """\
+module A
+  ({
+end
+"""
+ast_119 = None
+test_samples.append((False, name_119, sample_119, ast_119))
+
+name_120 = "sample_120.g"
+sample_120 = """\
+module A
+  ({|
+end
+"""
+ast_120 = None
+test_samples.append((False, name_120, sample_120, ast_120))
+
+name_121 = "sample_121.g"
+sample_121 = """\
+module A
+  ({|x
+end
+"""
+ast_121 = None
+test_samples.append((False, name_121, sample_121, ast_121))
+
+name_122 = "sample_122.g"
+sample_122 = """\
+module A
+  ({|x y
+end
+"""
+ast_122 = None
+test_samples.append((False, name_122, sample_122, ast_122))
+
+name_123 = "sample_123.g"
+sample_123 = """\
+module A
+  ({|x y ...
+end
+"""
+ast_123 = None
+test_samples.append((False, name_123, sample_123, ast_123))
+
+name_124 = "sample_124.g"
+sample_124 = """\
+module A
+  ({|x y ...z
+end
+"""
+ast_124 = None
+test_samples.append((False, name_124, sample_124, ast_124))
+
+name_125 = "sample_125.g"
+sample_125 = """\
+module A
+  ({|x ...
+end
+"""
+ast_125 = None
+test_samples.append((False, name_125, sample_125, ast_125))
+
+name_126 = "sample_126.g"
+sample_126 = """\
+module A
+  ({|x ...y
+end
+"""
+ast_126 = None
+test_samples.append((False, name_126, sample_126, ast_126))
+
+name_127 = "sample_127.g"
+sample_127 = """\
+module A
+  ({|...
+end
+"""
+ast_127 = None
+test_samples.append((False, name_127, sample_127, ast_127))
+
+name_128 = "sample_128.g"
+sample_128 = """\
+module A
+  ({|...x
+end
+"""
+ast_128 = None
+test_samples.append((False, name_128, sample_128, ast_128))
+
+name_129 = "sample_129.g"
+sample_129 = """\
+module A
+  ({|x ...y|
+end
+"""
+ast_129 = None
+test_samples.append((False, name_129, sample_129, ast_129))
+
+name_130 = "sample_130.g"
+sample_130 = """\
+module A
+  ({|x ...y| a = 2;});
+end
+"""
+ast_130 = DefModule("A", [
+    Lambda(
+        ["x", "y"], True, [
+            SetLocal(
+                "a",
+                Const(2).set_location(name_130, 2, 18)
+            ).set_location(name_130, 2, 16)
+        ], ["a"]
+    ).set_location(name_130, 2, 4)
+]).set_location(name_130, 1, 1)
+test_samples.append((True, name_130, sample_130, ast_130))
+
+name_131 = "sample_131.g"
+sample_131 = """\
+module A
+  {a = 1;}
+end
+"""
+ast_131 = DefModule("A", [
+    Block(
+        SetLocal(
+            "a",
+            Const(1).set_location(name_131, 2, 8)
+        ).set_location(name_131, 2, 6)
+    ).set_location(name_131, 2, 3)
+]).set_location(name_131, 1, 1)
+test_samples.append((True, name_131, sample_131, ast_131))
+
+name_132 = "sample_132.g"
+sample_132 = """\
+module A
+  {
+"""
+ast_132 = None
+test_samples.append((False, name_132, sample_132, ast_132))
+
+def sl_(n, f, l, c):
+    n.deferred.append(SetLocation(f, l, c))
+    return n
+#-def
+
+name_133 = "sample_133.g"
+sample_133 = """\
+module A
+  defmacro mac x y (#x + #y;)
+end
+"""
+ast_133 = DefModule("A", [
+    DefMacro("mac", ["x", "y"], [
+        sl_(MacroNode(Add,
+            sl_(MacroNodeParam("x"), name_133, 2, 21),
+            sl_(MacroNodeParam("y"), name_133, 2, 35)
+        ), name_133, 2, 24)
+    ]).set_location(name_133, 2, 3)
+]).set_location(name_133, 1, 1)
+test_samples.append((True, name_133, sample_133, ast_133))
+
+name_134 = "sample_134.g"
+sample_134 = """\
+module A
+  define f {
+  }
+end
+"""
+ast_134 = DefModule("A", [
+    Define("f", [], [], False, []).set_location(name_134, 2, 3)
+]).set_location(name_134, 1, 1)
+test_samples.append((True, name_134, sample_134, ast_134))
+
+name_135 = "sample_135.g"
+sample_135 = """\
+module A
+  define f {
+    defmacro m ()
+  }
+end
+"""
+ast_135 = None
+test_samples.append((False, name_135, sample_135, ast_135))
+
+name_136 = "sample_136.g"
+sample_136 = """\
+module A
+  defmacro m1 (
+    defmacro m2 ()
+  )
+end
+"""
+ast_136 = None
+test_samples.append((False, name_136, sample_136, ast_136))
+
+name_137 = "sample_137.g"
+sample_137 = """\
+module A
+  defmacro m1 ()
+  define f {}
+  defmacro m2 ()
+  define g {}
+end
+"""
+ast_137 = DefModule("A", [
+    DefMacro("m1", [], []).set_location(name_137, 2, 3),
+    Define("f", [], [], False, []).set_location(name_137, 3, 3),
+    DefMacro("m2", [], []).set_location(name_137, 4, 3),
+    Define("g", [], [], False, []).set_location(name_137, 5, 3)
+]).set_location(name_137, 1, 1)
+test_samples.append((True, name_137, sample_137, ast_137))
+
+name_138 = "sample_138.g"
+sample_138 = """\
+module A
+  define f {}
+  defmacro m1 ()
+  define g {}
+  defmacro m2 ()
+end
+"""
+ast_138 = DefModule("A", [
+    Define("f", [], [], False, []).set_location(name_138, 2, 3),
+    DefMacro("m1", [], []).set_location(name_138, 3, 3),
+    Define("g", [], [], False, []).set_location(name_138, 4, 3),
+    DefMacro("m2", [], []).set_location(name_138, 5, 3)
+]).set_location(name_138, 1, 1)
+test_samples.append((True, name_138, sample_138, ast_138))
+
+name_139 = "sample_139.g"
+sample_139 = """\
+module A
+  defmacro m (
+    define f {}
+  )
+end
+"""
+ast_139 = None
+test_samples.append((False, name_139, sample_139, ast_139))
+
+name_140 = "sample_140.g"
+sample_140 = """\
+module A
+  define f x y ...z {
+    t = x + y;
+    {
+      u = a + b;
+    }
+  }
+end
+"""
+ast_140 = DefModule("A", [
+    Define("f", ["t"], ["x", "y", "z"], True, [
+        SetLocal(
+            "t",
+            Add(
+                GetLocal("x").set_location(name_140, 3, 9),
+                GetLocal("y").set_location(name_140, 3, 13)
+            ).set_location(name_140, 3, 11)
+        ).set_location(name_140, 3, 7),
+        Block(
+            SetLocal(
+                "u",
+                Add(
+                    GetLocal("a").set_location(name_140, 5, 11),
+                    GetLocal("b").set_location(name_140, 5, 15)
+                ).set_location(name_140, 5, 13)
+            ).set_location(name_140, 5, 9)
+        ).set_location(name_140, 4, 5)
+    ]).set_location(name_140, 2, 3)
+]).set_location(name_140, 1, 1)
+test_samples.append((True, name_140, sample_140, ast_140))
+
+name_141 = "sample_141.g"
+sample_141 = """\
+module A            -- 1
+  define f x y z {  -- 2
+    if (x > y) {    -- 3
+      t = z;        -- 4
+    }               -- 5
+    {               -- 6
+      if (x > y) {  -- 7
+        u = z;      -- 8
+      }             -- 9
+    }               -- 10
+    if !z {         -- 11
+      a = 1;        -- 12
+    }               -- 13
+    else {          -- 14
+      b = 1;        -- 15
+    }               -- 16
+    if 1 {          -- 17
+      a = 1;        -- 18
+    }               -- 19
+    elif 2 {        -- 20
+      b = 2;        -- 21
+    }               -- 22
+  }                 -- 23
+end                 -- 24
+"""
+ast_141 = DefModule("A", [
+    Define("f", ["t", "a", "b"], ["x", "y", "z"], False, [
+        If(
+            Gt(
+                GetLocal("x").set_location(name_141, 3, 9),
+                GetLocal("y").set_location(name_141, 3, 13)
+            ).set_location(name_141, 3, 11),
+            [
+                SetLocal(
+                    "t",
+                    GetLocal("z").set_location(name_141, 4, 11)
+                ).set_location(name_141, 4, 9)
+            ],
+            []
+        ).set_location(name_141, 3, 5),
+
+        Block(
+            If(
+                Gt(
+                    GetLocal("x").set_location(name_141, 7, 11),
+                    GetLocal("y").set_location(name_141, 7, 15)
+                ).set_location(name_141, 7, 13),
+                [
+                    SetLocal(
+                        "u",
+                        GetLocal("z").set_location(name_141, 8, 13)
+                    ).set_location(name_141, 8, 11)
+                ],
+                []
+            ).set_location(name_141, 7, 7)
+        ).set_location(name_141, 6, 5),
+
+        If(
+            Not(
+                GetLocal("z").set_location(name_141, 11, 9)
+            ).set_location(name_141, 11, 8),
+            [
+                SetLocal(
+                    "a",
+                    Const(1).set_location(name_141, 12, 11)
+                ).set_location(name_141, 12, 9)
+            ],
+            [
+                SetLocal(
+                    "b",
+                    Const(1).set_location(name_141, 15, 11)
+                ).set_location(name_141, 15, 9)
+            ]
+        ).set_location(name_141, 11, 5),
+
+        If(
+            Const(1).set_location(name_141, 17, 8),
+            [
+                SetLocal(
+                    "a",
+                    Const(1).set_location(name_141, 18, 11)
+                ).set_location(name_141, 18, 9)
+            ],
+            [
+                If(
+                    Const(2).set_location(name_141, 20, 10),
+                    [
+                        SetLocal(
+                            "b",
+                            Const(2).set_location(name_141, 21, 11)
+                        ).set_location(name_141, 21, 9)
+                    ],
+                    []
+                ).set_location(name_141, 20, 5)
+            ]
+        ).set_location(name_141, 17, 5)
+    ]).set_location(name_141, 2, 3)
+]).set_location(name_141, 1, 1)
+test_samples.append((True, name_141, sample_141, ast_141))
+
+name_142 = "sample_142.g"
+sample_142 = """\
+module A
+  if 1 {1;}
+  elif 2 {2;}
+  else {0;}
+end
+"""
+ast_142 = DefModule("A", [
+    If(
+        Const(1).set_location(name_142, 2, 6),
+        [Const(1).set_location(name_142, 2, 9)],
+        [
+            If(
+                Const(2).set_location(name_142, 3, 8),
+                [Const(2).set_location(name_142, 3, 11)],
+                [Const(0).set_location(name_142, 4, 9)]
+            ).set_location(name_142, 3, 3)
+        ]
+    ).set_location(name_142, 2, 3)
+]).set_location(name_142, 1, 1)
+test_samples.append((True, name_142, sample_142, ast_142))
+
+name_143 = "sample_143.g"
+sample_143 = """\
+module A
+  if 1 {1;}
+  elif 2 {2;}
+  elif 3 {3;}
+end
+"""
+ast_143 = DefModule("A", [
+    If(
+        Const(1).set_location(name_143, 2, 6),
+        [Const(1).set_location(name_143, 2, 9)],
+        [
+            If(
+                Const(2).set_location(name_143, 3, 8),
+                [Const(2).set_location(name_143, 3, 11)],
+                [
+                    If(
+                        Const(3).set_location(name_143, 4, 8),
+                        [Const(3).set_location(name_143, 4, 11)],
+                        []
+                    ).set_location(name_143, 4, 3)
+                ]
+            ).set_location(name_143, 3, 3)
+        ]
+    ).set_location(name_143, 2, 3)
+]).set_location(name_143, 1, 1)
+test_samples.append((True, name_143, sample_143, ast_143))
+
+name_144 = "sample_144.g"
+sample_144 = """\
+module A
+  if 1 {1;}
+  elif 2 {2;}
+  elif 3 {3;}
+  else {0;}
+end
+"""
+ast_144 = DefModule("A", [
+    If(
+        Const(1).set_location(name_144, 2, 6),
+        [Const(1).set_location(name_144, 2, 9)],
+        [
+            If(
+                Const(2).set_location(name_144, 3, 8),
+                [Const(2).set_location(name_144, 3, 11)],
+                [
+                    If(
+                        Const(3).set_location(name_144, 4, 8),
+                        [Const(3).set_location(name_144, 4, 11)],
+                        [Const(0).set_location(name_144, 5, 9)]
+                    ).set_location(name_144, 4, 3)
+                ]
+            ).set_location(name_144, 3, 3)
+        ]
+    ).set_location(name_144, 2, 3)
+]).set_location(name_144, 1, 1)
+test_samples.append((True, name_144, sample_144, ast_144))
+
+name_145 = "sample_145.g"
+sample_145 = """\
+module A
+  if 1 {1;}
+  elif 2 {2;}
+  elif 3 {3;}
+  elif 4 {4;}
+  else {0;}
+end
+"""
+ast_145 = DefModule("A", [
+    If(
+        Const(1).set_location(name_145, 2, 6),
+        [Const(1).set_location(name_145, 2, 9)],
+        [
+            If(
+                Const(2).set_location(name_145, 3, 8),
+                [Const(2).set_location(name_145, 3, 11)],
+                [
+                    If(
+                        Const(3).set_location(name_145, 4, 8),
+                        [Const(3).set_location(name_145, 4, 11)],
+                        [
+                            If(
+                                Const(4).set_location(name_145, 5, 8),
+                                [Const(4).set_location(name_145, 5, 11)],
+                                [Const(0).set_location(name_145, 6, 9)]
+                            ).set_location(name_145, 5, 3)
+                        ]
+                    ).set_location(name_145, 4, 3)
+                ]
+            ).set_location(name_145, 3, 3)
+        ]
+    ).set_location(name_145, 2, 3)
+]).set_location(name_145, 1, 1)
+test_samples.append((True, name_145, sample_145, ast_145))
+
+name_146 = "sample_146.g"
+sample_146 = """\
+module A
+  define f ...args {
+    foreach x args {
+      u = x;
+    }
+    while 0 {
+      v = 1;
+    }
+    do {
+      w = 0;
+    } while 1;
+    break; continue;
+    return;
+    return 1;
+  }
+end
+"""
+ast_146 = DefModule("A", [
+    Define("f", ["x", "u", "v", "w"], ["args"], True, [
+        Foreach(
+            "x",
+            GetLocal("args").set_location(name_146, 3, 15),
+            [
+                SetLocal(
+                    "u",
+                    GetLocal("x").set_location(name_146, 4, 11)
+                ).set_location(name_146, 4, 9)
+            ]
+        ).set_location(name_146, 3, 5),
+        While(
+            Const(0).set_location(name_146, 6, 11),
+            [
+                SetLocal(
+                    "v",
+                    Const(1).set_location(name_146, 7, 11)
+                ).set_location(name_146, 7, 9)
+            ]
+        ).set_location(name_146, 6, 5),
+        DoWhile(
+            [
+                SetLocal(
+                    "w",
+                    Const(0).set_location(name_146, 10, 11)
+                ).set_location(name_146, 10, 9)
+            ],
+            Const(1).set_location(name_146, 11, 13)
+        ).set_location(name_146, 9, 5),
+        Break().set_location(name_146, 12, 5),
+        Continue().set_location(name_146, 12, 12),
+        Return().set_location(name_146, 13, 5),
+        Return(
+            Const(1).set_location(name_146, 14, 12)
+        ).set_location(name_146, 14, 5)
+    ]).set_location(name_146, 2, 3),
+]).set_location(name_146, 1, 1)
+test_samples.append((True, name_146, sample_146, ast_146))
+
+name_147 = "sample_147.g"
+sample_147 = """\
+module A
+  define f {
+    try {
+    }
+  }
+end
+"""
+ast_147 = DefModule("A", [
+    Define("f", [], [], False, [
+        TryCatchFinally(
+            [], [], []
+        ).set_location(name_147, 3, 5)
+    ]).set_location(name_147, 2, 3)
+]).set_location(name_147, 1, 1)
+test_samples.append((True, name_147, sample_147, ast_147))
+
+name_148 = "sample_148.g"
+sample_148 = """\
+module A
+  define f {
+    try {
+      a = 1;
+    }
+    catch Error {
+      b = 1;
+    }
+  }
+end
+"""
+ast_148 = DefModule("A", [
+    Define("f", ["a", "b"], [], False, [
+        TryCatchFinally(
+            [
+                SetLocal(
+                    "a",
+                    Const(1).set_location(name_148, 4, 11)
+                ).set_location(name_148, 4, 9)
+            ],
+            [
+                ("Error", None, [
+                    SetLocal(
+                        "b",
+                        Const(1).set_location(name_148, 7, 11)
+                    ).set_location(name_148, 7, 9)
+                ])
+            ],
+            []
+        ).set_location(name_148, 3, 5)
+    ]).set_location(name_148, 2, 3)
+]).set_location(name_148, 1, 1)
+test_samples.append((True, name_148, sample_148, ast_148))
+
+name_149 = "sample_149.g"
+sample_149 = """\
+module A
+  define f {
+    try {
+      a = 1;
+    }
+    catch Error e {
+      b = 1;
+    }
+  }
+end
+"""
+ast_149 = DefModule("A", [
+    Define("f", ["a", "e", "b"], [], False, [
+        TryCatchFinally(
+            [
+                SetLocal(
+                    "a",
+                    Const(1).set_location(name_149, 4, 11)
+                ).set_location(name_149, 4, 9)
+            ],
+            [
+                ("Error", "e", [
+                    SetLocal(
+                        "b",
+                        Const(1).set_location(name_149, 7, 11)
+                    ).set_location(name_149, 7, 9)
+                ])
+            ],
+            []
+        ).set_location(name_149, 3, 5)
+    ]).set_location(name_149, 2, 3)
+]).set_location(name_149, 1, 1)
+test_samples.append((True, name_149, sample_149, ast_149))
+
+name_150 = "sample_150.g"
+sample_150 = """\
+module A
+  define f {
+    try {
+      a = 1;
+    }
+    finally {
+      b = 1;
+    }
+  }
+end
+"""
+ast_150 = DefModule("A", [
+    Define("f", ["a", "b"], [], False, [
+        TryCatchFinally(
+            [
+                SetLocal(
+                    "a",
+                    Const(1).set_location(name_150, 4, 11)
+                ).set_location(name_150, 4, 9)
+            ],
+            [],
+            [
+                SetLocal(
+                    "b",
+                    Const(1).set_location(name_150, 7, 11)
+                ).set_location(name_150, 7, 9)
+            ]
+        ).set_location(name_150, 3, 5)
+    ]).set_location(name_150, 2, 3)
+]).set_location(name_150, 1, 1)
+test_samples.append((True, name_150, sample_150, ast_150))
+
+name_151 = "sample_151.g"
+sample_151 = """\
+module A
+  define f {
+    try {
+      a = 1;
+    }
+    catch Error {
+      b = 1;
+    }
+    catch Error e {
+      c = 1;
+    }
+    catch Error e {
+      d = 1;
+    }
+    finally {
+      e = 1;
+    }
+  }
+end
+"""
+ast_151 = DefModule("A", [
+    Define("f", ["a", "b", "e", "c", "d"], [], False, [
+        TryCatchFinally(
+            [
+                SetLocal(
+                    "a",
+                    Const(1).set_location(name_151, 4, 11)
+                ).set_location(name_151, 4, 9)
+            ],
+            [
+                ("Error", None, [
+                    SetLocal(
+                        "b",
+                        Const(1).set_location(name_151, 7, 11)
+                    ).set_location(name_151, 7, 9)
+                ]),
+                ("Error", "e", [
+                    SetLocal(
+                        "c",
+                        Const(1).set_location(name_151, 10, 11)
+                    ).set_location(name_151, 10, 9)
+                ]),
+                ("Error", "e", [
+                    SetLocal(
+                        "d",
+                        Const(1).set_location(name_151, 13, 11)
+                    ).set_location(name_151, 13, 9)
+                ])
+            ],
+            [
+                SetLocal(
+                    "e",
+                    Const(1).set_location(name_151, 16, 11)
+                ).set_location(name_151, 16, 9)
+            ]
+        ).set_location(name_151, 3, 5)
+    ]).set_location(name_151, 2, 3)
+]).set_location(name_151, 1, 1)
+test_samples.append((True, name_151, sample_151, ast_151))
+
+name_152 = "sample_152.g"
+sample_152 = """\
+module A
+  throw e;
+  throw Error, "Operation fails";
+end
+"""
+ast_152 = DefModule("A", [
+    Rethrow(
+        GetLocal("e").set_location(name_152, 2, 9)
+    ).set_location(name_152, 2, 3),
+    Throw(
+        GetLocal("Error").set_location(name_152, 3, 9),
+        Const("Operation fails").set_location(name_152, 3, 16)
+    ).set_location(name_152, 3, 3)
+]).set_location(name_152, 1, 1)
+test_samples.append((True, name_152, sample_152, ast_152))
 
 class TestGlapParserCase(unittest.TestCase):
 
