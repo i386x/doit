@@ -55,7 +55,8 @@ from doit.support.cmd.commands import \
     Block, If, Foreach, While, DoWhile, Break, Continue, \
     Call, Return, \
     TryCatchFinally, Throw, Rethrow, \
-    GetMember
+    SetItem, \
+    SetMember, GetMember
 
 from doit.text.pgen.errors import ParsingError
 from doit.text.pgen.readers.reader import Reader
@@ -480,7 +481,7 @@ class GlapCompileCmdHelper(object):
         if inmacro:
             o.kind = cls.MACRO_NODE_ACCESS
             o.node = MacroNode(
-                GetMember, module.value_expr(), member.value()
+                GetMember, module.value_expr(), MacroNodeAtom(member.value())
             )
             o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
@@ -756,7 +757,7 @@ class GlapCompileCmdHelper(object):
         o = cls(context, t.position(), "")
         if context.actions.inmacro:
             o.kind = cls.MACRO_NODE_NULLARY
-            o.node = MacroNode(Const, MacroNodeAtom(t.value()))
+            o.node = MacroNode(Const, MacroNodeAtom(t.value(True)))
             o.node.deferred.append(SetLocation(*make_location(
                 context, t.position()
             )))
@@ -874,21 +875,21 @@ class GlapCompileCmdHelper(object):
             if cmd.kind not in (cls.ASSIGN_EXPR, cls.MACRO_NODE_ASSIGN):
                 body.append(cmd.value_expr())
             bvars.extend(cmd.vars)
+        fargs_ = [x.value() for x in fargs]
+        bvars_ = [x for x in bvars if x not in fargs_]
         if inmacro:
             o.kind = cls.MACRO_NODE_LAMBDA
             o.node = MacroNode(
                 Lambda,
-                MacroNodeAtom([x.value() for x in fargs]),
+                MacroNodeAtom(fargs_),
                 MacroNodeAtom(has_varargs),
                 MacroNodeSequence(*body),
-                MacroNodeAtom(bvars)
+                MacroNodeAtom(bvars_)
             )
             o.node.deferred.append(SetLocation(*make_location(context, loc)))
         else:
             o.kind = cls.LAMBDA_EXPR
-            o.node = Lambda(
-                [x.value() for x in fargs], has_varargs, body, bvars
-            )
+            o.node = Lambda(fargs_, has_varargs, body, bvars_)
             o.node.set_location(*make_location(context, loc))
         o.value_holder = o.node
         context.actions.procedure_nesting_level -= 1
@@ -944,7 +945,8 @@ class GlapCompileCmdHelper(object):
         mbody = []
         for node in body:
             mbody.extend(node.code)
-            mbody.append(node.value_expr())
+            if node.kind not in (cls.ASSIGN_EXPR, cls.MACRO_NODE_ASSIGN):
+                mbody.append(node.value_expr())
         o.node = DefMacro(name.value(), [p.value() for p in params], mbody)
         o.node.set_location(*make_location(context, loc))
         o.value_holder = o.node

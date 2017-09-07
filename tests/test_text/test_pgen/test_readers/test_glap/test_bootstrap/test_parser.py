@@ -56,7 +56,8 @@ from doit.support.cmd.commands import \
     Block, If, Foreach, While, DoWhile, Break, Continue, \
     Call, Return, \
     TryCatchFinally, Throw, Rethrow, \
-    GetMember
+    SetItem, \
+    SetMember, GetMember
 
 from doit.text.pgen.errors import ParsingError
 
@@ -3534,6 +3535,618 @@ ast_152 = DefModule("A", [
     ).set_location(name_152, 3, 3)
 ]).set_location(name_152, 1, 1)
 test_samples.append((True, name_152, sample_152, ast_152))
+
+name_153 = "sample_153.g"
+sample_153 = """\
+module A
+  defmacro m (-1;)
+end
+"""
+ast_153 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(Neg,
+            sl_(MacroNode(Const,
+                MacroNodeAtom(1)
+            ), name_153, 2, 16)
+        ), name_153, 2, 15)
+    ]).set_location(name_153, 2, 3)
+]).set_location(name_153, 1, 1)
+test_samples.append((True, name_153, sample_153, ast_153))
+
+name_154 = "sample_154.g"
+sample_154 = """\
+module A
+  defmacro m (a[0];)
+end
+"""
+ast_154 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(GetItem,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("a")
+            ), name_154, 2, 15),
+            sl_(MacroNode(Const,
+                MacroNodeAtom(0)
+            ), name_154, 2, 17)
+        ), name_154, 2, 16)
+    ]).set_location(name_154, 2, 3)
+]).set_location(name_154, 1, 1)
+test_samples.append((True, name_154, sample_154, ast_154))
+
+name_155 = "sample_155.g"
+sample_155 = """\
+module A
+  defmacro m (a:b;)
+end
+"""
+ast_155 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(GetMember,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("a")
+            ), name_155, 2, 15),
+            MacroNodeAtom("b")
+        ), name_155, 2, 16)
+    ]).set_location(name_155, 2, 3)
+]).set_location(name_155, 1, 1)
+test_samples.append((True, name_155, sample_155, ast_155))
+
+name_156 = "sample_156.g"
+sample_156 = """\
+module A
+  defmacro m (x = y;)
+end
+"""
+ast_156 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(SetLocal,
+            MacroNodeAtom("x"),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("y")
+            ), name_156, 2, 19)
+        ), name_156, 2, 17)
+    ]).set_location(name_156, 2, 3)
+]).set_location(name_156, 1, 1)
+test_samples.append((True, name_156, sample_156, ast_156))
+
+name_157 = "sample_157.g"
+sample_157 = """\
+module A
+  defmacro m (x += y;)
+end
+"""
+ast_157 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(SetLocal,
+            MacroNodeAtom("x"),
+            sl_(MacroNode(Add,
+                sl_(MacroNode(GetLocal,
+                    MacroNodeAtom("x")
+                ), name_157, 2, 15),
+                sl_(MacroNode(GetLocal,
+                    MacroNodeAtom("y")
+                ), name_157, 2, 20)
+            ), name_157, 2, 17)
+        ), name_157, 2, 17)
+    ]).set_location(name_157, 2, 3)
+]).set_location(name_157, 1, 1)
+test_samples.append((True, name_157, sample_157, ast_157))
+
+name_158 = "sample_158.g"
+sample_158 = """\
+module A
+  defmacro m (x[y] = z;)
+  x[y] = z;
+end
+"""
+ast_158 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(SetItem,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("x")
+            ), name_158, 2, 15),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("y")
+            ), name_158, 2, 17),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("z")
+            ), name_158, 2, 22)
+        ), name_158, 2, 20)
+    ]).set_location(name_158, 2, 3),
+    SetItem(
+        GetLocal("x").set_location(name_158, 3, 3),
+        GetLocal("y").set_location(name_158, 3, 5),
+        GetLocal("z").set_location(name_158, 3, 10)
+    ).set_location(name_158, 3, 8)
+]).set_location(name_158, 1, 1)
+test_samples.append((True, name_158, sample_158, ast_158))
+
+name_159 = "sample_159.g"
+sample_159 = """\
+module A
+  defmacro m (x[y] += z;)
+  x[y] += z;
+end
+"""
+ast_159 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(SetItem,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("x")
+            ), name_159, 2, 15),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("y")
+            ), name_159, 2, 17),
+            sl_(MacroNode(Add,
+                sl_(MacroNode(GetItem,
+                    sl_(MacroNode(GetLocal,
+                        MacroNodeAtom("x")
+                    ), name_159, 2, 15),
+                    sl_(MacroNode(GetLocal,
+                        MacroNodeAtom("y")
+                    ), name_159, 2, 17)
+                ), name_159, 2, 16),
+                sl_(MacroNode(GetLocal,
+                    MacroNodeAtom("z")
+                ), name_159, 2, 23)
+            ), name_159, 2, 20)
+        ), name_159, 2, 20)
+    ]).set_location(name_159, 2, 3),
+    SetItem(
+        GetLocal("x").set_location(name_159, 3, 3),
+        GetLocal("y").set_location(name_159, 3, 5),
+        Add(
+            GetItem(
+                GetLocal("x").set_location(name_159, 3, 3),
+                GetLocal("y").set_location(name_159, 3, 5)
+            ).set_location(name_159, 3, 4),
+            GetLocal("z").set_location(name_159, 3, 11)
+        ).set_location(name_159, 3, 8)
+    ).set_location(name_159, 3, 8)
+]).set_location(name_159, 1, 1)
+test_samples.append((True, name_159, sample_159, ast_159))
+
+name_160 = "sample_160.g"
+sample_160 = """\
+module A
+  defmacro m (x:y = z;)
+  x:y = z;
+end
+"""
+ast_160 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(SetMember,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("x")
+            ), name_160, 2, 15),
+            MacroNodeAtom("y"),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("z")
+            ), name_160, 2, 21)
+        ), name_160, 2, 19)
+    ]).set_location(name_160, 2, 3),
+    SetMember(
+        GetLocal("x").set_location(name_160, 3, 3),
+        "y",
+        GetLocal("z").set_location(name_160, 3, 9)
+    ).set_location(name_160, 3, 7)
+]).set_location(name_160, 1, 1)
+test_samples.append((True, name_160, sample_160, ast_160))
+
+name_161 = "sample_161.g"
+sample_161 = """\
+module A
+  defmacro m (x:y += z;)
+  x:y += z;
+end
+"""
+ast_161 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(SetMember,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("x")
+            ), name_161, 2, 15),
+            MacroNodeAtom("y"),
+            sl_(MacroNode(Add,
+                sl_(MacroNode(GetMember,
+                    sl_(MacroNode(GetLocal,
+                        MacroNodeAtom("x")
+                    ), name_161, 2, 15),
+                    MacroNodeAtom("y")
+                ), name_161, 2, 16),
+                sl_(MacroNode(GetLocal,
+                    MacroNodeAtom("z")
+                ), name_161, 2, 22)
+            ), name_161, 2, 19)
+        ), name_161, 2, 19)
+    ]).set_location(name_161, 2, 3),
+    SetMember(
+        GetLocal("x").set_location(name_161, 3, 3),
+        "y",
+        Add(
+            GetMember(
+                GetLocal("x").set_location(name_161, 3, 3),
+                "y"
+            ).set_location(name_161, 3, 4),
+            GetLocal("z").set_location(name_161, 3, 10)
+        ).set_location(name_161, 3, 7)
+    ).set_location(name_161, 3, 7)
+]).set_location(name_161, 1, 1)
+test_samples.append((True, name_161, sample_161, ast_161))
+
+name_162 = "sample_162.g"
+sample_162 = """\
+module A
+  1 = 2;
+end
+"""
+ast_162 = None
+test_samples.append((False, name_162, sample_162, ast_162))
+
+name_163 = "sample_163.g"
+sample_163 = """\
+module A
+  defmacro m (f a b $c;)
+end
+"""
+ast_163 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(Call,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("f")
+            ), name_163, 2, 15),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("a")
+            ), name_163, 2, 17),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("b")
+            ), name_163, 2, 19),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("c")
+            ), name_163, 2, 22)
+        ), name_163, 2, 17)
+    ]).set_location(name_163, 2, 3)
+]).set_location(name_163, 1, 1)
+test_samples.append((True, name_163, sample_163, ast_163))
+
+name_164 = "sample_164.g"
+sample_164 = """\
+module A
+  defmacro m ($(m `a `b);)
+end
+"""
+ast_164 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(Expand,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("m")
+            ), name_164, 2, 17),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("a")
+            ), name_164, 2, 20),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("b")
+            ), name_164, 2, 23)
+        ), name_164, 2, 15)
+    ]).set_location(name_164, 2, 3)
+]).set_location(name_164, 1, 1)
+test_samples.append((True, name_164, sample_164, ast_164))
+
+name_165 = "sample_165.g"
+sample_165 = """\
+module A
+  defmacro m ((1, 2);)
+end
+"""
+ast_165 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(NewPair,
+            sl_(MacroNode(Const,
+                MacroNodeAtom(1)
+            ), name_165, 2, 16),
+            sl_(MacroNode(Const,
+                MacroNodeAtom(2)
+            ), name_165, 2, 19)
+        ), name_165, 2, 15)
+    ]).set_location(name_165, 2, 3)
+]).set_location(name_165, 1, 1)
+test_samples.append((True, name_165, sample_165, ast_165))
+
+name_166 = "sample_166.g"
+sample_166 = """\
+module A
+  defmacro m ([1, 2];)
+end
+"""
+ast_166 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(NewList,
+            sl_(MacroNode(Const,
+                MacroNodeAtom(1)
+            ), name_166, 2, 16),
+            sl_(MacroNode(Const,
+                MacroNodeAtom(2)
+            ), name_166, 2, 19)
+        ), name_166, 2, 15)
+    ]).set_location(name_166, 2, 3)
+]).set_location(name_166, 1, 1)
+test_samples.append((True, name_166, sample_166, ast_166))
+
+name_167 = "sample_167.g"
+sample_167 = """\
+module A
+  defmacro m ([1 => 2];)
+end
+"""
+ast_167 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(NewHashMap,
+            sl_(MacroNode(NewPair,
+                sl_(MacroNode(Const,
+                    MacroNodeAtom(1)
+                ), name_167, 2, 16),
+                sl_(MacroNode(Const,
+                    MacroNodeAtom(2)
+                ), name_167, 2, 21)
+            ), name_167, 2, 16)
+        ), name_167, 2, 15)
+    ]).set_location(name_167, 2, 3)
+]).set_location(name_167, 1, 1)
+test_samples.append((True, name_167, sample_167, ast_167))
+
+name_168 = "sample_168.g"
+sample_168 = """\
+module A
+  defmacro m (({|x y ...z| t = 1; x = 2;});)
+end
+"""
+ast_168 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(Lambda,
+            MacroNodeAtom(["x", "y", "z"]),
+            MacroNodeAtom(True),
+            MacroNodeSequence(
+                sl_(MacroNode(SetLocal,
+                    MacroNodeAtom("t"),
+                    sl_(MacroNode(Const,
+                        MacroNodeAtom(1)
+                    ), name_168, 2, 32)
+                ), name_168, 2, 30),
+                sl_(MacroNode(SetLocal,
+                    MacroNodeAtom("x"),
+                    sl_(MacroNode(Const,
+                        MacroNodeAtom(2)
+                    ), name_168, 2, 39)
+                ), name_168, 2, 37)
+            ),
+            MacroNodeAtom(["t"])
+        ), name_168, 2, 16)
+    ]).set_location(name_168, 2, 3)
+]).set_location(name_168, 1, 1)
+test_samples.append((True, name_168, sample_168, ast_168))
+
+name_169 = "sample_169.g"
+sample_169 = """\
+module A
+  defmacro m ({1; 2; 3;})
+end
+"""
+ast_169 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(Block,
+            sl_(MacroNode(Const,
+                MacroNodeAtom(1)
+            ), name_169, 2, 16),
+            sl_(MacroNode(Const,
+                MacroNodeAtom(2)
+            ), name_169, 2, 19),
+            sl_(MacroNode(Const,
+                MacroNodeAtom(3)
+            ), name_169, 2, 22)
+        ), name_169, 2, 15)
+    ]).set_location(name_169, 2, 3)
+]).set_location(name_169, 1, 1)
+test_samples.append((True, name_169, sample_169, ast_169))
+
+name_170 = "sample_170.g"
+sample_170 = """\
+module A
+  defmacro m (
+    if 1 {1;}
+    elif 2 {2;}
+    else {3;}
+  )
+end
+"""
+ast_170 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(If,
+            sl_(MacroNode(Const,
+                MacroNodeAtom(1)
+            ), name_170, 3, 8),
+            MacroNodeSequence(
+                sl_(MacroNode(Const,
+                    MacroNodeAtom(1)
+                ), name_170, 3, 11)
+            ),
+            MacroNodeSequence(
+                sl_(MacroNode(If,
+                    sl_(MacroNode(Const,
+                        MacroNodeAtom(2)
+                    ), name_170, 4, 10),
+                    MacroNodeSequence(
+                        sl_(MacroNode(Const,
+                            MacroNodeAtom(2)
+                        ), name_170, 4, 13)
+                    ),
+                    MacroNodeSequence(
+                        sl_(MacroNode(Const,
+                            MacroNodeAtom(3)
+                        ), name_170, 5, 11)
+                    )
+                ), name_170, 4, 5)
+            )
+        ), name_170, 3, 5)
+    ]).set_location(name_170, 2, 3)
+]).set_location(name_170, 1, 1)
+test_samples.append((True, name_170, sample_170, ast_170))
+
+name_171 = "sample_171.g"
+sample_171 = """\
+module A
+  defmacro m (foreach i x {1;})
+end
+"""
+ast_171 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(Foreach,
+            MacroNodeAtom("i"),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("x")
+            ), name_171, 2, 25),
+            MacroNodeSequence(
+                sl_(MacroNode(Const,
+                    MacroNodeAtom(1)
+                ), name_171, 2, 28)
+            )
+        ), name_171, 2, 15)
+    ]).set_location(name_171, 2, 3)
+]).set_location(name_171, 1, 1)
+test_samples.append((True, name_171, sample_171, ast_171))
+
+name_172 = "sample_172.g"
+sample_172 = """\
+module A
+  defmacro m (while x {y;})
+end
+"""
+ast_172 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(While,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("x")
+            ), name_172, 2, 21),
+            MacroNodeSequence(
+                sl_(MacroNode(GetLocal,
+                    MacroNodeAtom("y")
+                ), name_172, 2, 24)
+            )
+        ), name_172, 2, 15)
+    ]).set_location(name_172, 2, 3)
+]).set_location(name_172, 1, 1)
+test_samples.append((True, name_172, sample_172, ast_172))
+
+name_173 = "sample_173.g"
+sample_173 = """\
+module A
+  defmacro m (do {x;} while y;)
+end
+"""
+ast_173 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(DoWhile,
+            MacroNodeSequence(
+                sl_(MacroNode(GetLocal,
+                    MacroNodeAtom("x")
+                ), name_173, 2, 19)
+            ),
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("y")
+            ), name_173, 2, 29)
+        ), name_173, 2, 15)
+    ]).set_location(name_173, 2, 3)
+]).set_location(name_173, 1, 1)
+test_samples.append((True, name_173, sample_173, ast_173))
+
+name_174 = "sample_174.g"
+sample_174 = """\
+module A
+  defmacro m (break; continue; return; return 0;)
+end
+"""
+ast_174 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(Break), name_174, 2, 15),
+        sl_(MacroNode(Continue), name_174, 2, 22),
+        sl_(MacroNode(Return), name_174, 2, 32),
+        sl_(MacroNode(Return,
+            sl_(MacroNode(Const,
+                MacroNodeAtom(0)
+            ), name_174, 2, 47)
+        ), name_174, 2, 40)
+    ]).set_location(name_174, 2, 3)
+]).set_location(name_174, 1, 1)
+test_samples.append((True, name_174, sample_174, ast_174))
+
+name_175 = "sample_175.g"
+sample_175 = """\
+module A
+  defmacro m (
+    try {
+      1;
+    }
+    catch Error e {
+      e;
+    }
+    finally {
+      0;
+    }
+  )
+end
+"""
+ast_175 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(TryCatchFinally,
+            MacroNodeSequence(
+                sl_(MacroNode(Const,
+                    MacroNodeAtom(1)
+                ), name_175, 4, 7)
+            ),
+            MacroNodeSequence(
+                MacroNodeSequence(
+                    MacroNodeAtom("Error"),
+                    MacroNodeAtom("e"),
+                    MacroNodeSequence(
+                        sl_(MacroNode(GetLocal,
+                            MacroNodeAtom("e")
+                        ), name_175, 7, 7)
+                    )
+                )
+            ),
+            MacroNodeSequence(
+                sl_(MacroNode(Const,
+                    MacroNodeAtom(0)
+                ), name_175, 10, 7)
+            )
+        ), name_175, 3, 5)
+    ]).set_location(name_175, 2, 3)
+]).set_location(name_175, 1, 1)
+test_samples.append((True, name_175, sample_175, ast_175))
+
+name_176 = "sample_176.g"
+sample_176 = """\
+module A
+  defmacro m (throw e; throw Error, "failed";)
+end
+"""
+ast_176 = DefModule("A", [
+    DefMacro("m", [], [
+        sl_(MacroNode(Rethrow,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("e")
+            ), name_176, 2, 21)
+        ), name_176, 2, 15),
+        sl_(MacroNode(Throw,
+            sl_(MacroNode(GetLocal,
+                MacroNodeAtom("Error")
+            ), name_176, 2, 30),
+            sl_(MacroNode(Const,
+                MacroNodeAtom("failed")
+            ), name_176, 2, 37)
+        ), name_176, 2, 24)
+    ]).set_location(name_176, 2, 3)
+]).set_location(name_176, 1, 1)
+test_samples.append((True, name_176, sample_176, ast_176))
 
 class TestGlapParserCase(unittest.TestCase):
 
