@@ -33,10 +33,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from doit.support.utils import Functor
+from doit.support.utils import \
+    Functor
 
 from doit.support.cmd.runtime import \
     Location
+
 from doit.support.cmd.commands import \
     Const, \
     MacroNode, MacroNodeSequence, MacroNodeAtom, MacroNodeParam, \
@@ -58,11 +60,20 @@ from doit.support.cmd.commands import \
     SetItem, \
     SetMember, GetMember
 
-from doit.text.pgen.errors import ParsingError
-from doit.text.pgen.readers.reader import Reader
+from doit.text.pgen.errors import \
+    ParsingError
+
+from doit.text.pgen.readers.reader import \
+    Reader
 
 from doit.text.pgen.models.action import \
+    LogAndExpr as ALogAndExpr, LogOrExpr as ALogOrExpr, NotExpr as ANotExpr, \
+    EqExpr as AEqExpr, NotEqExpr as ANotEqExpr, LtExpr as ALtExpr, \
+        GtExpr as AGtExpr, LeExpr as ALeExpr, GeExpr as AGeExpr, \
+    Id as AId, IntLiteral as AIntLiteral, FloatLiteral as AFloatLiteral, \
+        StringLiteral as AStringLiteral, \
     Block as ABlock
+
 from doit.text.pgen.models.cfgram import \
     Epsilon, Sym, Literal, Var, Range, Action, \
     SetMinus
@@ -74,6 +85,9 @@ ie_ = lambda msg: "%s (%s; %s)" % (
     msg,
     "internal error",
     "if you see this text, the command compiler is probably buggy"
+)
+mn_ = lambda ncls, ctx, loc, *args: (
+    ncls(*args).set_location(*make_location(ctx, loc))
 )
 
 def make_location(context, loc = -1):
@@ -1558,8 +1572,8 @@ class GlapParserActions(object):
           'c_stmt(throw)': (lambda *args:
               GlapCompileCmdHelper.make_throw(*args)
           ),
-          'a_stmt(block)': (lambda _, s: ABlock(s)),
-          'a_stmt(expr)': (lambda _, e: e),
+          'a_stmt(block)': (lambda *args: mn_(ABlock, *args)),
+          'a_stmt(expr)': (lambda ctx, loc, e: e),
           'a_stmt(_=_)': (lambda _, l, r: AAssign(l, r)),
           'a_stmt(_+=_)': (lambda _, l, r: AInplaceAdd(l, r)),
           'a_stmt(_-=_)': (lambda _, l, r: AInplaceSub(l, r)),
@@ -1580,14 +1594,14 @@ class GlapParserActions(object):
           'a_stmt(continue)': (lambda _: AContinue()),
           'a_stmt(return)': (lambda _: AReturn()),
           'a_stmt(return(expr))': (lambda _, v: AReturnWithValue(v)),
-          'a_expr(_||_)': (lambda _, l, r: ALogOrExpr(l, r)),
-          'a_expr(_&&_)': (lambda _, l, r: ALogAndExpr(l, r)),
-          'a_expr(_<_)': (lambda _, l, r: ALtExpr(l, r)),
-          'a_expr(_>_)': (lambda _, l, r: AGtExpr(l, r)),
-          'a_expr(_<=_)': (lambda _, l, r: ALeExpr(l, r)),
-          'a_expr(_>=_)': (lambda _, l, r: AGeExpr(l, r)),
-          'a_expr(_==_)': (lambda _, l, r: AEqExpr(l, r)),
-          'a_expr(_!=_)': (lambda _, l, r: ANotEqExpr(l, r)),
+          'a_expr(_||_)': (lambda *args: mn_(ALogOrExpr, *args)),
+          'a_expr(_&&_)': (lambda *args: mn_(ALogAndExpr, *args)),
+          'a_expr(_<_)': (lambda *args: mn_(ALtExpr, *args)),
+          'a_expr(_>_)': (lambda *args: mn_(AGtExpr, *args)),
+          'a_expr(_<=_)': (lambda *args: mn_(ALeExpr, *args)),
+          'a_expr(_>=_)': (lambda *args: mn_(AGeExpr, *args)),
+          'a_expr(_==_)': (lambda *args: mn_(AEqExpr, *args)),
+          'a_expr(_!=_)': (lambda *args: mn_(ANotEqExpr, *args)),
           'a_expr(_|_)': (lambda _, l, r: ABitOrExpr(l, r)),
           'a_expr(_&_)': (lambda _, l, r: ABitAndExpr(l, r)),
           'a_expr(_^_)': (lambda _, l, r: ABitXorExpr(l, r)),
@@ -1604,10 +1618,10 @@ class GlapParserActions(object):
           'a_expr(_(_))': (lambda _, f, al: ACallExpr(f, al)),
           'a_expr(_[_])': (lambda _, e, i: AIndexExpr(e, i)),
           'a_expr(_.ID)': (lambda _, e, i: AAccessExpr(e, i)),
-          'a_expr_atom(ID)': (lambda _, v: AId(v.value())),
-          'a_expr_atom(INT)': (lambda _, v: AIntLiteral(v.value())),
-          'a_expr_atom(FLOAT)': (lambda _, v: AFloatLiteral(v.value())),
-          'a_expr_atom(STR)': (lambda _, v: AStringLiteral(v.value())),
+          'a_expr_atom(ID)': (lambda *args: mn_(AId, *args)),
+          'a_expr_atom(INT)': (lambda *args: mn_(AIntLiteral, *args)),
+          'a_expr_atom(FLOAT)': (lambda *args: mn_(AFloatLiteral, *args)),
+          'a_expr_atom(STR)': (lambda *args: mn_(AStringLiteral, *args)),
           'unwrap': self.on_unwrap
         }
     #-def
@@ -1749,13 +1763,13 @@ class GlapParserActions(object):
         """
         """
 
-        v = t.value()
+        v = t.value(True)
         if v == "":
             node = Epsilon()
         elif len(v) == 1:
             node = Sym(v)
         else:
-            node = Literal(t)
+            node = Literal(v)
         node.set_location(*make_location(context, t.position()))
         return node
     #-def

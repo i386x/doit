@@ -39,6 +39,17 @@ from doit.text.pgen.models.ast import AbstractSyntaxTree
 
 class TestAbstractSyntaxTreeCase(unittest.TestCase):
 
+    def test_equality(self):
+        a = AbstractSyntaxTree().set_location("a", 1, 2)
+        b = AbstractSyntaxTree().set_location("b", 1, 2)
+        c = AbstractSyntaxTree().set_location("a", 1, 2)
+
+        self.assertNotEqual(a, 1)
+        self.assertEqual(a, a)
+        self.assertNotEqual(a, b)
+        self.assertEqual(a, c)
+    #-def
+
     def test_abstract_syntax_tree_initialization(self):
         AbstractSyntaxTree()
     #-def

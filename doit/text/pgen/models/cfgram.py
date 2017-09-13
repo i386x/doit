@@ -35,15 +35,23 @@ IN THE SOFTWARE.\
 
 import collections
 
-from doit.support.errors import doit_assert as _assert
+from doit.support.errors import \
+    doit_assert as _assert
+
 from doit.support.visitnode import \
     VisitableLeaf, UnaryVisitableNode, BinaryVisitableNode
 
-from doit.support.cmd.runtime import UserType
-from doit.support.cmd.commands import Call, ECall
+from doit.support.cmd.runtime import \
+    UserType
 
-from doit.text.pgen.models.ast import AbstractSyntaxTree
-from doit.text.pgen.models.action import ActionNode
+from doit.support.cmd.commands import \
+    Call, ECall
+
+from doit.text.pgen.models.ast import \
+    AbstractSyntaxTree
+
+from doit.text.pgen.models.action import \
+    ActionNode
 
 class RuleNode(AbstractSyntaxTree):
     """
@@ -55,6 +63,21 @@ class RuleNode(AbstractSyntaxTree):
         """
 
         AbstractSyntaxTree.__init__(self)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AbstractSyntaxTree.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def __add__(self, rhs):
@@ -125,6 +148,22 @@ class TerminalNode(RuleNode, VisitableLeaf):
         VisitableLeaf.__init__(self, value)
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and RuleNode.__eq__(self, other) \
+        and VisitableLeaf.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def do_visit(self, processor, f, *args):
         """
         """
@@ -146,6 +185,22 @@ class UnaryNode(RuleNode, UnaryVisitableNode):
 
         RuleNode.__init__(self)
         UnaryVisitableNode.__init__(self, node)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and RuleNode.__eq__(self, other) \
+        and UnaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def do_visit(self, processor, f, *args):
@@ -175,6 +230,22 @@ class BinaryNode(RuleNode, BinaryVisitableNode):
         BinaryVisitableNode.__init__(self, lhs, rhs)
     #-def
 
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and RuleNode.__eq__(self, other) \
+        and BinaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+
     def do_visit(self, processor, f, *args):
         """
         """
@@ -201,6 +272,21 @@ class Epsilon(TerminalNode):
 
         TerminalNode.__init__(self, "")
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and TerminalNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Sym(TerminalNode):
@@ -214,6 +300,21 @@ class Sym(TerminalNode):
 
         _assert(isinstance(v, str) and len(v) == 1, "Character expected")
         TerminalNode.__init__(self, ord(v))
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and TerminalNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def __int__(self):
@@ -236,6 +337,21 @@ class Word(TerminalNode):
         _assert(isinstance(w, str) and len(w) >= 1, "Word expected")
         TerminalNode.__init__(self, w)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and TerminalNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Literal(TerminalNode):
@@ -249,6 +365,21 @@ class Literal(TerminalNode):
 
         TerminalNode.__init__(self, t)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and TerminalNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Var(TerminalNode):
@@ -261,6 +392,21 @@ class Var(TerminalNode):
         """
 
         TerminalNode.__init__(self, name)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and TerminalNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -277,6 +423,21 @@ class Range(TerminalNode):
         _assert(int(b) > int(a), "'b' must be greater than 'a'")
         TerminalNode.__init__(self, (int(a), int(b)))
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and TerminalNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Action(TerminalNode):
@@ -291,6 +452,21 @@ class Action(TerminalNode):
         _assert(isinstance(action, ActionNode), "Action expected")
         TerminalNode.__init__(self, action)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and TerminalNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Alias(UnaryNode):
@@ -303,6 +479,21 @@ class Alias(UnaryNode):
         """
 
         UnaryNode.__init__(self, node)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and UnaryNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -317,6 +508,21 @@ class DoNotRecord(UnaryNode):
 
         UnaryNode.__init__(self, node)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and UnaryNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Complement(UnaryNode):
@@ -329,6 +535,21 @@ class Complement(UnaryNode):
         """
 
         UnaryNode.__init__(self, node)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and UnaryNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -343,6 +564,21 @@ class Iteration(UnaryNode):
 
         UnaryNode.__init__(self, node)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and UnaryNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class PositiveIteration(UnaryNode):
@@ -355,6 +591,21 @@ class PositiveIteration(UnaryNode):
         """
 
         UnaryNode.__init__(self, node)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and UnaryNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -369,6 +620,21 @@ class Optional(UnaryNode):
 
         UnaryNode.__init__(self, node)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and UnaryNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Label(BinaryNode):
@@ -381,6 +647,21 @@ class Label(BinaryNode):
         """
 
         BinaryNode.__init__(self, lhs, Var(rhs))
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -395,6 +676,21 @@ class Catenation(BinaryNode):
 
         BinaryNode.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class SetMinus(BinaryNode):
@@ -408,6 +704,21 @@ class SetMinus(BinaryNode):
 
         BinaryNode.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Alternation(BinaryNode):
@@ -420,6 +731,21 @@ class Alternation(BinaryNode):
         """
 
         BinaryNode.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 

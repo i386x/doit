@@ -225,6 +225,17 @@ class TestIterableCase(unittest.TestCase):
 
 class TestUserTypeCase(unittest.TestCase):
 
+    def test_equality(self):
+        a = UserType().set_location("a", 1, 2)
+        b = UserType().set_location("b", 1, 2)
+        c = UserType().set_location("a", 1, 2)
+
+        self.assertNotEqual(a, 1)
+        self.assertEqual(a, a)
+        self.assertNotEqual(a, b)
+        self.assertEqual(a, c)
+    #-def
+
     def test_UserType(self):
         p = CommandProcessor()
 

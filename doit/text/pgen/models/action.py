@@ -33,13 +33,33 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.\
 """
 
-from doit.support.errors import doit_assert as _assert
+from doit.support.errors import \
+    doit_assert as _assert
+
+from doit.support.utils import \
+    deep_eq
+
 from doit.support.visitnode import \
     VisitableNode, VisitableLeaf, \
     NullaryVisitableNode, UnaryVisitableNode, BinaryVisitableNode, \
         TernaryVisitableNode
 
-from doit.text.pgen.models.ast import AbstractSyntaxTree
+from doit.text.pgen.models.ast import \
+    AbstractSyntaxTree
+
+def eq(x, y):
+    """
+    """
+
+    return EqExpr(x, y)
+#-def
+
+def ne(x, y):
+    """
+    """
+
+    return NotEqExpr(x, y)
+#-def
 
 class ActionNode(AbstractSyntaxTree):
     """
@@ -51,6 +71,21 @@ class ActionNode(AbstractSyntaxTree):
         """
 
         AbstractSyntaxTree.__init__(self)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AbstractSyntaxTree.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -64,6 +99,21 @@ class Expr(ActionNode):
         """
 
         ActionNode.__init__(self)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and ActionNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def __add__(self, rhs):
@@ -150,20 +200,6 @@ class Expr(ActionNode):
         return InvExpr(self)
     #-def
 
-    def __eq__(self, rhs):
-        """
-        """
-
-        return EqExpr(self, rhs)
-    #-def
-
-    def __ne__(self, rhs):
-        """
-        """
-
-        return NotEqExpr(self, rhs)
-    #-def
-
     def __lt__(self, rhs):
         """
         """
@@ -227,6 +263,21 @@ class LExpr(Expr):
 
         Expr.__init__(self)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Expr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class AtomicExpr(Expr, VisitableLeaf):
@@ -240,6 +291,22 @@ class AtomicExpr(Expr, VisitableLeaf):
 
         Expr.__init__(self)
         VisitableLeaf.__init__(self, v)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Expr.__eq__(self, other) \
+        and VisitableLeaf.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -257,6 +324,22 @@ class UnaryExpr(Expr, UnaryVisitableNode):
         )
         Expr.__init__(self)
         UnaryVisitableNode.__init__(self, n)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Expr.__eq__(self, other) \
+        and UnaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -278,6 +361,22 @@ class BinaryExpr(Expr, BinaryVisitableNode):
         Expr.__init__(self)
         BinaryVisitableNode.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Expr.__eq__(self, other) \
+        and BinaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class AddExpr(BinaryExpr):
@@ -290,6 +389,21 @@ class AddExpr(BinaryExpr):
         """
 
         BinaryExpr.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -304,6 +418,21 @@ class SubExpr(BinaryExpr):
 
         BinaryExpr.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class MulExpr(BinaryExpr):
@@ -316,6 +445,21 @@ class MulExpr(BinaryExpr):
         """
 
         BinaryExpr.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -330,6 +474,21 @@ class DivExpr(BinaryExpr):
 
         BinaryExpr.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class ModExpr(BinaryExpr):
@@ -342,6 +501,21 @@ class ModExpr(BinaryExpr):
         """
 
         BinaryExpr.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -356,6 +530,21 @@ class BitAndExpr(BinaryExpr):
 
         BinaryExpr.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class BitOrExpr(BinaryExpr):
@@ -368,6 +557,21 @@ class BitOrExpr(BinaryExpr):
         """
 
         BinaryExpr.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -382,6 +586,21 @@ class BitXorExpr(BinaryExpr):
 
         BinaryExpr.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class ShiftLeftExpr(BinaryExpr):
@@ -394,6 +613,21 @@ class ShiftLeftExpr(BinaryExpr):
         """
 
         BinaryExpr.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -408,6 +642,21 @@ class ShiftRightExpr(BinaryExpr):
 
         BinaryExpr.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class NegExpr(UnaryExpr):
@@ -420,6 +669,21 @@ class NegExpr(UnaryExpr):
         """
 
         UnaryExpr.__init__(self, n)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and UnaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -434,6 +698,21 @@ class InvExpr(UnaryExpr):
 
         UnaryExpr.__init__(self, n)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and UnaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class EqExpr(BinaryExpr):
@@ -446,6 +725,21 @@ class EqExpr(BinaryExpr):
         """
 
         BinaryExpr.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -460,6 +754,21 @@ class NotEqExpr(BinaryExpr):
 
         BinaryExpr.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class LtExpr(BinaryExpr):
@@ -472,6 +781,21 @@ class LtExpr(BinaryExpr):
         """
 
         BinaryExpr.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -486,6 +810,21 @@ class GtExpr(BinaryExpr):
 
         BinaryExpr.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class LeExpr(BinaryExpr):
@@ -498,6 +837,21 @@ class LeExpr(BinaryExpr):
         """
 
         BinaryExpr.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -512,6 +866,21 @@ class GeExpr(BinaryExpr):
 
         BinaryExpr.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class LogAndExpr(BinaryExpr):
@@ -524,6 +893,21 @@ class LogAndExpr(BinaryExpr):
         """
 
         BinaryExpr.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -538,6 +922,21 @@ class LogOrExpr(BinaryExpr):
 
         BinaryExpr.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and BinaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class NotExpr(UnaryExpr):
@@ -550,6 +949,21 @@ class NotExpr(UnaryExpr):
         """
 
         UnaryExpr.__init__(self, n)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and UnaryExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -574,6 +988,24 @@ class CallExpr(Expr, VisitableNode):
         VisitableNode.__init__(self)
         self.__fexpr = fexpr
         self.__args = args
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Expr.__eq__(self, other) \
+        and VisitableNode.__eq__(self, other) \
+        and self.__fexpr == other.__fexpr \
+        and deep_eq(self.__args, other.__args)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def visit(self, f, *args):
@@ -613,6 +1045,22 @@ class IndexExpr(LExpr, BinaryVisitableNode):
         LExpr.__init__(self)
         BinaryVisitableNode.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and LExpr.__eq__(self, other) \
+        and BinaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class AccessExpr(LExpr, BinaryVisitableNode):
@@ -631,6 +1079,22 @@ class AccessExpr(LExpr, BinaryVisitableNode):
         LExpr.__init__(self)
         BinaryVisitableNode.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and LExpr.__eq__(self, other) \
+        and BinaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Id(LExpr, AtomicExpr):
@@ -645,6 +1109,22 @@ class Id(LExpr, AtomicExpr):
         LExpr.__init__(self)
         AtomicExpr.__init__(self, name)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and LExpr.__eq__(self, other) \
+        and AtomicExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Literal(AtomicExpr):
@@ -657,6 +1137,21 @@ class Literal(AtomicExpr):
         """
 
         AtomicExpr.__init__(self, v)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AtomicExpr.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -672,6 +1167,21 @@ class IntLiteral(Literal):
         _assert(isinstance(v, int), "Int expected")
         Literal.__init__(self, v)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Literal.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class FloatLiteral(Literal):
@@ -685,6 +1195,21 @@ class FloatLiteral(Literal):
 
         _assert(isinstance(v, float), "Float expected")
         Literal.__init__(self, v)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Literal.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -700,6 +1225,21 @@ class StringLiteral(Literal):
         _assert(isinstance(v, str), "String expected")
         Literal.__init__(self, v)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Literal.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Statement(ActionNode):
@@ -712,6 +1252,21 @@ class Statement(ActionNode):
         """
 
         ActionNode.__init__(self)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and ActionNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -727,13 +1282,30 @@ class Block(Statement, VisitableNode):
         _assert(isinstance(stmts, (list, tuple)), "List or tuple expected")
         for stmt in stmts:
             _assert(
-                isinstance(stmt, Statement)
+                isinstance(stmt, (Expr, Statement))
                 and isinstance(stmt, VisitableNode),
-                "Visitable statement expected"
+                "Visitable statement or expression expected"
             )
         Statement.__init__(self)
         VisitableNode.__init__(self)
         self.__stmts = stmts
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and VisitableNode.__eq__(self, other) \
+        and deep_eq(self.__stmts, other.__stmts)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def visit(self, f, *args):
@@ -772,6 +1344,22 @@ class AssignBase(Statement, BinaryVisitableNode):
         Statement.__init__(self)
         BinaryVisitableNode.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and BinaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Assign(AssignBase):
@@ -784,6 +1372,21 @@ class Assign(AssignBase):
         """
 
         AssignBase.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -798,6 +1401,21 @@ class InplaceAdd(AssignBase):
 
         AssignBase.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class InplaceSub(AssignBase):
@@ -810,6 +1428,21 @@ class InplaceSub(AssignBase):
         """
 
         AssignBase.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -824,6 +1457,21 @@ class InplaceMul(AssignBase):
 
         AssignBase.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class InplaceDiv(AssignBase):
@@ -836,6 +1484,21 @@ class InplaceDiv(AssignBase):
         """
 
         AssignBase.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -850,6 +1513,21 @@ class InplaceMod(AssignBase):
 
         AssignBase.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class InplaceBitAnd(AssignBase):
@@ -862,6 +1540,21 @@ class InplaceBitAnd(AssignBase):
         """
 
         AssignBase.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -876,6 +1569,21 @@ class InplaceBitOr(AssignBase):
 
         AssignBase.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class InplaceBitXor(AssignBase):
@@ -888,6 +1596,21 @@ class InplaceBitXor(AssignBase):
         """
 
         AssignBase.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -902,6 +1625,21 @@ class InplaceShiftLeft(AssignBase):
 
         AssignBase.__init__(self, lhs, rhs)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class InplaceShiftRight(AssignBase):
@@ -914,6 +1652,21 @@ class InplaceShiftRight(AssignBase):
         """
 
         AssignBase.__init__(self, lhs, rhs)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and AssignBase.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -929,8 +1682,9 @@ class If(Statement, VisitableNode):
         _assert(isinstance(c, Expr) and isinstance(c, VisitableNode),
             "Visitable expression expected"
         )
-        _assert(isinstance(t, Statement) and isinstance(t, VisitableNode),
-            "Visitable statement expected"
+        _assert(
+            isinstance(t, (Expr, Statement)) and isinstance(t, VisitableNode),
+            "Visitable statement or expression expected"
         )
         _assert(isinstance(eict, (list, tuple)), "List or tuple expected")
         for v in eict:
@@ -940,12 +1694,16 @@ class If(Statement, VisitableNode):
             _assert(isinstance(x, Expr) and isinstance(x, VisitableNode),
                 "Visitable expression expected"
             )
-            _assert(isinstance(y, Statement) and isinstance(y, VisitableNode),
-                "Visitable statement expected"
+            _assert(
+                isinstance(y, (Expr, Statement)) \
+                and isinstance(y, VisitableNode),
+                "Visitable statement or expression expected"
             )
         if e is not None:
-            _assert(isinstance(e, Statement) and isinstance(e, VisitableNode),
-                "Visitable statement expected"
+            _assert(
+                isinstance(e, (Expr, Statement)) \
+                and isinstance(e, VisitableNode),
+                "Visitable statement or expression expected"
             )
         Statement.__init__(self)
         VisitableNode.__init__(self)
@@ -953,6 +1711,26 @@ class If(Statement, VisitableNode):
         self.__then_part = t
         self.__elif_parts = eict
         self.__else_part = e
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and VisitableNode.__eq__(self, other) \
+        and self.__condition == other.__condition \
+        and self.__then_part == other.__then_part \
+        and deep_eq(self.__elif_parts, other.__elif_parts) \
+        and self.__else_part == other.__else_part
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def visit(self, f, *args):
@@ -1007,18 +1785,45 @@ class Case(Statement, VisitableNode):
             _assert(isinstance(ce, Expr) and isinstance(ce, VisitableNode),
                 "Visitable expression expected"
             )
-            _assert(
-                isinstance(cb, Statement) and isinstance(cb, VisitableNode),
-                "Visitable statement expected"
-            )
-        _assert(isinstance(d, Statement) and isinstance(d, VisitableNode),
-            "Visitable statement expected"
-        )
+            _assert(isinstance(cb, (list, tuple)), "List or tuple expected")
+            for s_ in cb:
+                _assert(
+                    isinstance(s_, (Expr, Statement)) \
+                    and isinstance(s_, VisitableNode),
+                    "Visitable statement or expression expected"
+                )
+        if d is not None:
+            _assert(isinstance(d, (list, tuple)), "List or tuple expected")
+            for x in d:
+                _assert(
+                    isinstance(x, (Expr, Statement)) \
+                    and isinstance(x, VisitableNode),
+                    "Visitable statement or expression expected"
+                )
         Statement.__init__(self)
         VisitableNode.__init__(self)
         self.__switch_expr = se
         self.__cases = cs
         self.__default = d
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and VisitableNode.__eq__(self, other) \
+        and self.__switch_expr == other.__switch_expr \
+        and deep_eq(self.__cases, other.__cases) \
+        and deep_eq(self.__default, other.__default)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 
     def visit(self, f, *args):
@@ -1029,9 +1834,15 @@ class Case(Statement, VisitableNode):
         rcs = []
         for ce, cb in self.__cases:
             rce = ce.visit(f, *args)
-            rcb = cb.visit(f, *args)
+            rcb = []
+            for x in cb:
+                rcb.append(x.visit(f, *args))
             rcs.append((rce, rcb))
-        rd = self.__default.visit(f, *args)
+        rd = None
+        if self.__default is not None:
+            rd = []
+            for x in self.__default:
+                rd.append(x.visit(f, *args))
         return f(self, rse, rcs, rd, *args)
     #-def
 
@@ -1056,11 +1867,28 @@ class For(Statement, TernaryVisitableNode):
         _assert(isinstance(e, Expr) and isinstance(e, VisitableNode),
             "Visitable expression expected"
         )
-        _assert(isinstance(b, Statement) and isinstance(b, VisitableNode),
-            "Visitable statement expected"
+        _assert(
+            isinstance(b, (Expr, Statement)) and isinstance(b, VisitableNode),
+            "Visitable statement or expression expected"
         )
         Statement.__init__(self)
         TernaryVisitableNode.__init__(self, v, e, b)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and TernaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -1076,11 +1904,28 @@ class While(Statement, BinaryVisitableNode):
         _assert(isinstance(c, Expr) and isinstance(c, VisitableNode),
             "Visitable expression expected"
         )
-        _assert(isinstance(b, Statement) and isinstance(b, VisitableNode),
-            "Visitable statement expected"
+        _assert(
+            isinstance(b, (Expr, Statement)) and isinstance(b, VisitableNode),
+            "Visitable statement or expression expected"
         )
         Statement.__init__(self)
         BinaryVisitableNode.__init__(self, c, b)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and BinaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -1093,14 +1938,31 @@ class DoWhile(Statement, BinaryVisitableNode):
         """
         """
 
-        _assert(isinstance(b, Statement) and isinstance(b, VisitableNode),
-            "Visitable statement expected"
+        _assert(
+            isinstance(b, (Expr, Statement)) and isinstance(b, VisitableNode),
+            "Visitable statement or expression expected"
         )
         _assert(isinstance(c, Expr) and isinstance(c, VisitableNode),
             "Visitable expression expected"
         )
         Statement.__init__(self)
         BinaryVisitableNode.__init__(self, b, c)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and BinaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class
 
@@ -1116,6 +1978,22 @@ class Continue(Statement, NullaryVisitableNode):
         Statement.__init__(self)
         NullaryVisitableNode.__init__(self)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and NullaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
 class Break(Statement, NullaryVisitableNode):
@@ -1130,9 +2008,55 @@ class Break(Statement, NullaryVisitableNode):
         Statement.__init__(self)
         NullaryVisitableNode.__init__(self)
     #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and NullaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
 #-class
 
-class Return(Statement, UnaryVisitableNode):
+class Return(Statement, NullaryVisitableNode):
+    """
+    """
+    __slots__ = []
+
+    def __init__(self):
+        """
+        """
+
+        Statement.__init__(self)
+        NullaryVisitableNode.__init__(self)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and NullaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
+    #-def
+#-class
+
+class ReturnWithValue(Statement, UnaryVisitableNode):
     """
     """
     __slots__ = []
@@ -1146,5 +2070,21 @@ class Return(Statement, UnaryVisitableNode):
         )
         Statement.__init__(self)
         UnaryVisitableNode.__init__(self, e)
+    #-def
+
+    def __eq__(self, other):
+        """
+        """
+
+        return isinstance(other, self.__class__) \
+        and Statement.__eq__(self, other) \
+        and UnaryVisitableNode.__eq__(self, other)
+    #-def
+
+    def __ne__(self, other):
+        """
+        """
+
+        return not self.__eq__(other)
     #-def
 #-class

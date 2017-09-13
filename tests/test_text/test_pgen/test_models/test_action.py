@@ -38,6 +38,7 @@ import unittest
 from doit.support.errors import DoItAssertionError
 
 from doit.text.pgen.models.action import \
+    eq, ne, \
     ActionNode, \
     Expr, LExpr, \
     AtomicExpr, \
@@ -62,9 +63,14 @@ from doit.text.pgen.models.action import \
         Case, \
         For, While, DoWhile, \
         Continue, Break, \
-        Return
+        Return, ReturnWithValue
 
 class TestActionNodeCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertNotEqual(ActionNode(), 1)
+        self.assertEqual(ActionNode(), ActionNode())
+    #-def
 
     def test_action_node_initialization(self):
         ActionNode()
@@ -72,6 +78,161 @@ class TestActionNodeCase(unittest.TestCase):
 #-class
 
 class TestExprCase(unittest.TestCase):
+
+    def test_equality(self):
+        a = AtomicExpr(1)
+        b = AtomicExpr(2)
+        c = AtomicExpr(1)
+
+        self.assertNotEqual(Expr(), 1)
+        self.assertEqual(Expr(), Expr())
+
+        self.assertNotEqual(LExpr(), 1)
+        self.assertEqual(LExpr(), LExpr())
+        self.assertNotEqual(LExpr(), Expr())
+
+        self.assertNotEqual(a, 1)
+        self.assertEqual(a, c)
+        self.assertNotEqual(a, b)
+
+        self.assertNotEqual(UnaryExpr(a), 1)
+        self.assertNotEqual(UnaryExpr(a), UnaryExpr(b))
+        self.assertEqual(UnaryExpr(a), UnaryExpr(c))
+
+        self.assertNotEqual(BinaryExpr(a, b), 1)
+        self.assertNotEqual(BinaryExpr(a, b), BinaryExpr(b, a))
+        self.assertEqual(BinaryExpr(a, c), BinaryExpr(c, a))
+
+        self.assertNotEqual(a + b, 1)
+        self.assertNotEqual(a + b, b + a)
+        self.assertEqual(a + c, c + a)
+        self.assertNotEqual(a + c, c - a)
+
+        self.assertNotEqual(a - b, 1)
+        self.assertNotEqual(a - b, b - a)
+        self.assertEqual(a - c, c - a)
+        self.assertNotEqual(a - c, c * a)
+
+        self.assertNotEqual(a * b, 1)
+        self.assertNotEqual(a * b, b * a)
+        self.assertEqual(a * c, c * a)
+        self.assertNotEqual(a * c, c / a)
+
+        self.assertNotEqual(a / b, 1)
+        self.assertNotEqual(a / b, b / a)
+        self.assertEqual(a / c, c / a)
+        self.assertNotEqual(a / c, c % a)
+
+        self.assertNotEqual(a % b, 1)
+        self.assertNotEqual(a % b, b % a)
+        self.assertEqual(a % c, c % a)
+        self.assertNotEqual(a % c, c + a)
+
+        self.assertNotEqual(a & b, 1)
+        self.assertNotEqual(a & b, b & a)
+        self.assertEqual(a & c, c & a)
+        self.assertNotEqual(a & c, c + a)
+
+        self.assertNotEqual(a | b, 1)
+        self.assertNotEqual(a | b, b | a)
+        self.assertEqual(a | c, c | a)
+        self.assertNotEqual(a | c, c & a)
+
+        self.assertNotEqual(a ^ b, 1)
+        self.assertNotEqual(a ^ b, b ^ a)
+        self.assertEqual(a ^ c, c ^ a)
+        self.assertNotEqual(a ^ c, c | a)
+
+        self.assertNotEqual(a << b, 1)
+        self.assertNotEqual(a << b, b << a)
+        self.assertEqual(a << c, c << a)
+        self.assertNotEqual(a << c, c >> a)
+
+        self.assertNotEqual(a >> b, 1)
+        self.assertNotEqual(a >> b, b >> a)
+        self.assertEqual(a >> c, c >> a)
+        self.assertNotEqual(a >> c, c << a)
+
+        self.assertNotEqual(-a, 1)
+        self.assertNotEqual(-a, -b)
+        self.assertEqual(-a, -c)
+        self.assertNotEqual(-a, ~c)
+
+        self.assertNotEqual(~a, 1)
+        self.assertNotEqual(~a, ~b)
+        self.assertEqual(~a, ~c)
+        self.assertNotEqual(~a, -c)
+
+        self.assertNotEqual(eq(a, b), 1)
+        self.assertNotEqual(eq(a, b), eq(b, a))
+        self.assertEqual(eq(a, c), eq(c, a))
+        self.assertNotEqual(eq(a, c), ne(c, a))
+
+        self.assertNotEqual(ne(a, b), 1)
+        self.assertNotEqual(ne(a, b), ne(b, a))
+        self.assertEqual(ne(a, c), ne(c, a))
+        self.assertNotEqual(ne(a, c), eq(c, a))
+
+        self.assertNotEqual(a < b, 1)
+        self.assertNotEqual(a < b, b < a)
+        self.assertEqual(a < c, c < a)
+        self.assertNotEqual(a < c, c > a)
+
+        self.assertNotEqual(a > b, 1)
+        self.assertNotEqual(a > b, b > a)
+        self.assertEqual(a > c, c > a)
+        self.assertNotEqual(a > c, c < a)
+
+        self.assertNotEqual(a <= b, 1)
+        self.assertNotEqual(a <= b, b <= a)
+        self.assertEqual(a <= c, c <= a)
+        self.assertNotEqual(a <= c, c >= a)
+
+        self.assertNotEqual(a >= b, 1)
+        self.assertNotEqual(a >= b, b >= a)
+        self.assertEqual(a >= c, c >= a)
+        self.assertNotEqual(a >= c, c <= a)
+
+        self.assertNotEqual(LogAndExpr(a, b), 1)
+        self.assertNotEqual(LogAndExpr(a, b), LogAndExpr(b, a))
+        self.assertEqual(LogAndExpr(a, c), LogAndExpr(c, a))
+        self.assertNotEqual(LogAndExpr(a, c), LogOrExpr(c, a))
+
+        self.assertNotEqual(LogOrExpr(a, b), 1)
+        self.assertNotEqual(LogOrExpr(a, b), LogOrExpr(b, a))
+        self.assertEqual(LogOrExpr(a, c), LogOrExpr(c, a))
+        self.assertNotEqual(LogOrExpr(a, c), LogAndExpr(c, a))
+
+        self.assertNotEqual(NotExpr(a), 1)
+        self.assertNotEqual(NotExpr(a), NotExpr(b))
+        self.assertEqual(NotExpr(a), NotExpr(c))
+        self.assertNotEqual(NotExpr(a), -c)
+
+        self.assertNotEqual(a(), 1)
+        self.assertNotEqual(a(a), 1)
+        self.assertNotEqual(a(a, b), 1)
+        self.assertNotEqual(a(a, b, c), 1)
+        self.assertNotEqual(a(), a(a))
+        self.assertEqual(a(a), a(a))
+        self.assertNotEqual(a(a, b), a(b, a))
+        self.assertEqual(a(), c())
+        self.assertEqual(a(a), c(c))
+        self.assertEqual(a(c), c(a))
+        self.assertEqual(a(a, c), a(c, a))
+        self.assertNotEqual(a(a), a[a])
+
+        self.assertNotEqual(a[b], 1)
+        self.assertNotEqual(a[b], b[a])
+        self.assertEqual(a[c], c[a])
+        self.assertNotEqual(a[c], c(a))
+
+        self.assertNotEqual(a.x_, 1)
+        self.assertNotEqual(a.x_, b.x_)
+        self.assertNotEqual(a.x_, a.y_)
+        self.assertEqual(a.x_, a.x_)
+        self.assertEqual(a.x_, c.x_)
+        self.assertNotEqual(a.x_, a[b])
+    #-def
 
     def test_expr_initialization(self):
         Expr()
@@ -130,8 +291,8 @@ class TestExprCase(unittest.TestCase):
         self.assertIsInstance(e1 >> e2, ShiftRightExpr)
         self.assertIsInstance(-e1, NegExpr)
         self.assertIsInstance(~e1, InvExpr)
-        self.assertIsInstance(e1 == e2, EqExpr)
-        self.assertIsInstance(e1 != e2, NotEqExpr)
+        self.assertIsInstance(eq(e1, e2), EqExpr)
+        self.assertIsInstance(ne(e1, e2), NotEqExpr)
         self.assertIsInstance(e1 < e2, LtExpr)
         self.assertIsInstance(e1 > e2, GtExpr)
         self.assertIsInstance(e1 <= e2, LeExpr)
@@ -241,6 +402,33 @@ class TestAccessExprCase(unittest.TestCase):
 
 class TestIdAndLiteralsCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(Id("x"), 1)
+        self.assertNotEqual(Id("x"), AtomicExpr("x"))
+        self.assertNotEqual(Id("x"), Id("y"))
+        self.assertEqual(Id("x"), Id("x"))
+
+        self.assertNotEqual(Literal(1), 1)
+        self.assertNotEqual(Literal("x"), AtomicExpr("x"))
+        self.assertNotEqual(Literal(1), Literal(2))
+        self.assertEqual(Literal(1), Literal(1))
+
+        self.assertNotEqual(IntLiteral(1), 1)
+        self.assertNotEqual(IntLiteral(1), AtomicExpr(1))
+        self.assertNotEqual(IntLiteral(1), IntLiteral(2))
+        self.assertEqual(IntLiteral(1), IntLiteral(1))
+
+        self.assertNotEqual(FloatLiteral(1.0), 1.0)
+        self.assertNotEqual(FloatLiteral(1.0), AtomicExpr(1.0))
+        self.assertNotEqual(FloatLiteral(1.0), FloatLiteral(2.0))
+        self.assertEqual(FloatLiteral(1.0), FloatLiteral(1.0))
+
+        self.assertNotEqual(StringLiteral("1"), "1")
+        self.assertNotEqual(StringLiteral("1"), AtomicExpr("1"))
+        self.assertNotEqual(StringLiteral("1"), StringLiteral("2"))
+        self.assertEqual(StringLiteral("1"), StringLiteral("1"))
+    #-def
+
     def test_id_and_literals(self):
         Id("g")
         Literal(0.1)
@@ -257,6 +445,193 @@ class TestIdAndLiteralsCase(unittest.TestCase):
 #-class
 
 class TestStatementsCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertNotEqual(Statement(), 1)
+        self.assertEqual(Statement(), Statement())
+
+        self.assertNotEqual(Block([]), Statement())
+        self.assertNotEqual(Block([]), Block([Literal(1)]))
+        self.assertNotEqual(Block([Literal(1)]), Block([Literal(2)]))
+        self.assertEqual(Block([Literal(1)]), Block([Literal(1)]))
+
+        self.assertNotEqual(AssignBase(Id("a"), Literal(1)), Statement())
+        self.assertNotEqual(
+            AssignBase(Id("a"), Literal(1)),
+            AssignBase(Id("b"), Literal(1))
+        )
+        self.assertNotEqual(
+            AssignBase(Id("a"), Literal(1)),
+            AssignBase(Id("a"), Literal(2))
+        )
+        self.assertEqual(
+            AssignBase(Id("a"), Literal(1)),
+            AssignBase(Id("a"), Literal(1))
+        )
+
+        self.assertNotEqual(Assign(Id("a"), Literal(1)), Statement())
+        self.assertNotEqual(
+            Assign(Id("a"), Literal(1)),
+            Assign(Id("b"), Literal(1))
+        )
+        self.assertNotEqual(
+            Assign(Id("a"), Literal(1)),
+            Assign(Id("a"), Literal(2))
+        )
+        self.assertEqual(
+            Assign(Id("a"), Literal(1)),
+            Assign(Id("a"), Literal(1))
+        )
+
+        for cls in (
+            InplaceAdd, InplaceSub, InplaceMul, InplaceDiv, InplaceMod,
+            InplaceBitAnd, InplaceBitOr, InplaceBitXor,
+            InplaceShiftLeft, InplaceShiftRight
+        ):
+            self.assertNotEqual(cls(Id("a"), Literal(1)), Statement())
+            self.assertNotEqual(
+                cls(Id("a"), Literal(1)),
+                cls(Id("b"), Literal(1))
+            )
+            self.assertNotEqual(
+                cls(Id("a"), Literal(1)),
+                cls(Id("a"), Literal(2))
+            )
+            self.assertEqual(
+                cls(Id("a"), Literal(1)),
+                cls(Id("a"), Literal(1))
+            )
+
+        self.assertNotEqual(
+            If(Id("a"), Block([Id("b")]), [(Id("c"), Id("d"))], Id("e")),
+            Statement()
+        )
+        self.assertNotEqual(
+            If(Id("a"), Block([Id("b")]), [(Id("c"), Id("d"))], Id("e")),
+            If(Id("a"), Block([Id("b")]), [(Id("c"), Id("d"))], None)
+        )
+        self.assertEqual(
+            If(Id("a"), Block([Id("b")]), [(Id("c"), Id("d"))], None),
+            If(Id("a"), Block([Id("b")]), [(Id("c"), Id("d"))], None)
+        )
+        self.assertNotEqual(
+            If(Id("a"), Block([Id("b")]), [(Id("c"), Id("d"))], Id("e")),
+            If(Id("a"), Block([Id("b")]), [(Id("c"), Id("d"))], Id("f"))
+        )
+        self.assertNotEqual(
+            If(Id("a"), Block([Id("b")]), [(Id("c"), Id("d"))], Id("e")),
+            If(Id("a"), Block([Id("b")]), [(Id("c_"), Id("d"))], Id("e"))
+        )
+        self.assertEqual(
+            If(Id("a"), Block([Id("b")]), [(Id("c"), Id("d"))], Id("e")),
+            If(Id("a"), Block([Id("b")]), [(Id("c"), Id("d"))], Id("e"))
+        )
+
+        self.assertNotEqual(
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d")]),
+            Statement()
+        )
+        self.assertNotEqual(
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d")]),
+            Case(Id("a"), [(Id("b"), [Id("c")])], None)
+        )
+        self.assertNotEqual(
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d")]),
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d_")])
+        )
+        self.assertNotEqual(
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d")]),
+            Case(Id("a"), [(Id("b"), [])], [Id("d")])
+        )
+        self.assertNotEqual(
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d")]),
+            Case(Id("a"), [], [Id("d")])
+        )
+        self.assertNotEqual(
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d")]),
+            Case(Id("a"), [(Id("b"), [Id("c_")])], [Id("d")])
+        )
+        self.assertNotEqual(
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d")]),
+            Case(Id("a_"), [(Id("b"), [Id("c")])], [Id("d")])
+        )
+        self.assertNotEqual(
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d")]),
+            Case(Id("a"), [(Id("b_"), [Id("c")])], [Id("d")])
+        )
+        self.assertEqual(
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d")]),
+            Case(Id("a"), [(Id("b"), [Id("c")])], [Id("d")])
+        )
+
+        self.assertNotEqual(
+            For(Id("a"), Id("b"), Id("c")),
+            Statement()
+        )
+        self.assertNotEqual(
+            For(Id("a"), Id("b"), Id("c")),
+            For(Id("a"), Id("b"), Id("c_"))
+        )
+        self.assertNotEqual(
+            For(Id("a"), Id("b"), Id("c")),
+            For(Id("a"), Id("b_"), Id("c"))
+        )
+        self.assertNotEqual(
+            For(Id("a"), Id("b"), Id("c")),
+            For(Id("a_"), Id("b"), Id("c"))
+        )
+        self.assertEqual(
+            For(Id("a"), Id("b"), Id("c")),
+            For(Id("a"), Id("b"), Id("c"))
+        )
+
+        self.assertNotEqual(
+            While(Id("a"), Id("b")),
+            Statement()
+        )
+        self.assertNotEqual(
+            While(Id("a"), Id("b")),
+            While(Id("a"), Id("b_"))
+        )
+        self.assertNotEqual(
+            While(Id("a"), Id("b")),
+            While(Id("a_"), Id("b"))
+        )
+        self.assertEqual(
+            While(Id("a"), Id("b")),
+            While(Id("a"), Id("b"))
+        )
+
+        self.assertNotEqual(
+            DoWhile(Id("a"), Id("b")),
+            Statement()
+        )
+        self.assertNotEqual(
+            DoWhile(Id("a"), Id("b")),
+            DoWhile(Id("a"), Id("b_"))
+        )
+        self.assertNotEqual(
+            DoWhile(Id("a"), Id("b")),
+            DoWhile(Id("a_"), Id("b"))
+        )
+        self.assertEqual(
+            DoWhile(Id("a"), Id("b")),
+            DoWhile(Id("a"), Id("b"))
+        )
+
+        self.assertNotEqual(Break(), Statement())
+        self.assertEqual(Break(), Break())
+
+        self.assertNotEqual(Continue(), Statement())
+        self.assertEqual(Continue(), Continue())
+
+        self.assertNotEqual(Return(), Statement())
+        self.assertEqual(Return(), Return())
+
+        self.assertNotEqual(ReturnWithValue(Id("a")), Statement())
+        self.assertNotEqual(ReturnWithValue(Id("a")), ReturnWithValue(Id("b")))
+        self.assertEqual(ReturnWithValue(Id("a")), ReturnWithValue(Id("a")))
+    #-def
 
     def test_statement_initialization(self):
         Statement()
@@ -469,8 +844,8 @@ class TestStatementsCase(unittest.TestCase):
             Case(e, [], b)
         with self.assertRaises(DoItAssertionError):
             Case(a, 1, b)
-        Case(a, (), b)
-        Case(a, [], b)
+        Case(a, (), [b])
+        Case(a, [], [b])
         with self.assertRaises(DoItAssertionError):
             Case(a, (1,), b)
         with self.assertRaises(DoItAssertionError):
@@ -489,7 +864,7 @@ class TestStatementsCase(unittest.TestCase):
             Case(a, [(a, b)], 1)
         with self.assertRaises(DoItAssertionError):
             Case(a, [(a, b)], Statement())
-        Case(a, [(a, b)], b)
+        Case(a, [(a, [b])], [b])
     #-def
 
     def test_case_statement_visit_and_traverse(self):
@@ -508,8 +883,14 @@ class TestStatementsCase(unittest.TestCase):
             elif isinstance(node, Case):
                 r = "case (%s) of" % args[0]
                 for n, s in args[1]:
-                    r = "%s %s: %s;" % (r, n, s)
-                return "%s default: %s; esac" % (r, args[2])
+                    r = "%s %s:" % (r, n)
+                    for x in s:
+                        r = "%s %s;" % (r, x)
+                if args[2] is not None:
+                    r = "%s default:" % r
+                    for x in args[2]:
+                        r = "%s %s;" % (r, x)
+                return "%s esac" % r
             return "<bad node>"
         def t(node, *args):
             if isinstance(node, Id):
@@ -523,36 +904,54 @@ class TestStatementsCase(unittest.TestCase):
             elif isinstance(node, Case):
                 r = "case (%s) of" % args[0].traverse(t, args[3])
                 for n, s in args[1]:
-                    r = "%s %s: %s;" % (
-                        r, n.traverse(t, args[3]), s.traverse(t, args[3])
-                    )
-                return "%s default: %s; esac" % (
-                    r, args[2].traverse(t, args[3])
-                )
+                    r = "%s %s:" % (r, n.traverse(t, args[3]))
+                    for x in s:
+                        r = "%s %s;" % (r, x.traverse(t, args[3]))
+                if args[2] is not None:
+                    r = "%s default:" % r
+                    for x in args[2]:
+                        r = "%s %s;" % (r, x.traverse(t, args[3]))
+                return "%s esac" % r
             return "<bad node>"
         self.assertEqual(
-            Case(w, [], d).visit(v, "'"),
+            Case(w, [], [d]).visit(v, "'"),
             "case (w') of default: a' = 3; esac"
         )
         self.assertEqual(
-            Case(w, [], d).traverse(t, "*"),
+            Case(w, [], [d]).traverse(t, "*"),
             "case (*w) of default: *a = 3; esac"
         )
         self.assertEqual(
-            Case(w, [(n1, s1)], d).visit(v, "'"),
+            Case(w, [(n1, [s1])], [d]).visit(v, "'"),
             "case (w') of 1: a' = b'; default: a' = 3; esac"
         )
         self.assertEqual(
-            Case(w, [(n1, s1)], d).traverse(t, "*"),
+            Case(w, [(n1, [s1])], [d]).traverse(t, "*"),
             "case (*w) of 1: *a = *b; default: *a = 3; esac"
         )
         self.assertEqual(
-            Case(w, [(n1, s1), (n2, s2)], d).visit(v, "'"),
+            Case(w, [(n1, [s1]), (n2, [s2])], [d]).visit(v, "'"),
             "case (w') of 1: a' = b'; 2: c' = d'; default: a' = 3; esac"
         )
         self.assertEqual(
-            Case(w, [(n1, s1), (n2, s2)], d).traverse(t, "*"),
+            Case(w, [(n1, [s1]), (n2, [s2])], [d]).traverse(t, "*"),
             "case (*w) of 1: *a = *b; 2: *c = *d; default: *a = 3; esac"
+        )
+        self.assertEqual(
+            Case(w, [(n1, [s1]), (n2, [s2])], None).visit(v, "'"),
+            "case (w') of 1: a' = b'; 2: c' = d'; esac"
+        )
+        self.assertEqual(
+            Case(w, [(n1, [s1]), (n2, [s2])], None).traverse(t, "*"),
+            "case (*w) of 1: *a = *b; 2: *c = *d; esac"
+        )
+        self.assertEqual(
+            Case(w, [(n1, [s1, s2])], [d]).visit(v, "'"),
+            "case (w') of 1: a' = b'; c' = d'; default: a' = 3; esac"
+        )
+        self.assertEqual(
+            Case(w, [(n1, [s1, s2])], [d]).traverse(t, "*"),
+            "case (*w) of 1: *a = *b; *c = *d; default: *a = 3; esac"
         )
     #-def
 
@@ -600,11 +999,12 @@ class TestStatementsCase(unittest.TestCase):
     #-def
 
     def test_return_statement_initialization(self):
+        Return()
         with self.assertRaises(DoItAssertionError):
-            Return(1)
+            ReturnWithValue(1)
         with self.assertRaises(DoItAssertionError):
-            Return(Expr())
-        Return(AtomicExpr(0))
+            ReturnWithValue(Expr())
+        ReturnWithValue(AtomicExpr(0))
     #-def
 #-class
 

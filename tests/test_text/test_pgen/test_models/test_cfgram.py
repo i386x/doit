@@ -35,14 +35,21 @@ IN THE SOFTWARE.\
 
 import unittest
 
-from doit.support.errors import DoItAssertionError
+from doit.support.errors import \
+    DoItAssertionError
 
-from doit.support.cmd.eval import CommandProcessor
+from doit.support.cmd.eval import \
+    CommandProcessor
+
 from doit.support.cmd.commands import \
-    Const, GetLocal, Concat, InstanceOf, GetItem, ToStr, Lambda, If, Return, \
+    Const, GetLocal, \
+    Concat, InstanceOf, GetItem, ToStr, \
+    Lambda, If, Return, \
     Visit
 
-from doit.text.pgen.models.action import Block
+from doit.text.pgen.models.action import \
+    Block
+
 from doit.text.pgen.models.cfgram import \
     RuleNode, \
     TerminalNode, UnaryNode, BinaryNode, \
@@ -52,6 +59,11 @@ from doit.text.pgen.models.cfgram import \
     Grammar
 
 class TestRuleNodeCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertNotEqual(RuleNode(), 1)
+        self.assertEqual(RuleNode(), RuleNode())
+    #-def
 
     def test_rule_node_initialization(self):
         RuleNode()
@@ -77,6 +89,12 @@ class TestRuleNodeCase(unittest.TestCase):
 
 class TestTerminalNodeCase(unittest.TestCase):
 
+    def test_equality(self):
+        self.assertNotEqual(TerminalNode(1), 1)
+        self.assertNotEqual(TerminalNode(1), TerminalNode(2))
+        self.assertEqual(TerminalNode(1), TerminalNode(1))
+    #-def
+
     def test_terminal_node_initialization(self):
         TerminalNode('a')
     #-def
@@ -101,6 +119,16 @@ class TestTerminalNodeCase(unittest.TestCase):
 #-class
 
 class TestUnaryNodeCase(unittest.TestCase):
+
+    def test_equality(self):
+        a = TerminalNode(1)
+        b = TerminalNode(2)
+        c = TerminalNode(1)
+
+        self.assertNotEqual(UnaryNode(a), 1)
+        self.assertNotEqual(UnaryNode(a), UnaryNode(b))
+        self.assertEqual(UnaryNode(a), UnaryNode(c))
+    #-def
 
     def test_unary_node_initialization(self):
         UnaryNode(TerminalNode('x'))
@@ -131,6 +159,16 @@ class TestUnaryNodeCase(unittest.TestCase):
 #-class
 
 class TestBinaryNodeCase(unittest.TestCase):
+
+    def test_equality(self):
+        a = TerminalNode(1)
+        b = TerminalNode(2)
+        c = TerminalNode(1)
+
+        self.assertNotEqual(BinaryNode(a, b), 1)
+        self.assertNotEqual(BinaryNode(a, b), BinaryNode(b, a))
+        self.assertEqual(BinaryNode(a, b), BinaryNode(c, b))
+    #-def
 
     def test_binary_node_initialization(self):
         BinaryNode(TerminalNode('a'), TerminalNode('b'))
@@ -165,6 +203,105 @@ class TestBinaryNodeCase(unittest.TestCase):
 #-class
 
 class TestNodesCase(unittest.TestCase):
+
+    def test_equality(self):
+        self.assertNotEqual(Epsilon(), "")
+        self.assertEqual(Epsilon(), Epsilon())
+
+        self.assertNotEqual(Sym("a"), 97)
+        self.assertNotEqual(Sym("a"), Sym("b"))
+        self.assertEqual(Sym("a"), Sym("a"))
+
+        self.assertNotEqual(Word("abc"), "abc")
+        self.assertNotEqual(Word("abc"), Word("cba"))
+        self.assertEqual(Word("abc"), Word("abc"))
+
+        self.assertNotEqual(Literal("a"), "a")
+        self.assertNotEqual(Literal("a"), Literal("b"))
+        self.assertEqual(Literal("a"), Literal("a"))
+
+        self.assertNotEqual(Var("a"), "a")
+        self.assertNotEqual(Var("a"), Var("b"))
+        self.assertEqual(Var("a"), Var("a"))
+
+        self.assertNotEqual(Range(Sym("a"), Sym("b")), (97, 98))
+        self.assertNotEqual(
+            Range(Sym("a"), Sym("b")), Range(Sym("a"), Sym("c"))
+        )
+        self.assertEqual(Range(Sym("a"), Sym("b")), Range(Sym("a"), Sym("b")))
+
+        self.assertNotEqual(Action(Block([])), [])
+        self.assertNotEqual(Action(Block([])), Action(Block([Block([])])))
+        self.assertEqual(
+            Action(Block([Block([])])), Action(Block([Block([])]))
+        )
+
+        self.assertNotEqual(Alias(Var("a")), "a")
+        self.assertNotEqual(Alias(Var("a")), Alias(Var("b")))
+        self.assertEqual(Alias(Var("a")), Alias(Var("a")))
+
+        self.assertNotEqual(DoNotRecord(Var("a")), "a")
+        self.assertNotEqual(DoNotRecord(Var("a")), DoNotRecord(Var("b")))
+        self.assertEqual(DoNotRecord(Var("a")), DoNotRecord(Var("a")))
+
+        self.assertNotEqual(Complement(Var("a")), "a")
+        self.assertNotEqual(Complement(Var("a")), Complement(Var("b")))
+        self.assertEqual(Complement(Var("a")), Complement(Var("a")))
+
+        self.assertNotEqual(Iteration(Var("a")), "a")
+        self.assertNotEqual(Iteration(Var("a")), Iteration(Var("b")))
+        self.assertEqual(Iteration(Var("a")), Iteration(Var("a")))
+
+        self.assertNotEqual(PositiveIteration(Var("a")), "a")
+        self.assertNotEqual(
+            PositiveIteration(Var("a")), PositiveIteration(Var("b"))
+        )
+        self.assertEqual(
+            PositiveIteration(Var("a")), PositiveIteration(Var("a"))
+        )
+
+        self.assertNotEqual(Optional(Var("a")), "a")
+        self.assertNotEqual(Optional(Var("a")), Optional(Var("b")))
+        self.assertEqual(Optional(Var("a")), Optional(Var("a")))
+
+        self.assertNotEqual(Label(Var("a"), "l"), ("a", "l"))
+        self.assertNotEqual(Label(Var("a"), "l"), Label(Var("a"), "l_"))
+        self.assertNotEqual(Label(Var("a"), "l"), Label(Var("a_"), "l"))
+        self.assertEqual(Label(Var("a"), "l"), Label(Var("a"), "l"))
+
+        self.assertNotEqual(Catenation(Var("a"), Var("b")), "ab")
+        self.assertNotEqual(
+            Catenation(Var("a"), Var("b")), Catenation(Var("a"), Var("b_"))
+        )
+        self.assertNotEqual(
+            Catenation(Var("a"), Var("b")), Catenation(Var("a_"), Var("b"))
+        )
+        self.assertEqual(
+            Catenation(Var("a"), Var("b")), Catenation(Var("a"), Var("b"))
+        )
+
+        self.assertNotEqual(SetMinus(Var("a"), Var("b")), "ab")
+        self.assertNotEqual(
+            SetMinus(Var("a"), Var("b")), SetMinus(Var("a"), Var("b_"))
+        )
+        self.assertNotEqual(
+            SetMinus(Var("a"), Var("b")), SetMinus(Var("a_"), Var("b"))
+        )
+        self.assertEqual(
+            SetMinus(Var("a"), Var("b")), SetMinus(Var("a"), Var("b"))
+        )
+
+        self.assertNotEqual(Alternation(Var("a"), Var("b")), "ab")
+        self.assertNotEqual(
+            Alternation(Var("a"), Var("b")), Alternation(Var("a"), Var("b_"))
+        )
+        self.assertNotEqual(
+            Alternation(Var("a"), Var("b")), Alternation(Var("a_"), Var("b"))
+        )
+        self.assertEqual(
+            Alternation(Var("a"), Var("b")), Alternation(Var("a"), Var("b"))
+        )
+    #-def
 
     def test_nodes(self):
         Epsilon()
