@@ -67,9 +67,17 @@ from doit.text.pgen.readers.reader import \
     Reader
 
 from doit.text.pgen.models.action import \
-    LogAndExpr as ALogAndExpr, LogOrExpr as ALogOrExpr, NotExpr as ANotExpr, \
+    AddExpr as AAddExpr, SubExpr as ASubExpr, MulExpr as AMulExpr, \
+        DivExpr as ADivExpr, ModExpr as AModExpr, \
+    BitAndExpr as ABitAndExpr, BitOrExpr as ABitOrExpr, \
+        BitXorExpr as ABitXorExpr, \
+    ShiftLeftExpr as AShiftLeftExpr, ShiftRightExpr as AShiftRightExpr, \
+    NegExpr as ANegExpr, InvExpr as AInvExpr, \
     EqExpr as AEqExpr, NotEqExpr as ANotEqExpr, LtExpr as ALtExpr, \
         GtExpr as AGtExpr, LeExpr as ALeExpr, GeExpr as AGeExpr, \
+    LogAndExpr as ALogAndExpr, LogOrExpr as ALogOrExpr, NotExpr as ANotExpr, \
+    CallExpr as ACallExpr, \
+    IndexExpr as AIndexExpr, AccessExpr as AAccessExpr, \
     Id as AId, IntLiteral as AIntLiteral, FloatLiteral as AFloatLiteral, \
         StringLiteral as AStringLiteral, \
     Block as ABlock
@@ -1602,22 +1610,29 @@ class GlapParserActions(object):
           'a_expr(_>=_)': (lambda *args: mn_(AGeExpr, *args)),
           'a_expr(_==_)': (lambda *args: mn_(AEqExpr, *args)),
           'a_expr(_!=_)': (lambda *args: mn_(ANotEqExpr, *args)),
-          'a_expr(_|_)': (lambda _, l, r: ABitOrExpr(l, r)),
-          'a_expr(_&_)': (lambda _, l, r: ABitAndExpr(l, r)),
-          'a_expr(_^_)': (lambda _, l, r: ABitXorExpr(l, r)),
-          'a_expr(_<<_)': (lambda _, l, r: AShiftLeftExpr(l, r)),
-          'a_expr(_>>_)': (lambda _, l, r: AShiftRightExpr(l, r)),
-          'a_expr(_+_)': (lambda _, l, r: AAddExpr(l, r)),
-          'a_expr(_-_)': (lambda _, l, r: ASubExpr(l, r)),
-          'a_expr(_*_)': (lambda _, l, r: AMulExpr(l, r)),
-          'a_expr(_/_)': (lambda _, l, r: ADivExpr(l, r)),
-          'a_expr(_%_)': (lambda _, l, r: AModExpr(l, r)),
-          'a_expr(-_)': (lambda _, e: ANegExpr(e)),
-          'a_expr(~_)': (lambda _, e: AInvExpr(e)),
-          'a_expr(!_)': (lambda _, e: ANotExpr(e)),
-          'a_expr(_(_))': (lambda _, f, al: ACallExpr(f, al)),
-          'a_expr(_[_])': (lambda _, e, i: AIndexExpr(e, i)),
-          'a_expr(_.ID)': (lambda _, e, i: AAccessExpr(e, i)),
+          'a_expr(_|_)': (lambda *args: mn_(ABitOrExpr, *args)),
+          'a_expr(_&_)': (lambda *args: mn_(ABitAndExpr, *args)),
+          'a_expr(_^_)': (lambda *args: mn_(ABitXorExpr, *args)),
+          'a_expr(_<<_)': (lambda *args: mn_(AShiftLeftExpr, *args)),
+          'a_expr(_>>_)': (lambda *args: mn_(AShiftRightExpr, *args)),
+          'a_expr(_+_)': (lambda *args: mn_(AAddExpr, *args)),
+          'a_expr(_-_)': (lambda *args: mn_(ASubExpr, *args)),
+          'a_expr(_*_)': (lambda *args: mn_(AMulExpr, *args)),
+          'a_expr(_/_)': (lambda *args: mn_(ADivExpr, *args)),
+          'a_expr(_%_)': (lambda *args: mn_(AModExpr, *args)),
+          'a_expr(-_)': (lambda *args: mn_(ANegExpr, *args)),
+          'a_expr(~_)': (lambda *args: mn_(AInvExpr, *args)),
+          'a_expr(!_)': (lambda *args: mn_(ANotExpr, *args)),
+          'a_expr(_(_))': (lambda *args: mn_(ACallExpr, *args)),
+          'a_expr(_[_])': (lambda *args: mn_(AIndexExpr, *args)),
+          'a_expr(_.ID)': (lambda ctx, loc, lhs, rhs:
+              AAccessExpr(
+                  lhs,
+                  AId(rhs.value()).set_location(
+                      *make_location(ctx, rhs.position())
+                  )
+              ).set_location(*make_location(ctx, loc))
+          ),
           'a_expr_atom(ID)': (lambda *args: mn_(AId, *args)),
           'a_expr_atom(INT)': (lambda *args: mn_(AIntLiteral, *args)),
           'a_expr_atom(FLOAT)': (lambda *args: mn_(AFloatLiteral, *args)),
