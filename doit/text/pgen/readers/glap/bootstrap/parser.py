@@ -1320,7 +1320,9 @@ class GlapParser(object):
                 ">>="
             ]:
                 if not is_lexpr:
-                    raise GlapSyntaxError(lexer, "L-expression was expected")
+                    raise GlapSyntaxError(
+                        self.context, "L-expression was expected"
+                    )
                 lexer.next()
                 expr, _ = self.parse_a_expr(lexer, actions)
                 action[0] = "a_stmt(_%s_)" % tt
@@ -1338,10 +1340,10 @@ class GlapParser(object):
                 eic, _ = self.parse_a_expr(lexer, actions)
                 eib = self.parse_a_block(lexer, actions)
                 elif_parts.append((eic, eib))
-            else_part = []
+            else_part = None
             if lexer.test("else"):
                 lexer.next()
-                else_part.append(self.parse_a_block(lexer, actions))
+                else_part = self.parse_a_block(lexer, actions)
             return actions.run(
                 "a_stmt(if)", self.context, t.position(),
                 cond, then_part, elif_parts, else_part
@@ -1353,20 +1355,27 @@ class GlapParser(object):
             lexer.match("{")
             cases = []
             while not lexer.test("}", "default", None):
+                pos = lexer.token.position()
                 stmt, is_label = self.parse_a_stmt(lexer, actions, True)
                 if not cases and not is_label:
-                    raise GlapSyntaxError(lexer, "Label was expected")
-                cases.append((is_label, stmt))
-            default = []
+                    raise GlapSyntaxError(
+                        self.context, "Label was expected", pos
+                    )
+                if is_label:
+                    cases.append((stmt, []))
+                else:
+                    cases[-1][1].append(stmt)
+            default = None
             if lexer.test("default"):
                 lexer.next()
                 lexer.match(":")
+                default = []
                 while not lexer.test("}", None):
                     stmt, _ = self.parse_a_stmt(lexer, actions)
                     default.append(stmt)
             lexer.match("}")
             return actions.run(
-                "a_stmt(case)", self.context, swe, cases, default
+                "a_stmt(case)", self.context, t.position(), swe, cases, default
             ), False
         elif tt == "for":
             lexer.next()
@@ -1375,14 +1384,14 @@ class GlapParser(object):
             cond, _ = self.parse_a_expr(lexer, actions)
             body = self.parse_a_block(lexer, actions)
             return actions.run(
-                "a_stmt(for)", self.context, var, cond, body
+                "a_stmt(for)", self.context, t.position(), var, cond, body
             ), False
         elif tt == "while":
             lexer.next()
             cond, _ = self.parse_a_expr(lexer, actions)
             body = self.parse_a_block(lexer, actions)
             return actions.run(
-                "a_stmt(while)", self.context, cond, body
+                "a_stmt(while)", self.context, t.position(), cond, body
             ), False
         elif tt == "do":
             lexer.next()
@@ -1391,27 +1400,33 @@ class GlapParser(object):
             cond, _ = self.parse_a_expr(lexer, actions)
             lexer.match(";")
             return actions.run(
-                "a_stmt(do-while)", self.context, body, cond
+                "a_stmt(do-while)", self.context, t.position(), body, cond
             ), False
         elif tt == "break":
             lexer.next()
             lexer.match(";")
-            return actions.run("a_stmt(break)", self.context), False
+            return actions.run(
+                "a_stmt(break)", self.context, t.position()
+            ), False
         elif tt == "continue":
             lexer.next()
             lexer.match(";")
-            return actions.run("a_stmt(continue)", self.context), False
+            return actions.run(
+                "a_stmt(continue)", self.context, t.position()
+            ), False
         elif tt == "return":
             lexer.next()
             if lexer.test(";"):
                 lexer.next()
-                return actions.run("a_stmt(return)", self.context), False
+                return actions.run(
+                    "a_stmt(return)", self.context, t.position()
+                ), False
             expr, _ = self.parse_a_expr(lexer, actions)
             lexer.match(";")
             return actions.run(
-                "a_stmt(return(expr))", self.context, expr
+                "a_stmt(return(expr))", self.context, t.position(), expr
             ), False
-        raise GlapSyntaxError(lexer, "Statement was expected")
+        raise GlapSyntaxError(self.context, "Statement was expected")
     #-def
 
     def parse_a_block(self, lexer, actions):

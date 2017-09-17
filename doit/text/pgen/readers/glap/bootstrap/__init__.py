@@ -80,7 +80,16 @@ from doit.text.pgen.models.action import \
     IndexExpr as AIndexExpr, AccessExpr as AAccessExpr, \
     Id as AId, IntLiteral as AIntLiteral, FloatLiteral as AFloatLiteral, \
         StringLiteral as AStringLiteral, \
-    Block as ABlock
+    Block as ABlock, \
+    Assign as AAssign, InplaceAdd as AInplaceAdd, InplaceSub as AInplaceSub, \
+        InplaceMul as AInplaceMul, InplaceDiv as AInplaceDiv, \
+        InplaceMod as AInplaceMod, InplaceBitAnd as AInplaceBitAnd, \
+        InplaceBitOr as AInplaceBitOr, InplaceBitXor as AInplaceBitXor, \
+        InplaceShiftLeft as AInplaceShiftLeft, \
+        InplaceShiftRight as AInplaceShiftRight, \
+    If as AIf, Case as ACase, For as AFor, While as AWhile, \
+        DoWhile as ADoWhile, Continue as AContinue, Break as ABreak, \
+        Return as AReturn, ReturnWithValue as AReturnWithValue
 
 from doit.text.pgen.models.cfgram import \
     Epsilon, Sym, Literal, Var, Range, Action, \
@@ -1582,26 +1591,33 @@ class GlapParserActions(object):
           ),
           'a_stmt(block)': (lambda *args: mn_(ABlock, *args)),
           'a_stmt(expr)': (lambda ctx, loc, e: e),
-          'a_stmt(_=_)': (lambda _, l, r: AAssign(l, r)),
-          'a_stmt(_+=_)': (lambda _, l, r: AInplaceAdd(l, r)),
-          'a_stmt(_-=_)': (lambda _, l, r: AInplaceSub(l, r)),
-          'a_stmt(_*=_)': (lambda _, l, r: AInplaceMul(l, r)),
-          'a_stmt(_/=_)': (lambda _, l, r: AInplaceDiv(l, r)),
-          'a_stmt(_%=_)': (lambda _, l, r: AInplaceMod(l, r)),
-          'a_stmt(_&=_)': (lambda _, l, r: AInplaceBitAnd(l, r)),
-          'a_stmt(_|=_)': (lambda _, l, r: AInplaceBitOr(l, r)),
-          'a_stmt(_^=_)': (lambda _, l, r: AInplaceBitXor(l, r)),
-          'a_stmt(_<<=_)': (lambda _, l, r: AInplaceShiftLeft(l, r)),
-          'a_stmt(_>>=_)': (lambda _, l, r: AInplaceShiftRight(l, r)),
-          'a_stmt(if)': (lambda _, c, t, ei, e: AIf(c, t, ei, e)),
-          'a_stmt(case)': (lambda _, se, cs, d: ACase(se, cs, d)),
-          'a_stmt(for)': (lambda _, v, c, b: AFor(v, c, b)),
-          'a_stmt(while)': (lambda _, c, b: AWhile(c, b)),
-          'a_stmt(do-while)': (lambda _, b, c: ADoWhile(b, c)),
-          'a_stmt(break)': (lambda _: ABreak()),
-          'a_stmt(continue)': (lambda _: AContinue()),
-          'a_stmt(return)': (lambda _: AReturn()),
-          'a_stmt(return(expr))': (lambda _, v: AReturnWithValue(v)),
+          'a_stmt(_=_)': (lambda *args: mn_(AAssign, *args)),
+          'a_stmt(_+=_)': (lambda *args: mn_(AInplaceAdd, *args)),
+          'a_stmt(_-=_)': (lambda *args: mn_(AInplaceSub, *args)),
+          'a_stmt(_*=_)': (lambda *args: mn_(AInplaceMul, *args)),
+          'a_stmt(_/=_)': (lambda *args: mn_(AInplaceDiv, *args)),
+          'a_stmt(_%=_)': (lambda *args: mn_(AInplaceMod, *args)),
+          'a_stmt(_&=_)': (lambda *args: mn_(AInplaceBitAnd, *args)),
+          'a_stmt(_|=_)': (lambda *args: mn_(AInplaceBitOr, *args)),
+          'a_stmt(_^=_)': (lambda *args: mn_(AInplaceBitXor, *args)),
+          'a_stmt(_<<=_)': (lambda *args: mn_(AInplaceShiftLeft, *args)),
+          'a_stmt(_>>=_)': (lambda *args: mn_(AInplaceShiftRight, *args)),
+          'a_stmt(if)': (lambda *args: mn_(AIf, *args)),
+          'a_stmt(case)': (lambda *args: mn_(ACase, *args)),
+          'a_stmt(for)': (lambda ctx, loc, v, e, b:
+              AFor(
+                  AId(v.value()).set_location(
+                      *make_location(ctx, v.position())
+                  ),
+                  e, b
+              ).set_location(*make_location(ctx, loc))
+          ),
+          'a_stmt(while)': (lambda *args: mn_(AWhile, *args)),
+          'a_stmt(do-while)': (lambda *args: mn_(ADoWhile, *args)),
+          'a_stmt(break)': (lambda *args: mn_(ABreak, *args)),
+          'a_stmt(continue)': (lambda *args: mn_(AContinue, *args)),
+          'a_stmt(return)': (lambda *args: mn_(AReturn, *args)),
+          'a_stmt(return(expr))': (lambda *args: mn_(AReturnWithValue, *args)),
           'a_expr(_||_)': (lambda *args: mn_(ALogOrExpr, *args)),
           'a_expr(_&&_)': (lambda *args: mn_(ALogAndExpr, *args)),
           'a_expr(_<_)': (lambda *args: mn_(ALtExpr, *args)),
