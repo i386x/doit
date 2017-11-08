@@ -135,6 +135,11 @@ help:
 	@echo "    test     - run all tests"
 	@echo "    docs     - generate the documentation"
 	@echo "    clean    - remove all generated files"
+	@echo "    stats    - print project statistics (number of lines"
+	@echo "               and number of bytes)"
+	@echo "    stats-s  - print project statistics (only sources)"
+	@echo "    stats-t  - print project statistics (only tests)"
+	@echo "    stats-st - print project statistics (sources and tests)"
 
 test:
 	$(RUNTESTS)
